@@ -11,15 +11,18 @@ version = "0.1.1"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
-[package.metadata.docs.rs]
-features = ["with-image"]
+[features]
+default = ["jpegxl-sys/default"]
+docsrs = ["jpegxl-sys/docsrs"]
+with-image = ["image"]
 
 [dependencies]
 image = {version = "0.23.8", optional = true}
-jpegxl-sys = "0.1.4"
+jpegxl-sys = {version = "0.1.4", default-features = false, optional = true}
 
 [dev-dependencies]
 image = "0.23.8"
 
-[features]
-with-image = ["image"]
+[package.metadata.docs.rs]
+features = ["docsrs", "with-image"]
+no-default-features = true
