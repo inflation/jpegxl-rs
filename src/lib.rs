@@ -21,42 +21,54 @@ along with jpegxl-rs.  If not, see <https://www.gnu.org/licenses/>.
 mod error;
 #[cfg(features = "with-image")]
 mod image_support;
+mod parallel;
 
 use error::*;
 use jpegxl_sys::*;
-use std::ptr::{null, null_mut};
+use std::ffi::c_void;
+use std::ptr::null;
 
 pub use error::JpegxlError;
 pub use jpegxl_sys::JpegxlBasicInfo;
 
 #[cfg(features = "with-image")]
 pub use image_support::*;
+pub use parallel::*;
 
 /// JPEG XL Decoder
 pub struct JpegxlDecoder {
     /// Opaque pointer to underlying JpegxlDecoder
     decoder: *mut jpegxl_sys::JpegxlDecoder,
     /// Basic info about the image. `None` if it have not read the head.
-    basic_info: Option<JpegxlBasicInfo>,
+    pub basic_info: Option<JpegxlBasicInfo>,
 }
 
 impl JpegxlDecoder {
     /// Create a decoder.<br/>
     /// Memory manager and Parallel runner API are WIP.
     // TODO: Add memory manager API
-    // TODO: Add parallel runner API
     pub fn new(
-        manager: *const JpegxlMemoryManager,
-        runner_func: JpegxlParallelRunner,
-        runner_ptr: *mut std::ffi::c_void,
+        memory_manager: Option<JpegxlMemoryManager>,
+        parallel_runner: Option<ParallelRunner>,
     ) -> Option<Self> {
         unsafe {
-            let decoder_ptr = JpegxlDecoderCreate(manager);
+            let manager_ptr = match memory_manager {
+                Some(manager) => &manager as *const JpegxlMemoryManager,
+                None => null(),
+            };
+            let decoder_ptr = JpegxlDecoderCreate(manager_ptr);
             if decoder_ptr.is_null() {
                 return None;
             }
-            let status = JpegxlDecoderSetParallelRunner(decoder_ptr, runner_func, runner_ptr);
-            get_error(status).ok()?;
+
+            if let Some(mut runner) = parallel_runner {
+                let status = JpegxlDecoderSetParallelRunner(
+                    decoder_ptr,
+                    Some(ParallelRunner::runner_func),
+                    &mut runner as *mut ParallelRunner as *mut c_void,
+                );
+                get_error(status).ok()?;
+            }
 
             Some(JpegxlDecoder {
                 decoder: decoder_ptr,
@@ -67,7 +79,7 @@ impl JpegxlDecoder {
 
     /// Create a decoder with default settings, e.g. with default memory allocator and single-threaded.
     pub fn new_with_default() -> Option<Self> {
-        Self::new(null(), None, null_mut())
+        Self::new(None, None)
     }
 
     // TODO: Handle more data types when the underlying library implemented them
@@ -131,7 +143,7 @@ impl JpegxlDecoder {
             status = JpegxlDecoderSetImageOutBuffer(
                 self.decoder,
                 &pixel_format,
-                buffer.as_mut_ptr() as *mut std::ffi::c_void,
+                buffer.as_mut_ptr() as *mut c_void,
                 size,
             );
             get_error(status)?;
@@ -155,7 +167,7 @@ impl Drop for JpegxlDecoder {
 
 #[cfg(test)]
 mod tests {
-    use super::{JpegxlDecoder, JpegxlError};
+    use super::*;
     #[test]
     fn test_decode() -> Result<(), image::ImageError> {
         let sample = std::fs::read("test/sample.jxl")?;
@@ -170,6 +182,26 @@ mod tests {
 
         image.save("sample.png")?;
         std::fs::remove_file("sample.png")?;
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_parallel_decode() -> Result<(), image::ImageError> {
+        let sample = std::fs::read("test/sample.jxl")?;
+        let parallel_runner = ParallelRunner::new();
+
+        let mut decoder = JpegxlDecoder::new(None, Some(parallel_runner))
+            .ok_or(JpegxlError::CannotCreateDecoder)?;
+        let parallel_buffer = decoder.decode(&sample)?;
+
+        decoder = JpegxlDecoder::new_with_default().ok_or(JpegxlError::CannotCreateDecoder)?;
+        let single_buffer = decoder.decode(&sample)?;
+
+        assert!(
+            parallel_buffer == single_buffer,
+            "Multithread runner should be the same as singlethread one"
+        );
 
         Ok(())
     }

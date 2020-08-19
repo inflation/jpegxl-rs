@@ -41,7 +41,7 @@ impl std::fmt::Display for JpegxlError {
 
 impl std::error::Error for JpegxlError {}
 
-#[cfg(any(features = "with-image", test))]
+#[cfg(any(feature = "with-image", test))]
 impl From<JpegxlError> for image::ImageError {
     fn from(e: JpegxlError) -> Self {
         use image::error::{DecodingError, ImageFormatHint};
