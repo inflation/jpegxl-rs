@@ -1,11 +1,18 @@
 #![allow(non_upper_case_globals)]
 
 use jpegxl_sys::*;
+
+/// Errors derived from JpegxlDecoderStatus
 #[derive(Debug)]
 pub enum JpegxlError {
+    /// Cannot create a decoder
     CannotCreateDecoder,
+    /// Unknown Error
+    // TODO: underlying library is working on a way to retrieve error message
     GenericError,
+    /// Need more input bytes
     NeedMoreInput,
+    /// Need more output buffer
     NeedMoreOutput,
 }
 
@@ -28,6 +35,7 @@ impl From<JpegxlError> for image::ImageError {
     }
 }
 
+/// Error mapping from underlying C const to JpegxlError enum
 pub fn get_error(status: JpegxlDecoderStatus) -> Result<(), JpegxlError> {
     match status {
         JpegxlDecoderStatus_JPEGXL_DEC_ERROR => Err(JpegxlError::GenericError),
