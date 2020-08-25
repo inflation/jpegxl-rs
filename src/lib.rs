@@ -21,6 +21,7 @@ along with jpegxl-rs.  If not, see <https://www.gnu.org/licenses/>.
 mod error;
 #[cfg(features = "with-image")]
 mod image_support;
+mod memory;
 mod parallel;
 
 use error::*;
@@ -46,14 +47,13 @@ pub struct JpegxlDecoder {
 impl JpegxlDecoder {
     /// Create a decoder.<br/>
     /// Memory manager and Parallel runner API are WIP.
-    // TODO: Add memory manager API
     pub fn new(
-        memory_manager: Option<JpegxlMemoryManager>,
-        parallel_runner: Option<ParallelRunner>,
+        memory_manager: Option<&JpegxlMemoryManager>,
+        parallel_runner: Option<&mut impl JpegXLParallelRunner>,
     ) -> Option<Self> {
         unsafe {
             let manager_ptr = match memory_manager {
-                Some(manager) => &manager as *const JpegxlMemoryManager,
+                Some(manager) => manager as *const JpegxlMemoryManager,
                 None => null(),
             };
             let decoder_ptr = JpegxlDecoderCreate(manager_ptr);
@@ -61,11 +61,11 @@ impl JpegxlDecoder {
                 return None;
             }
 
-            if let Some(mut runner) = parallel_runner {
+            if let Some(runner) = parallel_runner {
                 let status = JpegxlDecoderSetParallelRunner(
                     decoder_ptr,
-                    Some(ParallelRunner::runner_func),
-                    &mut runner as *mut ParallelRunner as *mut c_void,
+                    Some(runner.runner()),
+                    runner.as_opaque_ptr(),
                 );
                 get_error(status).ok()?;
             }
@@ -79,7 +79,7 @@ impl JpegxlDecoder {
 
     /// Create a decoder with default settings, e.g. with default memory allocator and single-threaded.
     pub fn new_with_default() -> Option<Self> {
-        Self::new(None, None)
+        Self::new(None, None::<&mut ParallelRunner>)
     }
 
     // TODO: Handle more data types when the underlying library implemented them
@@ -187,11 +187,11 @@ mod tests {
     }
 
     #[test]
-    fn test_parallel_decode() -> Result<(), image::ImageError> {
+    fn test_parallel_decode() -> Result<(), Box<dyn std::error::Error>> {
         let sample = std::fs::read("test/sample.jxl")?;
-        let parallel_runner = ParallelRunner::new();
+        let mut parallel_runner = ParallelRunner::new();
 
-        let mut decoder = JpegxlDecoder::new(None, Some(parallel_runner))
+        let mut decoder = JpegxlDecoder::new(None, Some(&mut parallel_runner))
             .ok_or(JpegxlError::CannotCreateDecoder)?;
         let parallel_buffer = decoder.decode(&sample)?;
 
@@ -201,6 +201,59 @@ mod tests {
         assert!(
             parallel_buffer == single_buffer,
             "Multithread runner should be the same as singlethread one"
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_memory_manager() -> Result<(), Box<dyn std::error::Error>> {
+        use memory::JpegxlMemoryManager;
+        use std::alloc::{GlobalAlloc, Layout, System};
+        use std::collections::HashMap;
+
+        struct MallocManager {
+            table: HashMap<usize, Layout>,
+        };
+
+        impl JpegxlMemoryManager for MallocManager {
+            unsafe extern "C" fn alloc(opaque: *mut c_void, size: size_t) -> *mut c_void {
+                let layout = Layout::from_size_align(size as usize, 8).unwrap();
+                let address = System.alloc(layout);
+
+                let manager = (opaque as *mut Self).as_mut().unwrap();
+                manager.table.insert(address as usize, layout);
+
+                address as *mut c_void
+            }
+
+            unsafe extern "C" fn free(opaque: *mut c_void, address: *mut c_void) {
+                let layout = (opaque as *mut Self)
+                    .as_mut()
+                    .unwrap()
+                    .table
+                    .get(&(address as usize))
+                    .unwrap();
+                System.dealloc(address as *mut u8, *layout);
+            }
+        }
+
+        let sample = std::fs::read("test/sample.jxl")?;
+        let memory_manager = (MallocManager {
+            table: HashMap::new(),
+        })
+        .new();
+
+        let mut decoder = JpegxlDecoder::new(Some(&memory_manager), None::<&mut ParallelRunner>)
+            .ok_or(JpegxlError::CannotCreateDecoder)?;
+        let custom_buffer = decoder.decode(&sample)?;
+
+        decoder = JpegxlDecoder::new_with_default().ok_or(JpegxlError::CannotCreateDecoder)?;
+        let default_buffer = decoder.decode(&sample)?;
+
+        assert!(
+            custom_buffer == default_buffer,
+            "Custom memory manager should be the same as default one"
         );
 
         Ok(())
