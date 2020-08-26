@@ -19,10 +19,11 @@ along with jpegxl-rs.  If not, see <https://www.gnu.org/licenses/>.
 //! A safe JPEGXL Decoder wrapper.
 
 mod error;
-#[cfg(features = "with-image")]
-mod image_support;
 mod memory;
 mod parallel;
+
+#[cfg(features = "with-image")]
+mod image_support;
 
 use error::*;
 use jpegxl_sys::*;
@@ -31,10 +32,11 @@ use std::ptr::null;
 
 pub use error::JpegxlError;
 pub use jpegxl_sys::JpegxlBasicInfo;
+pub use memory::*;
+pub use parallel::*;
 
 #[cfg(features = "with-image")]
 pub use image_support::*;
-pub use parallel::*;
 
 /// JPEG XL Decoder
 pub struct JpegxlDecoder {
@@ -48,12 +50,12 @@ impl JpegxlDecoder {
     /// Create a decoder.<br/>
     /// Memory manager and Parallel runner API are WIP.
     pub fn new(
-        memory_manager: Option<&JpegxlMemoryManager>,
+        memory_manager: Option<&JpegxlMemoryManagerStruct>,
         parallel_runner: Option<&mut impl JpegXLParallelRunner>,
     ) -> Option<Self> {
         unsafe {
             let manager_ptr = match memory_manager {
-                Some(manager) => manager as *const JpegxlMemoryManager,
+                Some(manager) => manager as *const JpegxlMemoryManagerStruct,
                 None => null(),
             };
             let decoder_ptr = JpegxlDecoderCreate(manager_ptr);
