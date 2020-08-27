@@ -23,7 +23,7 @@ pub trait JpegxlMemoryManager {
     unsafe extern "C" fn alloc(opaque: *mut c_void, size: size_t) -> *mut c_void;
     unsafe extern "C" fn free(opaque: *mut c_void, address: *mut c_void);
 
-    fn new(&mut self) -> JpegxlMemoryManagerStruct {
+    fn to_manager(&mut self) -> JpegxlMemoryManagerStruct {
         JpegxlMemoryManagerStruct {
             opaque: self.as_opaque_ptr(),
             alloc: Some(Self::alloc),

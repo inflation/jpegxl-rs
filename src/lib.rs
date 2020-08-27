@@ -212,39 +212,35 @@ mod tests {
     fn test_memory_manager() -> Result<(), Box<dyn std::error::Error>> {
         use memory::JpegxlMemoryManager;
         use std::alloc::{GlobalAlloc, Layout, System};
-        use std::collections::HashMap;
 
         struct MallocManager {
-            table: HashMap<usize, Layout>,
+            layout: Layout,
         };
 
         impl JpegxlMemoryManager for MallocManager {
             unsafe extern "C" fn alloc(opaque: *mut c_void, size: size_t) -> *mut c_void {
+                println!("Custom alloc");
                 let layout = Layout::from_size_align(size as usize, 8).unwrap();
                 let address = System.alloc(layout);
 
                 let manager = (opaque as *mut Self).as_mut().unwrap();
-                manager.table.insert(address as usize, layout);
+                manager.layout = layout;
 
                 address as *mut c_void
             }
 
             unsafe extern "C" fn free(opaque: *mut c_void, address: *mut c_void) {
-                let layout = (opaque as *mut Self)
-                    .as_mut()
-                    .unwrap()
-                    .table
-                    .get(&(address as usize))
-                    .unwrap();
-                System.dealloc(address as *mut u8, *layout);
+                println!("Custom dealloc");
+                let layout = (opaque as *mut Self).as_mut().unwrap().layout;
+                System.dealloc(address as *mut u8, layout);
             }
         }
 
         let sample = std::fs::read("test/sample.jxl")?;
         let memory_manager = (MallocManager {
-            table: HashMap::new(),
+            layout: Layout::from_size_align(0, 8)?,
         })
-        .new();
+        .to_manager();
 
         let mut decoder = JpegxlDecoder::new(Some(&memory_manager), None::<&mut ParallelRunner>)
             .ok_or(JpegxlError::CannotCreateDecoder)?;
