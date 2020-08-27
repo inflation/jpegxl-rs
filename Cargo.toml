@@ -12,7 +12,7 @@ version = "0.1.4"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [features]
-default = ["jpegxl-sys/default"]
+default = ["jpegxl-sys/default", "with-image"]
 docsrs = ["jpegxl-sys/docsrs"]
 with-image = ["image"]
 

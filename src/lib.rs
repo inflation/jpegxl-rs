@@ -22,7 +22,7 @@ mod error;
 mod memory;
 mod parallel;
 
-#[cfg(features = "with-image")]
+#[cfg(feature = "with-image")]
 mod image_support;
 
 use error::*;
@@ -35,7 +35,7 @@ pub use jpegxl_sys::JpegxlBasicInfo;
 pub use memory::*;
 pub use parallel::*;
 
-#[cfg(features = "with-image")]
+#[cfg(feature = "with-image")]
 pub use image_support::*;
 
 /// JPEG XL Decoder

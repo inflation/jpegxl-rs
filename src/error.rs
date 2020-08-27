@@ -41,17 +41,6 @@ impl std::fmt::Display for JpegxlError {
 
 impl std::error::Error for JpegxlError {}
 
-#[cfg(any(feature = "with-image", test))]
-impl From<JpegxlError> for image::ImageError {
-    fn from(e: JpegxlError) -> Self {
-        use image::error::{DecodingError, ImageFormatHint};
-        image::ImageError::Decoding(DecodingError::new(
-            ImageFormatHint::Name("JPEGXL".to_string()),
-            e,
-        ))
-    }
-}
-
 /// Error mapping from underlying C const to JpegxlError enum
 pub fn get_error(status: JpegxlDecoderStatus) -> Result<(), JpegxlError> {
     match status {
