@@ -13,6 +13,7 @@ version = "0.1.4"
 
 [features]
 default = ["jpegxl-sys/default", "with-image"]
+build-jpegxl = ["jpegxl-sys/build-jpegxl"]
 docsrs = ["jpegxl-sys/docsrs"]
 with-image = ["image"]
 

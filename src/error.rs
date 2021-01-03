@@ -19,9 +19,9 @@ along with jpegxl-rs.  If not, see <https://www.gnu.org/licenses/>.
 
 use jpegxl_sys::*;
 
-/// Errors derived from JpegxlDecoderStatus
+/// Errors derived from JxlDecoderStatus
 #[derive(Debug)]
-pub enum JpegxlError {
+pub enum JxlError {
     /// Cannot create a decoder
     CannotCreateDecoder,
     /// Unknown Error
@@ -33,20 +33,19 @@ pub enum JpegxlError {
     NeedMoreOutput,
 }
 
-impl std::fmt::Display for JpegxlError {
+impl std::fmt::Display for JxlError {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         write!(f, "{}", self)
     }
 }
 
-impl std::error::Error for JpegxlError {}
+impl std::error::Error for JxlError {}
 
-/// Error mapping from underlying C const to JpegxlError enum
-pub fn get_error(status: JpegxlDecoderStatus) -> Result<(), JpegxlError> {
+/// Error mapping from underlying C const to JxlError enum
+pub fn get_error(status: JxlDecoderStatus) -> Result<(), JxlError> {
     match status {
-        JpegxlDecoderStatus_JPEGXL_DEC_ERROR => Err(JpegxlError::GenericError),
-        JpegxlDecoderStatus_JPEGXL_DEC_NEED_MORE_INPUT => Err(JpegxlError::NeedMoreInput),
-        JpegxlDecoderStatus_JPEGXL_DEC_NEED_MORE_OUTPUT => Err(JpegxlError::NeedMoreOutput),
+        s if s == JxlDecoderStatus_JXL_DEC_ERROR => Err(JxlError::GenericError),
+        s if s == JxlDecoderStatus_JXL_DEC_NEED_MORE_INPUT => Err(JxlError::NeedMoreInput),
         _ => Ok(()),
     }
 }

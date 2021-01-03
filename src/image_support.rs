@@ -2,11 +2,11 @@ use image::error::{DecodingError, ImageFormatHint};
 use image::ColorType;
 use image::ImageDecoder;
 
-use crate::{JpegxlDecoder, JpegxlError};
+use crate::{JxlDecoder, JxlError};
 
 #[cfg(any(feature = "with-image", test))]
-impl From<JpegxlError> for image::ImageError {
-    fn from(e: JpegxlError) -> Self {
+impl From<JxlError> for image::ImageError {
+    fn from(e: JxlError) -> Self {
         image::ImageError::Decoding(DecodingError::new(
             ImageFormatHint::Name("JPEGXL".to_string()),
             e,
@@ -15,15 +15,15 @@ impl From<JpegxlError> for image::ImageError {
 }
 
 /// Jpeg XL representation for `image` crate
-struct JpegxlImage {
+struct JxlImage {
     decoded_buffer: Vec<u8>,
-    decoder: JpegxlDecoder,
+    decoder: JxlDecoder,
 }
 
-impl JpegxlImage {
-    pub fn new(buf: impl AsRef<[u8]>) -> Result<Self, JpegxlError> {
+impl JxlImage {
+    pub fn new(buf: impl AsRef<[u8]>) -> Result<Self, JxlError> {
         let mut decoder =
-            JpegxlDecoder::new_with_default().ok_or(JpegxlError::CannotCreateDecoder)?;
+            JxlDecoder::new_with_default().ok_or(JxlError::CannotCreateDecoder)?;
         let decoded_buffer = decoder.decode(&buf)?;
         Ok(Self {
             decoded_buffer,
@@ -32,7 +32,7 @@ impl JpegxlImage {
     }
 }
 
-impl ImageDecoder<'_> for JpegxlImage {
+impl ImageDecoder<'_> for JxlImage {
     type Reader = Self;
 
     fn dimensions(&self) -> (u32, u32) {
@@ -58,7 +58,7 @@ impl ImageDecoder<'_> for JpegxlImage {
     }
 }
 
-impl std::io::Read for JpegxlImage {
+impl std::io::Read for JxlImage {
     fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
         self.decoded_buffer.as_slice().read(buf)
     }
@@ -71,7 +71,7 @@ mod tests {
     #[test]
     fn test_image_support() -> Result<(), Box<dyn std::error::Error>> {
         let sample = std::fs::read("test/sample.jxl")?;
-        let decoder = JpegxlImage::new(&sample)?;
+        let decoder = JxlImage::new(&sample)?;
 
         let image = image::DynamicImage::from_decoder(decoder)?;
         image.save("sample.png")?;

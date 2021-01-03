@@ -19,12 +19,12 @@ along with jpegxl-rs.  If not, see <https://www.gnu.org/licenses/>.
 use jpegxl_sys::*;
 use std::ffi::c_void;
 
-pub trait JpegxlMemoryManager {
+pub trait JxlMemoryManager {
     unsafe extern "C" fn alloc(opaque: *mut c_void, size: size_t) -> *mut c_void;
     unsafe extern "C" fn free(opaque: *mut c_void, address: *mut c_void);
 
-    fn to_manager(&mut self) -> JpegxlMemoryManagerStruct {
-        JpegxlMemoryManagerStruct {
+    fn to_manager(&mut self) -> JxlMemoryManagerStruct {
+        JxlMemoryManagerStruct {
             opaque: self.as_opaque_ptr(),
             alloc: Some(Self::alloc),
             free: Some(Self::free),

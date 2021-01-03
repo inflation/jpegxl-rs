@@ -21,8 +21,8 @@ along with jpegxl-rs.  If not, see <https://www.gnu.org/licenses/>.
 //! # use jpegxl_rs::*;
 //! # || -> Result<(), Box<dyn std::error::Error>> {
 //! let mut parallel_runner = ParallelRunner::new();
-//! let mut decoder = JpegxlDecoder::new(None, Some(&mut parallel_runner))
-//!             .ok_or(JpegxlError::CannotCreateDecoder)?;
+//! let mut decoder = JxlDecoder::new(None, Some(&mut parallel_runner))
+//!             .ok_or(JxlError::CannotCreateDecoder)?;
 //! # Ok(())
 //! # }();
 //! ```
@@ -32,7 +32,7 @@ use num_cpus;
 use std::ffi::c_void;
 use std::thread;
 
-pub use jpegxl_sys::JpegxlParallelRetCode;
+pub use jpegxl_sys::JxlParallelRetCode;
 
 type ParallelRunnerFn = unsafe extern "C" fn(
     runner_opaque: *mut c_void,
@@ -41,7 +41,7 @@ type ParallelRunnerFn = unsafe extern "C" fn(
     run_func: Option<unsafe extern "C" fn(*mut c_void, u32, u64)>,
     start_range: u32,
     end_range: u32,
-) -> JpegxlParallelRetCode;
+) -> JxlParallelRetCode;
 
 /// JPEG XL Parallel Runner
 pub trait JpegXLParallelRunner {
@@ -54,7 +54,7 @@ pub trait JpegXLParallelRunner {
         run_func: Option<unsafe extern "C" fn(*mut c_void, u32, u64)>,
         start_range: u32,
         end_range: u32,
-    ) -> JpegxlParallelRetCode;
+    ) -> JxlParallelRetCode;
 
     /// Helper function to get an opaque pointer
     fn as_opaque_ptr(&mut self) -> *mut c_void {
@@ -99,7 +99,7 @@ impl JpegXLParallelRunner for ParallelRunner {
         run_func: Option<unsafe extern "C" fn(*mut c_void, u32, u64)>,
         start_range: u32,
         end_range: u32,
-    ) -> JpegxlParallelRetCode {
+    ) -> JxlParallelRetCode {
         let runner = (runner_opaque as *mut ParallelRunner).as_ref().unwrap();
         let ret_code = init_func.unwrap()(jpegxl_opaque, runner.num_threads as size_t);
         if ret_code != 0 {
