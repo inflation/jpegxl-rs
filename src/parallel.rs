@@ -43,7 +43,7 @@ type ParallelRunnerFn = unsafe extern "C" fn(
 ) -> JxlParallelRetCode;
 
 /// JPEG XL Parallel Runner
-pub trait JXLParallelRunner {
+pub trait JXLParallelRunner: std::fmt::Debug {
     /// FFI runner function.
     /// Check `jpeg-xl` header files for more explainations.
     fn runner(&self) -> ParallelRunnerFn;
@@ -55,6 +55,7 @@ pub trait JXLParallelRunner {
 }
 
 /// Example implementation of a multithread runner
+#[derive(Debug)]
 pub struct ParallelRunner {
     num_threads: usize,
 }
@@ -119,11 +120,13 @@ impl Default for ParallelRunner {
 }
 
 #[cfg(not(feature = "without-threads"))]
+#[derive(Debug)]
 /// Wrapper for default threadspool implementation with C++ standard library
 pub struct ThreadsRunner {
     runner_ptr: *mut c_void,
 }
 
+#[cfg(not(feature = "without-threads"))]
 impl ThreadsRunner {
     /// Construct with number of threads
     pub fn new(memory_manager: &JxlMemoryManagerStruct, num_workers: usize) -> Self {
@@ -147,12 +150,14 @@ impl ThreadsRunner {
     }
 }
 
+#[cfg(not(feature = "without-threads"))]
 impl JXLParallelRunner for ThreadsRunner {
     fn runner(&self) -> ParallelRunnerFn {
         JxlThreadParallelRunner
     }
 }
 
+#[cfg(not(feature = "without-threads"))]
 impl Drop for ThreadsRunner {
     fn drop(&mut self) {
         unsafe { JxlThreadParallelRunnerDestroy(self.runner_ptr) };

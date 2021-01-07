@@ -24,7 +24,7 @@ pub type AllocFn = unsafe extern "C" fn(opaque: *mut c_void, size: size_t) -> *m
 pub type FreeFn = unsafe extern "C" fn(opaque: *mut c_void, address: *mut c_void);
 
 /// General trait for a memory manager
-pub trait JXLMemoryManager {
+pub trait JXLMemoryManager: std::fmt::Debug {
     /// Return a custom allocator function. Can be None for using default one
     fn alloc(&self) -> Option<AllocFn>;
     /// Return a custom deallocator function. Can be None for using default one

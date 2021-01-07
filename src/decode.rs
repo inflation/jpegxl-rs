@@ -158,7 +158,7 @@ impl<T: PixelType> JXLDecoder<T> {
 
 impl<T: PixelType> Default for JXLDecoder<T> {
     /// Create a decoder with default settings,
-    //    i.e., with default memory allocator and C++ threadspool (or rayon-based pure Rust in `without-threads`).
+    //    i.e., with default memory allocator and C++ threadspool (or a naive pure Rust approach in `without-threads`).
     fn default() -> Self {
         let runner: Box<dyn JXLParallelRunner> = if cfg!(feature = "without-threads") {
             Box::new(ParallelRunner::default())
@@ -182,6 +182,10 @@ mod tests {
     fn test_decode() -> Result<(), image::ImageError> {
         let sample = std::fs::read("test/sample.jxl")?;
         let mut decoder: JXLDecoder<u8> = JXLDecoder::default();
+        println!(
+            "Memory manager: {:#?}, Parallel Runner: {:#?}",
+            decoder.memory_manager, decoder.parallel_runner
+        );
         let (basic_info, buffer) = decoder.decode(&sample)?;
 
         assert_eq!(
@@ -192,7 +196,7 @@ mod tests {
     }
 
     #[test]
-    fn test_parallel_decode() -> Result<(), Box<dyn std::error::Error>> {
+    fn test_rust_runner_decode() -> Result<(), Box<dyn std::error::Error>> {
         let sample = std::fs::read("test/sample.jxl")?;
         let parallel_runner = Box::new(ParallelRunner::default());
 
@@ -205,7 +209,7 @@ mod tests {
 
         assert!(
             parallel_buffer.1 == single_buffer.1,
-            "Multithread runner should be the same as singlethread one"
+            "Rust runner should be the same as c++ one"
         );
 
         Ok(())
@@ -216,9 +220,10 @@ mod tests {
         use crate::memory::JXLMemoryManager;
         use std::alloc::{GlobalAlloc, Layout, System};
 
+        #[derive(Debug)]
         struct MallocManager {
             layout: Layout,
-        };
+        }
 
         impl JXLMemoryManager for MallocManager {
             fn alloc(&self) -> Option<AllocFn> {

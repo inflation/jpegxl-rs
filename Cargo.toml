@@ -15,7 +15,8 @@ version = "0.2.0"
 default = ["jpegxl-sys/default", "with-image"]
 docsrs = ["jpegxl-sys/docsrs"]
 with-image = ["image"]
-without-threads = ["jpegxl-sys/build-jpegxl"]
+without-build = ["jpegxl-sys"]
+without-threads = ["jpegxl-sys/without-threads"]
 
 [dependencies]
 image = {version = "0.23.12", optional = true}
