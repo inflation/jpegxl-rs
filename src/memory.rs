@@ -14,23 +14,32 @@ GNU General Public License for more details.
 You should have received a copy of the GNU General Public License
 along with jpegxl-rs.  If not, see <https://www.gnu.org/licenses/>.
 */
-#![allow(missing_docs)]
 
 use jpegxl_sys::*;
 use std::ffi::c_void;
 
-pub trait JXLMemoryManager {
-    unsafe extern "C" fn alloc(opaque: *mut c_void, size: size_t) -> *mut c_void;
-    unsafe extern "C" fn free(opaque: *mut c_void, address: *mut c_void);
+/// Allocator function type
+pub type AllocFn = unsafe extern "C" fn(opaque: *mut c_void, size: size_t) -> *mut c_void;
+/// Deallocator function type
+pub type FreeFn = unsafe extern "C" fn(opaque: *mut c_void, address: *mut c_void);
 
-    fn as_manager(&mut self) -> JxlMemoryManagerStruct {
+/// General trait for a memory manager
+pub trait JXLMemoryManager {
+    /// Return a custom allocator function. Can be None for using default one
+    fn alloc(&self) -> Option<AllocFn>;
+    /// Return a custom deallocator function. Can be None for using default one
+    fn free(&self) -> Option<FreeFn>;
+
+    /// Helper conversion function for C API
+    fn to_manager(&mut self) -> JxlMemoryManagerStruct {
         JxlMemoryManagerStruct {
             opaque: self.as_opaque_ptr(),
-            alloc: Some(Self::alloc),
-            free: Some(Self::free),
+            alloc: self.alloc(),
+            free: self.free(),
         }
     }
 
+    /// Helper function to get an opaque pointer
     fn as_opaque_ptr(&mut self) -> *mut c_void {
         self as *mut Self as *mut c_void
     }

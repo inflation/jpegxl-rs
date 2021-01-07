@@ -15,26 +15,15 @@ You should have received a copy of the GNU General Public License
 along with jpegxl-rs.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-#![deny(missing_docs)]
-#![allow(non_upper_case_globals)]
-#![allow(non_camel_case_types)]
-#![allow(non_snake_case)]
-//! A safe JPEGXL Decoder wrapper.
+use std::ffi::c_void;
+use std::ptr::null;
 
-mod common;
-mod decode;
-mod error;
-mod memory;
-mod parallel;
+use jpegxl_sys::*;
 
-#[cfg(feature = "with-image")]
-mod image_support;
+use crate::{
+    common::*,
+    error::{get_error, JXLEncodeError},
+    memory::*,
+    parallel::*,
+};
 
-pub use common::*;
-pub use decode::*;
-pub use error::*;
-pub use memory::*;
-pub use parallel::*;
-
-#[cfg(feature = "with-image")]
-pub use image_support::*;

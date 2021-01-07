@@ -20,11 +20,11 @@ use image::ColorType;
 use image::ImageDecoder;
 use jpegxl_sys::JxlBasicInfo;
 
-use crate::{JxlDecoder, JxlError};
+use crate::{JXLDecodeError, JXLDecoder};
 
 #[cfg(any(feature = "with-image", test))]
-impl From<JxlError> for image::ImageError {
-    fn from(e: JxlError) -> Self {
+impl From<JXLDecodeError> for image::ImageError {
+    fn from(e: JXLDecodeError) -> Self {
         image::ImageError::Decoding(DecodingError::new(
             ImageFormatHint::Name("JPEGXL".to_string()),
             e,
@@ -39,8 +39,8 @@ struct JxlImage {
 }
 
 impl JxlImage {
-    pub fn new(buf: &[u8]) -> Result<Self, JxlError> {
-        let mut decoder = JxlDecoder::default()?;
+    pub fn new(buf: &[u8]) -> Result<Self, JXLDecodeError> {
+        let mut decoder = JXLDecoder::default();
         let (info, decoded_buffer) = decoder.decode(&buf)?;
         Ok(Self {
             decoded_buffer,
