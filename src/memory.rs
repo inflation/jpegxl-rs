@@ -14,17 +14,17 @@ GNU General Public License for more details.
 You should have received a copy of the GNU General Public License
 along with jpegxl-rs.  If not, see <https://www.gnu.org/licenses/>.
 */
-#![deny(missing_docs)]
+#![allow(missing_docs)]
 
 use jpegxl_sys::*;
 use std::ffi::c_void;
 
-pub trait JpegxlMemoryManager {
+pub trait JXLMemoryManager {
     unsafe extern "C" fn alloc(opaque: *mut c_void, size: size_t) -> *mut c_void;
     unsafe extern "C" fn free(opaque: *mut c_void, address: *mut c_void);
 
-    fn to_manager(&mut self) -> JpegxlMemoryManagerStruct {
-        JpegxlMemoryManagerStruct {
+    fn as_manager(&mut self) -> JxlMemoryManagerStruct {
+        JxlMemoryManagerStruct {
             opaque: self.as_opaque_ptr(),
             alloc: Some(Self::alloc),
             free: Some(Self::free),

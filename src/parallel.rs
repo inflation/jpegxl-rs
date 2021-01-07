@@ -21,8 +21,7 @@ along with jpegxl-rs.  If not, see <https://www.gnu.org/licenses/>.
 //! # use jpegxl_rs::*;
 //! # || -> Result<(), Box<dyn std::error::Error>> {
 //! let mut parallel_runner = ParallelRunner::new();
-//! let mut decoder = JpegxlDecoder::new(None, Some(&mut parallel_runner))
-//!             .ok_or(JpegxlError::CannotCreateDecoder)?;
+//! let mut decoder: JxlDecoder<u8> = JxlDecoder::new(None, Some(&mut parallel_runner))?;
 //! # Ok(())
 //! # }();
 //! ```
@@ -32,7 +31,7 @@ use num_cpus;
 use std::ffi::c_void;
 use std::thread;
 
-pub use jpegxl_sys::JpegxlParallelRetCode;
+pub use jpegxl_sys::JxlParallelRetCode;
 
 type ParallelRunnerFn = unsafe extern "C" fn(
     runner_opaque: *mut c_void,
@@ -41,10 +40,10 @@ type ParallelRunnerFn = unsafe extern "C" fn(
     run_func: Option<unsafe extern "C" fn(*mut c_void, u32, u64)>,
     start_range: u32,
     end_range: u32,
-) -> JpegxlParallelRetCode;
+) -> JxlParallelRetCode;
 
 /// JPEG XL Parallel Runner
-pub trait JpegXLParallelRunner {
+pub trait JXLParallelRunner {
     /// FFI runner function.
     /// Check `jpeg-xl` header files for more explainations.
     unsafe extern "C" fn runner_func(
@@ -54,7 +53,7 @@ pub trait JpegXLParallelRunner {
         run_func: Option<unsafe extern "C" fn(*mut c_void, u32, u64)>,
         start_range: u32,
         end_range: u32,
-    ) -> JpegxlParallelRetCode;
+    ) -> JxlParallelRetCode;
 
     /// Helper function to get an opaque pointer
     fn as_opaque_ptr(&mut self) -> *mut c_void {
@@ -87,7 +86,7 @@ impl ParallelRunner {
     }
 }
 
-impl JpegXLParallelRunner for ParallelRunner {
+impl JXLParallelRunner for ParallelRunner {
     /// Divide the task into chunks, then spawn a thread for each chunk.
     /// Since the library explicitly states that there is no communications between each call,
     /// we can safely ignore synchronizations.
@@ -99,7 +98,7 @@ impl JpegXLParallelRunner for ParallelRunner {
         run_func: Option<unsafe extern "C" fn(*mut c_void, u32, u64)>,
         start_range: u32,
         end_range: u32,
-    ) -> JpegxlParallelRetCode {
+    ) -> JxlParallelRetCode {
         let runner = (runner_opaque as *mut ParallelRunner).as_ref().unwrap();
         let ret_code = init_func.unwrap()(jpegxl_opaque, runner.num_threads as size_t);
         if ret_code != 0 {
@@ -125,5 +124,60 @@ impl JpegXLParallelRunner for ParallelRunner {
             .for_each(|t| t.join().unwrap());
 
         return 0;
+    }
+}
+
+#[cfg(not(feature = "without-threads"))]
+/// Wrapper for default threadspool implementation with C++ standard library
+pub struct ThreadsRunner {
+    runner_ptr: *mut c_void,
+}
+
+impl ThreadsRunner {
+    /// Construct with number of threads
+    pub fn new(memory_manager: &JxlMemoryManagerStruct, num_workers: usize) -> Self {
+        Self {
+            runner_ptr: unsafe {
+                JxlThreadParallelRunnerCreate(memory_manager, num_workers as u64)
+            },
+        }
+    }
+
+    /// Defualt
+    pub fn default() -> Self {
+        Self {
+            runner_ptr: unsafe {
+                JxlThreadParallelRunnerCreate(
+                    std::ptr::null(),
+                    JxlThreadParallelRunnerDefaultNumWorkerThreads(),
+                )
+            },
+        }
+    }
+}
+
+impl JXLParallelRunner for ThreadsRunner {
+    unsafe extern "C" fn runner_func(
+        runner_opaque: *mut c_void,
+        jpegxl_opaque: *mut c_void,
+        init_func: Option<unsafe extern "C" fn(*mut c_void, u64) -> i32>,
+        run_func: Option<unsafe extern "C" fn(*mut c_void, u32, u64)>,
+        start_range: u32,
+        end_range: u32,
+    ) -> JxlParallelRetCode {
+        JxlThreadParallelRunner(
+            runner_opaque,
+            jpegxl_opaque,
+            init_func,
+            run_func,
+            start_range,
+            end_range,
+        )
+    }
+}
+
+impl Drop for ThreadsRunner {
+    fn drop(&mut self) {
+        unsafe { JxlThreadParallelRunnerDestroy(self.runner_ptr) };
     }
 }

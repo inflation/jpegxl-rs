@@ -1,12 +1,30 @@
+/*
+This file is part of jpegxl-rs.
+
+jpegxl-rs is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+jpegxl-rs is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with jpegxl-rs.  If not, see <https://www.gnu.org/licenses/>.
+*/
+
 use image::error::{DecodingError, ImageFormatHint};
 use image::ColorType;
 use image::ImageDecoder;
+use jpegxl_sys::JxlBasicInfo;
 
-use crate::{JpegxlDecoder, JpegxlError};
+use crate::{JxlDecoder, JxlError};
 
 #[cfg(any(feature = "with-image", test))]
-impl From<JpegxlError> for image::ImageError {
-    fn from(e: JpegxlError) -> Self {
+impl From<JxlError> for image::ImageError {
+    fn from(e: JxlError) -> Self {
         image::ImageError::Decoding(DecodingError::new(
             ImageFormatHint::Name("JPEGXL".to_string()),
             e,
@@ -15,38 +33,42 @@ impl From<JpegxlError> for image::ImageError {
 }
 
 /// Jpeg XL representation for `image` crate
-struct JpegxlImage {
+struct JxlImage {
     decoded_buffer: Vec<u8>,
-    decoder: JpegxlDecoder,
+    info: JxlBasicInfo,
 }
 
-impl JpegxlImage {
-    pub fn new(buf: impl AsRef<[u8]>) -> Result<Self, JpegxlError> {
-        let mut decoder =
-            JpegxlDecoder::new_with_default().ok_or(JpegxlError::CannotCreateDecoder)?;
-        let decoded_buffer = decoder.decode(&buf)?;
+impl JxlImage {
+    pub fn new(buf: &[u8]) -> Result<Self, JxlError> {
+        let mut decoder = JxlDecoder::default()?;
+        let (info, decoded_buffer) = decoder.decode(&buf)?;
         Ok(Self {
             decoded_buffer,
-            decoder,
+            info,
         })
     }
 }
 
-impl ImageDecoder<'_> for JpegxlImage {
+impl ImageDecoder<'_> for JxlImage {
     type Reader = Self;
 
     fn dimensions(&self) -> (u32, u32) {
-        let basic_info = self.decoder.basic_info.unwrap();
-        return (basic_info.xsize, basic_info.ysize);
+        return (self.info.xsize, self.info.ysize);
     }
     fn color_type(&self) -> ColorType {
-        let basic_info = self.decoder.basic_info.unwrap();
-        match basic_info.bits_per_sample {
+        match self.info.bits_per_sample {
             8 => {
-                if basic_info.alpha_bits == 0 {
+                if self.info.alpha_bits == 0 {
                     ColorType::Rgb8
                 } else {
                     ColorType::Rgba8
+                }
+            }
+            16 => {
+                if self.info.alpha_bits == 0 {
+                    ColorType::Rgb16
+                } else {
+                    ColorType::Rgba16
                 }
             }
             _ => unreachable!("Encoder Not implemented!"),
@@ -58,7 +80,7 @@ impl ImageDecoder<'_> for JpegxlImage {
     }
 }
 
-impl std::io::Read for JpegxlImage {
+impl std::io::Read for JxlImage {
     fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
         self.decoded_buffer.as_slice().read(buf)
     }
@@ -71,10 +93,10 @@ mod tests {
     #[test]
     fn test_image_support() -> Result<(), Box<dyn std::error::Error>> {
         let sample = std::fs::read("test/sample.jxl")?;
-        let decoder = JpegxlImage::new(&sample)?;
+        let decoder = JxlImage::new(&sample)?;
 
-        let image = image::DynamicImage::from_decoder(decoder)?;
-        image.save("sample.png")?;
+        image::DynamicImage::from_decoder(decoder)?;
+
         Ok(())
     }
 }

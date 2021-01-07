@@ -16,6 +16,9 @@ along with jpegxl-rs.  If not, see <https://www.gnu.org/licenses/>.
 */
 
 #![deny(missing_docs)]
+#![allow(non_upper_case_globals)]
+#![allow(non_camel_case_types)]
+#![allow(non_snake_case)]
 //! A safe JPEGXL Decoder wrapper.
 
 mod error;
@@ -30,139 +33,204 @@ use jpegxl_sys::*;
 use std::ffi::c_void;
 use std::ptr::null;
 
-pub use error::JpegxlError;
-pub use jpegxl_sys::JpegxlBasicInfo;
+pub use jpegxl_sys::JxlBasicInfo;
+
+pub use error::JxlError;
 pub use memory::*;
 pub use parallel::*;
 
 #[cfg(feature = "with-image")]
 pub use image_support::*;
 
-/// JPEG XL Decoder
-pub struct JpegxlDecoder {
-    /// Opaque pointer to underlying JpegxlDecoder
-    decoder: *mut jpegxl_sys::JpegxlDecoder,
-    /// Basic info about the image. `None` if it have not read the head.
-    pub basic_info: Option<JpegxlBasicInfo>,
+/// Pixel Type
+/// Currently u8, u16, u32 and f32
+pub trait PixelType: Clone + Default {
+    /// Return the type const
+    fn pixel_type() -> JxlDataType;
+}
+impl PixelType for u8 {
+    fn pixel_type() -> JxlDataType {
+        JxlDataType_JXL_TYPE_UINT8
+    }
+}
+impl PixelType for u16 {
+    fn pixel_type() -> JxlDataType {
+        JxlDataType_JXL_TYPE_UINT16
+    }
+}
+impl PixelType for u32 {
+    fn pixel_type() -> JxlDataType {
+        JxlDataType_JXL_TYPE_UINT32
+    }
+}
+impl PixelType for f32 {
+    fn pixel_type() -> JxlDataType {
+        JxlDataType_JXL_TYPE_FLOAT
+    }
 }
 
-impl JpegxlDecoder {
+/// JPEG XL Decoder
+pub struct JxlDecoder<T: PixelType> {
+    /// Opaque pointer to underlying JpegxlDecoder
+    dec_ptr: *mut jpegxl_sys::JxlDecoder,
+    /// Basic info about the image. `None` if it have not read the head.
+    pub basic_info: Option<JxlBasicInfo>,
+    /// Pixel format
+    pub pixel_format: JxlPixelFormat,
+    _pixel_type: std::marker::PhantomData<T>,
+
+    /// Threadspool
+    #[cfg(not(feature = "without-threads"))]
+    runner: Option<ThreadsRunner>,
+}
+
+impl<T: PixelType> JxlDecoder<T> {
     /// Create a decoder.<br/>
     /// Memory manager and Parallel runner API are WIP.
     pub fn new(
-        memory_manager: Option<&JpegxlMemoryManagerStruct>,
-        parallel_runner: Option<&mut impl JpegXLParallelRunner>,
-    ) -> Option<Self> {
+        memory_manager: Option<&JxlMemoryManagerStruct>,
+        parallel_runner: Option<&mut impl JXLParallelRunner>,
+    ) -> Result<Self, JxlError> {
         unsafe {
             let manager_ptr = match memory_manager {
-                Some(manager) => manager as *const JpegxlMemoryManagerStruct,
+                Some(manager) => manager as *const JxlMemoryManagerStruct,
                 None => null(),
             };
-            let decoder_ptr = JpegxlDecoderCreate(manager_ptr);
-            if decoder_ptr.is_null() {
-                return None;
+            let dec_ptr = JxlDecoderCreate(manager_ptr);
+            if dec_ptr.is_null() {
+                return Err(JxlError::CannotCreateDecoder);
             }
 
             if let Some(runner) = parallel_runner {
-                let status = JpegxlDecoderSetParallelRunner(
-                    decoder_ptr,
+                let status = JxlDecoderSetParallelRunner(
+                    dec_ptr,
                     Some(runner.runner()),
                     runner.as_opaque_ptr(),
                 );
-                get_error(status).ok()?;
+                get_error(status)?;
             }
 
-            Some(JpegxlDecoder {
-                decoder: decoder_ptr,
+            let pixel_format = JxlPixelFormat {
+                data_type: T::pixel_type(),
+                num_channels: 4,
+                endianness: JxlEndianness_JXL_NATIVE_ENDIAN,
+                align: 0,
+            };
+
+            #[cfg(feature = "without-threads")]
+            Ok(Self {
+                dec_ptr,
                 basic_info: None,
+                pixel_format,
+                _pixel_type: std::marker::PhantomData,
+            });
+
+            #[cfg(not(feature = "without-threads"))]
+            Ok(Self {
+                dec_ptr,
+                basic_info: None,
+                pixel_format,
+                _pixel_type: std::marker::PhantomData,
+                runner: None,
             })
         }
     }
 
-    /// Create a decoder with default settings, e.g. with default memory allocator and single-threaded.
-    pub fn new_with_default() -> Option<Self> {
-        Self::new(None, None::<&mut ParallelRunner>)
-    }
-
-    // TODO: Handle more data types when the underlying library implemented them
-    fn get_pixel_format(&self) -> JpegxlPixelFormat {
-        JpegxlPixelFormat {
-            data_type: JpegxlDataType_JPEGXL_TYPE_UINT8,
-            num_channels: if self.basic_info.unwrap().alpha_bits == 0 {
-                3
-            } else {
-                4
-            },
+    /// Create a decoder with default settings,
+    //    i.e., with default memory allocator and C++ threadspool (or singlethread in `without-threads`).
+    pub fn default() -> Result<Self, JxlError> {
+        if cfg!(feature = "without-threads") {
+            Self::new(None, None::<&mut ParallelRunner>)
+        } else {
+            let mut runner = ThreadsRunner::default();
+            let mut dec = Self::new(None, Some(&mut runner))?;
+            dec.runner = Some(runner);
+            Ok(dec)
         }
     }
 
     /// Decode a JPEG XL image.<br />
-    /// Currently only support RGB(A)8 encoded static image. Color info and transformation info are discarded.
+    /// Currently only support RGB(A)8/16/32 encoded static image. Color info and transformation info are discarded.
     /// # Example
-    /// ```
+    /// ```ignore
     /// # use jpegxl_rs::*;
     /// # || -> Result<(), Box<dyn std::error::Error>> {
     /// let sample = std::fs::read("test/sample.jxl")?;
-    /// let mut decoder = JpegxlDecoder::new_with_default().ok_or(JpegxlError::CannotCreateDecoder)?;
-    /// let buffer = decoder.decode(&sample)?;
+    /// let mut decoder: JxlDecoder<u8> = JxlDecoder::default()?;
+    /// let (info, buffer) = decoder.decode(&sample)?;
     /// # Ok(())
     /// # }();
     /// ```
-    pub fn decode<T: AsRef<[u8]>>(&mut self, data: &T) -> Result<Vec<u8>, JpegxlError> {
-        let mut status;
+    pub fn decode(&mut self, data: &[u8]) -> Result<(JxlBasicInfo, Vec<T>), JxlError> {
+        let mut status: u32;
+
+        // Stop after getting the basic info and decoding the image
         status = unsafe {
-            JpegxlDecoderSubscribeEvents(
-                self.decoder,
-                (JpegxlDecoderStatus_JPEGXL_DEC_BASIC_INFO
-                    | JpegxlDecoderStatus_JPEGXL_DEC_FULL_IMAGE) as i32,
+            JxlDecoderSubscribeEvents(
+                self.dec_ptr,
+                (JxlDecoderStatus_JXL_DEC_BASIC_INFO | JxlDecoderStatus_JXL_DEC_FULL_IMAGE) as i32,
             )
         };
         get_error(status)?;
 
-        let next_in = &mut data.as_ref().as_ptr();
-        let mut avail_in = data.as_ref().len() as size_t;
-        status = unsafe { JpegxlDecoderProcessInput(self.decoder, next_in, &mut avail_in) };
-        get_error(status)?;
+        let next_in = &mut data.as_ptr();
+        let mut avail_in = data.len() as u64;
 
-        let mut basic_info = JpegxlBasicInfo::new_uninit();
+        let mut basic_info = JxlBasicInfo::new_uninit();
+        let mut buffer: Vec<T> = Vec::new();
+
         unsafe {
-            status = JpegxlDecoderGetBasicInfo(self.decoder, basic_info.as_mut_ptr());
-            get_error(status)?;
-            let basic_info = basic_info.assume_init();
-            self.basic_info = Some(basic_info);
+            loop {
+                status = JxlDecoderProcessInput(self.dec_ptr, next_in, &mut avail_in);
+
+                match status {
+                    JxlDecoderStatus_JXL_DEC_ERROR => return Err(JxlError::GenericError),
+                    JxlDecoderStatus_JXL_DEC_NEED_MORE_INPUT => {
+                        return Err(JxlError::NeedMoreInput)
+                    }
+
+                    // Get the basic info
+                    JxlDecoderStatus_JXL_DEC_BASIC_INFO => {
+                        status = JxlDecoderGetBasicInfo(self.dec_ptr, basic_info.as_mut_ptr());
+                        get_error(status)?;
+                        self.basic_info = Some(basic_info.assume_init());
+                    }
+
+                    // Get the output buffer
+                    JxlDecoderStatus_JXL_DEC_NEED_IMAGE_OUT_BUFFER => {
+                        let mut size: u64 = 0;
+                        status = JxlDecoderImageOutBufferSize(
+                            self.dec_ptr,
+                            &self.pixel_format,
+                            &mut size,
+                        );
+                        get_error(status)?;
+
+                        buffer.resize(size as usize, T::default());
+                        status = JxlDecoderSetImageOutBuffer(
+                            self.dec_ptr,
+                            &self.pixel_format,
+                            buffer.as_mut_ptr() as *mut c_void,
+                            size,
+                        );
+                        get_error(status)?;
+                    }
+
+                    JxlDecoderStatus_JXL_DEC_FULL_IMAGE => continue,
+                    JxlDecoderStatus_JXL_DEC_SUCCESS => {
+                        return Ok((self.basic_info.unwrap(), buffer));
+                    }
+                    _ => return Err(JxlError::UnknownStatus(status)),
+                }
+            }
         }
-
-        // Get the buffer size
-        let mut size: size_t = 0;
-        let pixel_format = self.get_pixel_format();
-        status = unsafe { JpegxlDecoderImageOutBufferSize(self.decoder, &pixel_format, &mut size) };
-        get_error(status)?;
-
-        // Create a buffer to hold decoded image
-        let mut buffer: Vec<u8> = Vec::with_capacity(size as usize);
-        unsafe {
-            buffer.set_len(size as usize);
-            status = JpegxlDecoderSetImageOutBuffer(
-                self.decoder,
-                &pixel_format,
-                buffer.as_mut_ptr() as *mut c_void,
-                size,
-            );
-            get_error(status)?;
-        }
-
-        // Read what left of the image
-        status = unsafe { JpegxlDecoderProcessInput(self.decoder, next_in, &mut avail_in) };
-        get_error(status)?;
-
-        Ok(buffer)
     }
 }
 
-impl Drop for JpegxlDecoder {
+impl<T: PixelType> Drop for JxlDecoder<T> {
     fn drop(&mut self) {
         unsafe {
-            JpegxlDecoderDestroy(self.decoder);
+            JxlDecoderDestroy(self.dec_ptr);
         }
     }
 }
@@ -173,18 +241,13 @@ mod tests {
     #[test]
     fn test_decode() -> Result<(), image::ImageError> {
         let sample = std::fs::read("test/sample.jxl")?;
-        let mut decoder =
-            JpegxlDecoder::new_with_default().ok_or(JpegxlError::CannotCreateDecoder)?;
-        let buffer = decoder.decode(&sample)?;
-        let basic_info = decoder.basic_info.unwrap();
+        let mut decoder: JxlDecoder<u8> = JxlDecoder::default()?;
+        let (basic_info, buffer) = decoder.decode(&sample)?;
 
-        use image::{ImageBuffer, RgbImage};
-        let image: RgbImage =
-            ImageBuffer::from_raw(basic_info.xsize, basic_info.ysize, buffer).unwrap();
-
-        image.save("sample.png")?;
-        std::fs::remove_file("sample.png")?;
-
+        assert_eq!(
+            buffer.len(),
+            (basic_info.xsize * basic_info.ysize * 4) as usize
+        );
         Ok(())
     }
 
@@ -193,15 +256,14 @@ mod tests {
         let sample = std::fs::read("test/sample.jxl")?;
         let mut parallel_runner = ParallelRunner::new();
 
-        let mut decoder = JpegxlDecoder::new(None, Some(&mut parallel_runner))
-            .ok_or(JpegxlError::CannotCreateDecoder)?;
+        let mut decoder: JxlDecoder<u8> = JxlDecoder::new(None, Some(&mut parallel_runner))?;
         let parallel_buffer = decoder.decode(&sample)?;
 
-        decoder = JpegxlDecoder::new_with_default().ok_or(JpegxlError::CannotCreateDecoder)?;
+        decoder = JxlDecoder::default()?;
         let single_buffer = decoder.decode(&sample)?;
 
         assert!(
-            parallel_buffer == single_buffer,
+            parallel_buffer.1 == single_buffer.1,
             "Multithread runner should be the same as singlethread one"
         );
 
@@ -210,14 +272,14 @@ mod tests {
 
     #[test]
     fn test_memory_manager() -> Result<(), Box<dyn std::error::Error>> {
-        use memory::JpegxlMemoryManager;
+        use memory::JXLMemoryManager;
         use std::alloc::{GlobalAlloc, Layout, System};
 
         struct MallocManager {
             layout: Layout,
         };
 
-        impl JpegxlMemoryManager for MallocManager {
+        impl JXLMemoryManager for MallocManager {
             unsafe extern "C" fn alloc(opaque: *mut c_void, size: size_t) -> *mut c_void {
                 println!("Custom alloc");
                 let layout = Layout::from_size_align(size as usize, 8).unwrap();
@@ -237,20 +299,21 @@ mod tests {
         }
 
         let sample = std::fs::read("test/sample.jxl")?;
-        let memory_manager = (MallocManager {
+        let mut memory_manager = MallocManager {
             layout: Layout::from_size_align(0, 8)?,
-        })
-        .to_manager();
+        };
 
-        let mut decoder = JpegxlDecoder::new(Some(&memory_manager), None::<&mut ParallelRunner>)
-            .ok_or(JpegxlError::CannotCreateDecoder)?;
+        let mut decoder: JxlDecoder<u8> = JxlDecoder::new(
+            Some(&memory_manager.as_manager()),
+            None::<&mut ParallelRunner>,
+        )?;
         let custom_buffer = decoder.decode(&sample)?;
 
-        decoder = JpegxlDecoder::new_with_default().ok_or(JpegxlError::CannotCreateDecoder)?;
+        decoder = JxlDecoder::default()?;
         let default_buffer = decoder.decode(&sample)?;
 
         assert!(
-            custom_buffer == default_buffer,
+            custom_buffer.1 == default_buffer.1,
             "Custom memory manager should be the same as default one"
         );
 
