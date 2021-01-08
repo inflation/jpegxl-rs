@@ -145,12 +145,22 @@ impl<T: PixelType> JXLDecoder<T> {
                         let info = info.assume_init();
                         basic_info = Some(info);
 
+                        let mut format = JxlPixelFormat::new_uninit();
+                        check_dec_status(JxlDecoderDefaultPixelFormat(
+                            self.dec,
+                            format.as_mut_ptr(),
+                        ))?;
+                        let format = format.assume_init();
                         let num_channels = self
                             .pixel_format
                             .num_channels
-                            .unwrap_or(3 + info.num_extra_channels);
-                        let endianness = self.pixel_format.endianness.unwrap_or(Endianness::Native);
-                        let align = self.pixel_format.align.unwrap_or(0);
+                            .unwrap_or(format.num_channels);
+                        let endianness = self
+                            .pixel_format
+                            .endianness
+                            .map(Endianness::into)
+                            .unwrap_or(format.endianness);
+                        let align = self.pixel_format.align.unwrap_or(format.align);
 
                         pixel_format = Some(JxlPixelFormat {
                             num_channels,
