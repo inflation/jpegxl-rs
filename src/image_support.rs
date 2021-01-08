@@ -15,15 +15,14 @@ You should have received a copy of the GNU General Public License
 along with jpegxl-rs.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-use image::error::{DecodingError, ImageFormatHint};
+use image::error::{DecodingError, EncodingError, ImageFormatHint};
 use image::ColorType;
 use image::ImageDecoder;
 
-use crate::{decoder_builder, JXLBasicInfo, JXLDecodeError, PixelType};
+use crate::{common::*, decoder_builder, error::*, BasicInfo};
 
-#[cfg(feature = "with-image")]
-impl From<JXLDecodeError> for image::ImageError {
-    fn from(e: JXLDecodeError) -> Self {
+impl From<DecodeError> for image::ImageError {
+    fn from(e: DecodeError) -> Self {
         image::ImageError::Decoding(DecodingError::new(
             ImageFormatHint::Name("JPEGXL".to_string()),
             e,
@@ -31,18 +30,26 @@ impl From<JXLDecodeError> for image::ImageError {
     }
 }
 
-/// JPEG XL representation for `image` crate
+impl From<EncodeError> for image::ImageError {
+    fn from(e: EncodeError) -> Self {
+        image::ImageError::Encoding(EncodingError::new(
+            ImageFormatHint::Name("JPEGXL".to_string()),
+            e,
+        ))
+    }
+}
+/// JPEG XL representation for `image` crate.<br />
 /// Note: Since `image` only supports 8-bit and 16-bit pixel depth,
 /// you can only create `u8` and `u16` buffer.
 pub struct JXLImage<T: PixelType> {
     buffer: Vec<T>,
-    info: JXLBasicInfo,
+    info: BasicInfo,
 }
 
 impl<T: PixelType> JXLImage<T> {
     /// Create a new JPEG XL image. Note that this will initialize underlying decoder everytime.
     /// If you need to decode multiple files, use the decoder directly.
-    pub fn new(buf: &[u8]) -> Result<Self, JXLDecodeError> {
+    pub fn new(buf: &[u8]) -> Result<Self, DecodeError> {
         let mut decoder = decoder_builder().build();
         let (info, buffer) = decoder.decode(&buf)?;
         Ok(Self { buffer, info })

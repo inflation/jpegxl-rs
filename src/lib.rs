@@ -22,19 +22,22 @@ along with jpegxl-rs.  If not, see <https://www.gnu.org/licenses/>.
 //! A safe JPEGXL Decoder wrapper.
 
 mod common;
-mod decode;
-mod error;
-mod memory;
-mod parallel;
+/// Decoder
+pub mod decoder;
+/// Encoder
+pub mod encoder;
+/// Error types and helper functions
+pub mod error;
+/// Memory manager interface
+pub mod memory;
+/// Parallel runner interface
+pub mod parallel;
 
 #[cfg(feature = "with-image")]
 mod image_support;
 
-pub use common::*;
-pub use decode::*;
-pub use error::*;
-pub use memory::*;
-pub use parallel::*;
+pub use decoder::*;
+pub use encoder::*;
 
 #[cfg(feature = "with-image")]
 pub use image_support::*;

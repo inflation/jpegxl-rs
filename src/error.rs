@@ -23,7 +23,7 @@ use jpegxl_sys::*;
 
 /// Errors derived from JxlDecoderStatus
 #[derive(Debug)]
-pub enum JXLDecodeError {
+pub enum DecodeError {
     /// Cannot create a decoder
     CannotCreateDecoder,
     /// Unknown Error
@@ -37,7 +37,7 @@ pub enum JXLDecodeError {
 
 /// Errors derived from JxlEncoderStatus
 #[derive(Debug)]
-pub enum JXLEncodeError {
+pub enum EncodeError {
     /// Unknown Error
     // TODO: underlying library is working on a way to retrieve error message
     GenericError,
@@ -47,30 +47,37 @@ pub enum JXLEncodeError {
     UnknownStatus(JxlEncoderStatus),
 }
 
-impl std::fmt::Display for JXLDecodeError {
+impl std::fmt::Display for DecodeError {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         write!(f, "{}", self)
     }
 }
 
-impl std::error::Error for JXLDecodeError {}
+impl std::fmt::Display for EncodeError {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "{}", self)
+    }
+}
+
+impl std::error::Error for DecodeError {}
+impl std::error::Error for EncodeError {}
 
 /// Error mapping from underlying C const to JxlDecoderStatus enum
-pub fn check_dec_status(status: JxlDecoderStatus) -> Result<(), JXLDecodeError> {
+pub(crate) fn check_dec_status(status: JxlDecoderStatus) -> Result<(), DecodeError> {
     match status {
         JxlDecoderStatus_JXL_DEC_SUCCESS => Ok(()),
-        JxlDecoderStatus_JXL_DEC_ERROR => Err(JXLDecodeError::GenericError),
-        JxlDecoderStatus_JXL_DEC_NEED_MORE_INPUT => Err(JXLDecodeError::NeedMoreInput),
-        _ => Err(JXLDecodeError::UnknownStatus(status)),
+        JxlDecoderStatus_JXL_DEC_ERROR => Err(DecodeError::GenericError),
+        JxlDecoderStatus_JXL_DEC_NEED_MORE_INPUT => Err(DecodeError::NeedMoreInput),
+        _ => Err(DecodeError::UnknownStatus(status)),
     }
 }
 
 /// Error mapping from underlying C const to JxlEncoderStatus enum
-pub fn check_enc_status(status: JxlEncoderStatus) -> Result<(), JXLEncodeError> {
+pub(crate) fn check_enc_status(status: JxlEncoderStatus) -> Result<(), EncodeError> {
     match status {
         JxlEncoderStatus_JXL_ENC_SUCCESS => Ok(()),
-        JxlEncoderStatus_JXL_ENC_ERROR => Err(JXLEncodeError::GenericError),
-        JxlEncoderStatus_JXL_ENC_NEED_MORE_OUTPUT => Err(JXLEncodeError::NeedMoreOutput),
-        _ => Err(JXLEncodeError::UnknownStatus(status)),
+        JxlEncoderStatus_JXL_ENC_ERROR => Err(EncodeError::GenericError),
+        JxlEncoderStatus_JXL_ENC_NEED_MORE_OUTPUT => Err(EncodeError::NeedMoreOutput),
+        _ => Err(EncodeError::UnknownStatus(status)),
     }
 }

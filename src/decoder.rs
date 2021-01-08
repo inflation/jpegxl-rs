@@ -22,10 +22,13 @@ use jpegxl_sys::*;
 
 use crate::{
     common::*,
-    error::{check_dec_status, JXLDecodeError},
+    error::{check_dec_status, DecodeError},
+    memory::*,
     parallel::*,
-    *,
 };
+
+/// Basic Information
+pub type BasicInfo = JxlBasicInfo;
 
 /// JPEG XL Decoder
 pub struct JXLDecoder<T: PixelType> {
@@ -44,8 +47,7 @@ pub struct JXLDecoder<T: PixelType> {
 }
 
 impl<T: PixelType> JXLDecoder<T> {
-    /// Create a decoder.<br/>
-    /// Memory manager and Parallel runner API are WIP.
+    /// Create a decoder.
     pub fn new(
         pixel_format: JxlPixelFormat,
         mut memory_manager: Option<Box<dyn JXLMemoryManager>>,
@@ -80,7 +82,7 @@ impl<T: PixelType> JXLDecoder<T> {
     /// # Ok(())
     /// # };
     /// ```
-    pub fn decode(&mut self, data: &[u8]) -> Result<(JXLBasicInfo, Vec<T>), JXLDecodeError> {
+    pub fn decode(&mut self, data: &[u8]) -> Result<(BasicInfo, Vec<T>), DecodeError> {
         unsafe {
             if let Some(ref mut runner) = self.parallel_runner {
                 check_dec_status(JxlDecoderSetParallelRunner(
@@ -91,7 +93,6 @@ impl<T: PixelType> JXLDecoder<T> {
             }
 
             // Stop after getting the basic info and decoding the image
-
             check_dec_status(JxlDecoderSubscribeEvents(
                 self.dec,
                 (JxlDecoderStatus_JXL_DEC_BASIC_INFO | JxlDecoderStatus_JXL_DEC_FULL_IMAGE) as i32,
@@ -100,7 +101,7 @@ impl<T: PixelType> JXLDecoder<T> {
             let next_in = &mut data.as_ptr();
             let mut avail_in = data.len() as u64;
 
-            let mut basic_info: Option<JXLBasicInfo> = None;
+            let mut basic_info: Option<BasicInfo> = None;
             let mut buffer: Vec<T> = Vec::new();
 
             let mut status: u32;
@@ -108,9 +109,9 @@ impl<T: PixelType> JXLDecoder<T> {
                 status = JxlDecoderProcessInput(self.dec, next_in, &mut avail_in);
 
                 match status {
-                    JxlDecoderStatus_JXL_DEC_ERROR => return Err(JXLDecodeError::GenericError),
+                    JxlDecoderStatus_JXL_DEC_ERROR => return Err(DecodeError::GenericError),
                     JxlDecoderStatus_JXL_DEC_NEED_MORE_INPUT => {
-                        return Err(JXLDecodeError::NeedMoreInput)
+                        return Err(DecodeError::NeedMoreInput)
                     }
 
                     // Get the basic info
@@ -144,10 +145,10 @@ impl<T: PixelType> JXLDecoder<T> {
                         return if let Some(info) = basic_info {
                             Ok((info, buffer))
                         } else {
-                            Err(JXLDecodeError::GenericError)
+                            Err(DecodeError::GenericError)
                         };
                     }
-                    _ => return Err(JXLDecodeError::UnknownStatus(status)),
+                    _ => return Err(DecodeError::UnknownStatus(status)),
                 }
             }
         }
@@ -175,8 +176,8 @@ impl<T: PixelType> JXLDecoderBuilder<T> {
         self
     }
 
-    /// Set Endianness
-    pub fn endian(mut self, endian: JXLEndianness) -> Self {
+    /// Set endianness
+    pub fn endian(mut self, endian: Endianness) -> Self {
         self.pixel_format.endianness = endian.into();
         self
     }
@@ -217,7 +218,7 @@ pub fn decoder_builder<T: PixelType>() -> JXLDecoderBuilder<T> {
         pixel_format: JxlPixelFormat {
             num_channels: 4,
             data_type: T::pixel_type(),
-            endianness: JXLEndianness::Native.into(),
+            endianness: Endianness::Native.into(),
             align: 0,
         },
         _pixel_type: std::marker::PhantomData,
@@ -276,7 +277,7 @@ mod tests {
         }
 
         impl JXLMemoryManager for MallocManager {
-            fn alloc(&self) -> Option<JXLAllocFn> {
+            fn alloc(&self) -> Option<AllocFn> {
                 unsafe extern "C" fn alloc(opaque: *mut c_void, size: size_t) -> *mut c_void {
                     println!("Custom alloc");
                     let layout = Layout::from_size_align(size as usize, 8).unwrap();
@@ -291,7 +292,7 @@ mod tests {
                 Some(alloc)
             }
 
-            fn free(&self) -> Option<JXLFreeFn> {
+            fn free(&self) -> Option<FreeFn> {
                 unsafe extern "C" fn free(opaque: *mut c_void, address: *mut c_void) {
                     println!("Custom dealloc");
                     let layout = (opaque as *mut MallocManager).as_mut().unwrap().layout;

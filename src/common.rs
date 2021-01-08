@@ -46,7 +46,7 @@ impl PixelType for f32 {
 
 /// Endinness
 #[repr(C)]
-pub enum JXLEndianness {
+pub enum Endianness {
     /// Native Endian
     Native = 0,
     /// Little Endian
@@ -55,29 +55,9 @@ pub enum JXLEndianness {
     Big,
 }
 
-impl From<JXLEndianness> for u32 {
-    fn from(endianness: JXLEndianness) -> Self {
+impl From<Endianness> for u32 {
+    fn from(endianness: Endianness) -> Self {
         endianness as u32
     }
 }
 
-/// Basic Information
-pub type JXLBasicInfo = JxlBasicInfo;
-
-/// Encoding speed, default at Squeirrel(7)
-pub enum JXLEncodeSpeed {
-    /// Fastest, 3
-    Falcon = 3,
-    /// 4
-    Cheetah,
-    /// 5
-    Hare,
-    /// 6
-    Wombat,
-    /// 7
-    Squeirrel,
-    /// 8
-    Kitten,
-    /// Slowest, 9
-    Tortoise,
-}

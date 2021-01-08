@@ -19,16 +19,16 @@ use jpegxl_sys::*;
 use std::ffi::c_void;
 
 /// Allocator function type
-pub type JXLAllocFn = unsafe extern "C" fn(opaque: *mut c_void, size: size_t) -> *mut c_void;
+pub type AllocFn = unsafe extern "C" fn(opaque: *mut c_void, size: size_t) -> *mut c_void;
 /// Deallocator function type
-pub type JXLFreeFn = unsafe extern "C" fn(opaque: *mut c_void, address: *mut c_void);
+pub type FreeFn = unsafe extern "C" fn(opaque: *mut c_void, address: *mut c_void);
 
 /// General trait for a memory manager
 pub trait JXLMemoryManager: std::fmt::Debug {
     /// Return a custom allocator function. Can be None for using default one
-    fn alloc(&self) -> Option<JXLAllocFn>;
+    fn alloc(&self) -> Option<AllocFn>;
     /// Return a custom deallocator function. Can be None for using default one
-    fn free(&self) -> Option<JXLFreeFn>;
+    fn free(&self) -> Option<FreeFn>;
 
     /// Helper conversion function for C API
     fn to_manager(&mut self) -> JxlMemoryManagerStruct {

@@ -1,4 +1,5 @@
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
+use jpegxl_rs::parallel::ParallelRunner;
 use jpegxl_rs::*;
 
 pub fn criterion_benchmark(c: &mut Criterion) {
