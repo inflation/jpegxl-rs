@@ -30,7 +30,8 @@ along with jpegxl-rs.  If not, see <https://www.gnu.org/licenses/>.
 //! ## Decoding
 //! ```rust
 //! # || -> Result<(), Box<dyn std::error::Error>> {  
-//! use jpegxl_rs::decoder::*;
+//! use jpegxl_rs::*;
+//!
 //! let sample = std::fs::read("test/sample.jxl")?;
 //! let mut decoder: JXLDecoder<u8> = decoder_builder().build();
 //! let (info, buffer) = decoder.decode(&sample)?;
@@ -41,7 +42,7 @@ along with jpegxl-rs.  If not, see <https://www.gnu.org/licenses/>.
 //! ```rust
 //! // Pixel type is set by type parameter
 //! # || -> Result<(), Box<dyn std::error::Error>> {
-//! use jpegxl_rs::{decoder::*, Endianness};
+//! # use jpegxl_rs::*;
 //! let mut decoder: JXLDecoder<u16> = decoder_builder()
 //!                                     .num_channels(3)
 //!                                     .endian(Endianness::Big)
@@ -55,6 +56,7 @@ along with jpegxl-rs.  If not, see <https://www.gnu.org/licenses/>.
 //! # use jpegxl_rs::encoder::*;
 //! # || -> Result<(), Box<dyn std::error::Error>> {
 //! use image::io::Reader as ImageReader;
+//!
 //! let sample = ImageReader::open("test/sample.png")?.decode()?.to_rgba16();
 //! let mut encoder = encoder_builder().build();
 //! let buffer: Vec<u8> = encoder.encode(
@@ -67,8 +69,14 @@ along with jpegxl-rs.  If not, see <https://www.gnu.org/licenses/>.
 
 //! ## [`image`](https://crates.io/crates/image) crate integration
 //! The integration is enabled by default. If you don't need it, disable `with-image` feature.
-//! ``` rust
-
+//! ```
+//! # || -> Result<(), Box<dyn std::error::Error>> {
+//! use jpegxl_rs::image::*;
+//!
+//! let sample = std::fs::read("test/sample.jxl")?;
+//! let decoder: JXLImageDecoder<u16> = JXLImageDecoder::new(&sample)?;
+//! let img = image::DynamicImage::from_decoder(decoder)?;       
+//! # Ok(()) };
 //! ```
 
 mod common;

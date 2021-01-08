@@ -24,8 +24,21 @@ along with jpegxl-rs.  If not, see <https://www.gnu.org/licenses/>.
 //! let sample = ImageReader::open("test/sample.png")?.decode()?.to_rgba16();
 //! let mut encoder = encoder_builder().build();
 //! let buffer = encoder.encode(&sample, sample.width() as u64, sample.height() as u64)?;
-//! # Ok(())
-//! # };
+//! # Ok(()) };
+//! ```
+//!
+//! Set encoder options
+//! ```
+//! # || -> Result<(), Box<dyn std::error::Error>> {
+//! # use jpegxl_rs::{memory::*, parallel::*};
+//! let mut encoder = encoder_builder()
+//!                     .lossless(true)
+//!                     .speed(EncodeSpeed::Falcon)
+//!                     .build()
+//! // You can change the settings after initialization
+//! encoder.set_lossless(false);
+//! encoder.set_quality(3.0);
+//! # Ok(()) };
 //! ```
 
 use std::ffi::c_void;
@@ -41,6 +54,7 @@ use crate::{
 };
 
 /// Encoding speed, default at Squeirrel(7)
+#[derive(Debug)]
 pub enum EncodeSpeed {
     /// Fastest, 3
     Falcon = 3,
@@ -63,6 +77,11 @@ impl From<EncodeSpeed> for i32 {
         s as i32
     }
 }
+struct PrefferedEncoderOptions {
+    lossless: Option<bool>,
+    speed: Option<EncodeSpeed>,
+    quality: Option<f32>,
+}
 
 /// JPEG XL Encoder
 pub struct JXLEncoder {
@@ -82,9 +101,9 @@ pub struct JXLEncoder {
 }
 
 impl JXLEncoder {
-    /// Create a encoder.
-    pub fn new(
+    fn new(
         pixel_format: JxlPixelFormat,
+        encoder_options: PrefferedEncoderOptions,
         mut memory_manager: Option<Box<dyn JXLMemoryManager>>,
         parallel_runner: Option<Box<dyn JXLParallelRunner>>,
     ) -> Self {
@@ -98,13 +117,30 @@ impl JXLEncoder {
 
         let options_ptr = unsafe { JxlEncoderOptionsCreate(enc, null()) };
 
-        Self {
+        let encoder = Self {
             enc,
             pixel_format,
             options_ptr,
             _memory_manager: memory_manager,
             parallel_runner,
+        };
+
+        let PrefferedEncoderOptions {
+            lossless,
+            speed,
+            quality,
+        } = encoder_options;
+
+        if let Some(l) = lossless {
+            encoder.set_lossless(l);
         }
+        if let Some(s) = speed {
+            encoder.set_speed(s);
+        }
+        if let Some(q) = quality {
+            encoder.set_quality(q);
+        }
+        encoder
     }
 
     /// Set lossless mode. Default is lossy.
@@ -195,6 +231,7 @@ impl Drop for JXLEncoder {
 /// Builder for JXLDecoder
 pub struct JXLEncoderBuilder {
     pixel_format: JxlPixelFormat,
+    options: PrefferedEncoderOptions,
     memory_manager: Option<Box<dyn JXLMemoryManager>>,
     parallel_runner: Option<Box<dyn JXLParallelRunner>>,
 }
@@ -218,6 +255,24 @@ impl JXLEncoderBuilder {
         self
     }
 
+    /// Set lossless
+    pub fn lossless(mut self, flag: bool) -> Self {
+        self.options.lossless = Some(flag);
+        self
+    }
+
+    /// Set speed
+    pub fn speed(mut self, speed: EncodeSpeed) -> Self {
+        self.options.speed = Some(speed);
+        self
+    }
+
+    /// Set quality
+    pub fn quality(mut self, quality: f32) -> Self {
+        self.options.quality = Some(quality);
+        self
+    }
+
     /// Set memory manager
     pub fn memory_manager(mut self, memory_manager: Box<dyn JXLMemoryManager>) -> Self {
         self.memory_manager = Some(memory_manager);
@@ -232,7 +287,12 @@ impl JXLEncoderBuilder {
 
     /// Consume the builder and get the encoder
     pub fn build(self) -> JXLEncoder {
-        JXLEncoder::new(self.pixel_format, self.memory_manager, self.parallel_runner)
+        JXLEncoder::new(
+            self.pixel_format,
+            self.options,
+            self.memory_manager,
+            self.parallel_runner,
+        )
     }
 }
 
@@ -251,6 +311,11 @@ pub fn encoder_builder() -> JXLEncoderBuilder {
             endianness: Endianness::Native.into(),
             align: 0,
         },
+        options: PrefferedEncoderOptions {
+            lossless: None,
+            speed: None,
+            quality: None,
+        },
         memory_manager: None,
         parallel_runner: Some(runner),
     }
@@ -264,10 +329,31 @@ mod tests {
     #[test]
     fn test_encode() -> Result<(), image::ImageError> {
         let sample = ImageReader::open("test/sample.png")?.decode()?.to_rgb8();
-        let mut encoder = encoder_builder().num_channels(3).build();
-        encoder.set_speed(EncodeSpeed::Falcon);
+        let mut encoder = encoder_builder()
+            .speed(EncodeSpeed::Falcon)
+            .num_channels(3)
+            .build();
 
-        let _buffer = encoder.encode(
+        encoder.encode(
+            sample.as_raw(),
+            sample.width() as u64,
+            sample.height() as u64,
+        )?;
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_encode_builder() -> Result<(), image::ImageError> {
+        let sample = ImageReader::open("test/sample.png")?.decode()?.to_rgb8();
+        let mut encoder = encoder_builder()
+            .num_channels(3)
+            .lossless(false)
+            .speed(EncodeSpeed::Falcon)
+            .quality(3.0)
+            .build();
+
+        encoder.encode(
             sample.as_raw(),
             sample.width() as u64,
             sample.height() as u64,
@@ -281,8 +367,10 @@ mod tests {
         let sample = ImageReader::open("test/sample.png")?.decode()?.to_rgba16();
         let parallel_runner = Box::new(ParallelRunner::default());
 
-        let mut encoder = encoder_builder().parallel_runner(parallel_runner).build();
-        encoder.set_speed(EncodeSpeed::Falcon);
+        let mut encoder = encoder_builder()
+            .speed(EncodeSpeed::Falcon)
+            .parallel_runner(parallel_runner)
+            .build();
 
         let parallel_buffer = encoder.encode(
             sample.as_raw(),
@@ -290,8 +378,7 @@ mod tests {
             sample.height() as u64,
         )?;
 
-        encoder = encoder_builder().build();
-        encoder.set_speed(EncodeSpeed::Falcon);
+        encoder = encoder_builder().speed(EncodeSpeed::Falcon).build();
         let single_buffer = encoder.encode(
             sample.as_raw(),
             sample.width() as u64,
@@ -308,56 +395,22 @@ mod tests {
 
     #[test]
     fn test_memory_manager() -> Result<(), Box<dyn std::error::Error>> {
-        use crate::memory::JXLMemoryManager;
-        use std::alloc::{GlobalAlloc, Layout, System};
-
-        #[derive(Debug)]
-        struct MallocManager {
-            layout: Layout,
-        }
-
-        impl JXLMemoryManager for MallocManager {
-            fn alloc(&self) -> Option<AllocFn> {
-                unsafe extern "C" fn alloc(opaque: *mut c_void, size: size_t) -> *mut c_void {
-                    println!("Custom alloc");
-                    let layout = Layout::from_size_align(size as usize, 8).unwrap();
-                    let address = System.alloc(layout);
-
-                    let manager = (opaque as *mut MallocManager).as_mut().unwrap();
-                    manager.layout = layout;
-
-                    address as *mut c_void
-                }
-
-                Some(alloc)
-            }
-
-            fn free(&self) -> Option<FreeFn> {
-                unsafe extern "C" fn free(opaque: *mut c_void, address: *mut c_void) {
-                    println!("Custom dealloc");
-                    let layout = (opaque as *mut MallocManager).as_mut().unwrap().layout;
-                    System.dealloc(address as *mut u8, layout);
-                }
-
-                Some(free)
-            }
-        }
+        use crate::memory::*;
 
         let sample = ImageReader::open("test/sample.png")?.decode()?.to_rgba16();
-        let memory_manager = Box::new(MallocManager {
-            layout: Layout::from_size_align(0, 8)?,
-        });
+        let memory_manager = Box::new(MallocManager::default());
 
-        let mut encoder = encoder_builder().memory_manager(memory_manager).build();
-        encoder.set_speed(EncodeSpeed::Falcon);
+        let mut encoder = encoder_builder()
+            .speed(EncodeSpeed::Falcon)
+            .memory_manager(memory_manager)
+            .build();
         let custom_buffer = encoder.encode(
             sample.as_raw(),
             sample.width() as u64,
             sample.height() as u64,
         )?;
 
-        encoder = encoder_builder().build();
-        encoder.set_speed(EncodeSpeed::Falcon);
+        encoder = encoder_builder().speed(EncodeSpeed::Falcon).build();
         let default_buffer = encoder.encode(
             sample.as_raw(),
             sample.width() as u64,

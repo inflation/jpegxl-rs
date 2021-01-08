@@ -17,6 +17,7 @@ You need to have a working `llvm` environment.
 ### Decoding
 
 ```rust
+use jpegxl_rs::*;
 let sample = std::fs::read("test/sample.jxl")?;
 let mut decoder: JXLDecoder<u8> = decoder_builder().build();
 let (info, buffer) = decoder.decode(&sample)?;
@@ -36,6 +37,9 @@ let mut decoder: JXLDecoder<u16> = decoder_builder()
 ### Encoding
 
 ```rust
+use jpegxl_rs::*;
+use image::io::Reader as ImageReader;
+
 let sample = ImageReader::open("test/sample.png")?.decode()?.to_rgba16();
 let mut encoder = encoder_builder().build();
 let buffer: Vec<u8> = encoder.encode(
@@ -49,6 +53,11 @@ let buffer: Vec<u8> = encoder.encode(
 
 The integration is enabled by default. If you don't need it, disable `with-image` feature.
 
-``` rust
+```rust
+use jpegxl_rs::image::*;
+use image::DynamicImage;
 
+let sample = std::fs::read("test/sample.jxl")?;
+let decoder: JXLImageDecoder<u16> = JXLImageDecoder::new(&sample)?;
+let img = DynamicImage::from_decoder(decoder)?;       
 ```

@@ -20,10 +20,27 @@ along with jpegxl-rs.  If not, see <https://www.gnu.org/licenses/>.
 //! ```
 //! # use jpegxl_rs::*;
 //! # || -> Result<(), Box<dyn std::error::Error>> {
-//! let sample = std::fs::read("test/sample.jxl")?;
 //! let mut decoder: JXLDecoder<u8> = decoder_builder().build();
-//! let (info, buffer) = decoder.decode(&sample)?;
-//! # Ok(()) };
+//!
+//! // Use another pixel data type
+//! let mut decoder: JXLDecoder<f32> = decoder_builder().build();
+//!
+//! // Customize pixel format
+//! let mut decoder: JXLDecoder<u8> = decoder_builder()
+//!                                     .num_channels(3)
+//!                                     .endian(Endianness::Big)
+//!                                     .align(8)
+//!                                     .build();
+//!
+//! // Set custom parallel runner and memory manager
+//! # use jpegxl_rs::{memory::*, parallel::*};
+//! let manager = Box::new(MallocManager::default());
+//! let runner = Box::new(ThreadsRunner::default());
+//! let mut decoder: JXLDecoder<u8> = decoder_builder()
+//!                                     .memory_manager(manager)
+//!                                     .parallel_runner(runner)
+//!                                     .build();
+//! Ok(()) };
 //! ```
 
 use std::ffi::c_void;
@@ -64,7 +81,6 @@ pub struct JXLDecoder<T: PixelType> {
 }
 
 impl<T: PixelType> JXLDecoder<T> {
-    /// Create a decoder.
     fn new(
         pixel_format: PrefferedPixelFormat,
         mut memory_manager: Option<Box<dyn JXLMemoryManager>>,
@@ -311,45 +327,10 @@ mod tests {
 
     #[test]
     fn test_memory_manager() -> Result<(), Box<dyn std::error::Error>> {
-        use crate::memory::JXLMemoryManager;
-        use std::alloc::{GlobalAlloc, Layout, System};
-
-        #[derive(Debug)]
-        struct MallocManager {
-            layout: Layout,
-        }
-
-        impl JXLMemoryManager for MallocManager {
-            fn alloc(&self) -> Option<AllocFn> {
-                unsafe extern "C" fn alloc(opaque: *mut c_void, size: size_t) -> *mut c_void {
-                    println!("Custom alloc");
-                    let layout = Layout::from_size_align(size as usize, 8).unwrap();
-                    let address = System.alloc(layout);
-
-                    let manager = (opaque as *mut MallocManager).as_mut().unwrap();
-                    manager.layout = layout;
-
-                    address as *mut c_void
-                }
-
-                Some(alloc)
-            }
-
-            fn free(&self) -> Option<FreeFn> {
-                unsafe extern "C" fn free(opaque: *mut c_void, address: *mut c_void) {
-                    println!("Custom dealloc");
-                    let layout = (opaque as *mut MallocManager).as_mut().unwrap().layout;
-                    System.dealloc(address as *mut u8, layout);
-                }
-
-                Some(free)
-            }
-        }
+        use crate::memory::*;
 
         let sample = std::fs::read("test/sample.jxl")?;
-        let memory_manager = Box::new(MallocManager {
-            layout: Layout::from_size_align(0, 8)?,
-        });
+        let memory_manager = Box::new(MallocManager::default());
 
         let mut decoder: JXLDecoder<u8> = decoder_builder().memory_manager(memory_manager).build();
         let custom_buffer = decoder.decode(&sample)?;
