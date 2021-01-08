@@ -27,3 +27,18 @@ use crate::{
     parallel::*,
 };
 
+/// JPEG XL Encoder
+pub struct JXLEncoder<T: PixelType> {
+    /// Opaque pointer to the underlying encoder
+    enc: *mut JxlEncoder,
+
+    /// Pixel format
+    pub pixel_format: JxlPixelFormat,
+    _pixel_type: std::marker::PhantomData<T>,
+
+    /// Memory Manager
+    pub memory_manager: Option<Box<dyn JXLMemoryManager>>,
+
+    /// Parallel Runner
+    pub parallel_runner: Option<Box<dyn JXLParallelRunner>>,
+}

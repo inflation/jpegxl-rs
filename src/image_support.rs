@@ -19,7 +19,7 @@ use image::error::{DecodingError, ImageFormatHint};
 use image::ColorType;
 use image::ImageDecoder;
 
-use crate::{JXLBasicInfo, JXLDecodeError, JXLDecoder, PixelType};
+use crate::{decoder_builder, JXLBasicInfo, JXLDecodeError, PixelType};
 
 #[cfg(feature = "with-image")]
 impl From<JXLDecodeError> for image::ImageError {
@@ -43,7 +43,7 @@ impl<T: PixelType> JXLImage<T> {
     /// Create a new JPEG XL image. Note that this will initialize underlying decoder everytime.
     /// If you need to decode multiple files, use the decoder directly.
     pub fn new(buf: &[u8]) -> Result<Self, JXLDecodeError> {
-        let mut decoder = JXLDecoder::default();
+        let mut decoder = decoder_builder().build();
         let (info, buffer) = decoder.decode(&buf)?;
         Ok(Self { buffer, info })
     }

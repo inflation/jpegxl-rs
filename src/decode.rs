@@ -23,8 +23,8 @@ use jpegxl_sys::*;
 use crate::{
     common::*,
     error::{check_dec_status, JXLDecodeError},
-    memory::*,
     parallel::*,
+    *,
 };
 
 /// JPEG XL Decoder
@@ -33,33 +33,24 @@ pub struct JXLDecoder<T: PixelType> {
     dec: *mut JxlDecoder,
 
     /// Pixel format
-    pub pixel_format: JxlPixelFormat,
+    pixel_format: JxlPixelFormat,
     _pixel_type: std::marker::PhantomData<T>,
 
     /// Memory Manager
-    pub memory_manager: Option<Box<dyn JXLMemoryManager>>,
+    _memory_manager: Option<Box<dyn JXLMemoryManager>>,
 
     /// Parallel Runner
-    pub parallel_runner: Option<Box<dyn JXLParallelRunner>>,
+    parallel_runner: Option<Box<dyn JXLParallelRunner>>,
 }
 
 impl<T: PixelType> JXLDecoder<T> {
     /// Create a decoder.<br/>
     /// Memory manager and Parallel runner API are WIP.
     pub fn new(
-        num_channels: u32,
-        endianness: JXLEndianness,
-        align: u64,
+        pixel_format: JxlPixelFormat,
         mut memory_manager: Option<Box<dyn JXLMemoryManager>>,
         parallel_runner: Option<Box<dyn JXLParallelRunner>>,
     ) -> Self {
-        let pixel_format = JxlPixelFormat {
-            num_channels,
-            data_type: T::pixel_type(),
-            endianness: endianness.into(),
-            align,
-        };
-
         let dec = unsafe {
             if let Some(memory_manager) = &mut memory_manager {
                 JxlDecoderCreate(&memory_manager.to_manager())
@@ -72,7 +63,7 @@ impl<T: PixelType> JXLDecoder<T> {
             dec,
             pixel_format,
             _pixel_type: std::marker::PhantomData,
-            memory_manager,
+            _memory_manager: memory_manager,
             parallel_runner,
         }
     }
@@ -84,27 +75,34 @@ impl<T: PixelType> JXLDecoder<T> {
     /// # use jpegxl_rs::*;
     /// # || -> Result<(), Box<dyn std::error::Error>> {
     /// let sample = std::fs::read("test/sample.jxl")?;
-    /// let mut decoder: JXLDecoder<u8> = JXLDecoder::default();
+    /// let mut decoder: JXLDecoder<u8> = decoder_builder().build();
     /// let (info, buffer) = decoder.decode(&sample)?;
     /// # Ok(())
     /// # };
     /// ```
     pub fn decode(&mut self, data: &[u8]) -> Result<(JXLBasicInfo, Vec<T>), JXLDecodeError> {
-        // Stop after getting the basic info and decoding the image
         unsafe {
+            if let Some(ref mut runner) = self.parallel_runner {
+                check_dec_status(JxlDecoderSetParallelRunner(
+                    self.dec,
+                    Some(runner.runner()),
+                    runner.as_opaque_ptr(),
+                ))?
+            }
+
+            // Stop after getting the basic info and decoding the image
+
             check_dec_status(JxlDecoderSubscribeEvents(
                 self.dec,
                 (JxlDecoderStatus_JXL_DEC_BASIC_INFO | JxlDecoderStatus_JXL_DEC_FULL_IMAGE) as i32,
             ))?;
-        }
 
-        let next_in = &mut data.as_ptr();
-        let mut avail_in = data.len() as u64;
+            let next_in = &mut data.as_ptr();
+            let mut avail_in = data.len() as u64;
 
-        let mut basic_info: Option<JXLBasicInfo> = None;
-        let mut buffer: Vec<T> = Vec::new();
+            let mut basic_info: Option<JXLBasicInfo> = None;
+            let mut buffer: Vec<T> = Vec::new();
 
-        unsafe {
             let mut status: u32;
             loop {
                 status = JxlDecoderProcessInput(self.dec, next_in, &mut avail_in);
@@ -156,22 +154,75 @@ impl<T: PixelType> JXLDecoder<T> {
     }
 }
 
-impl<T: PixelType> Default for JXLDecoder<T> {
-    /// Create a decoder with default settings,
-    //    i.e., with default memory allocator and C++ threadspool (or a naive pure Rust approach in `without-threads`).
-    fn default() -> Self {
-        let runner: Box<dyn JXLParallelRunner> = if cfg!(feature = "without-threads") {
-            Box::new(ParallelRunner::default())
-        } else {
-            Box::new(ThreadsRunner::default())
-        };
-        Self::new(4, JXLEndianness::Native, 0, None, Some(runner))
-    }
-}
-
 impl<T: PixelType> Drop for JXLDecoder<T> {
     fn drop(&mut self) {
         unsafe { JxlDecoderDestroy(self.dec) };
+    }
+}
+
+/// Builder for JXLDecoder
+pub struct JXLDecoderBuilder<T: PixelType> {
+    pixel_format: JxlPixelFormat,
+    _pixel_type: std::marker::PhantomData<T>,
+    memory_manager: Option<Box<dyn JXLMemoryManager>>,
+    parallel_runner: Option<Box<dyn JXLParallelRunner>>,
+}
+
+impl<T: PixelType> JXLDecoderBuilder<T> {
+    /// Set number of channels
+    pub fn num_channels(mut self, num: u32) -> Self {
+        self.pixel_format.num_channels = num;
+        self
+    }
+
+    /// Set Endianness
+    pub fn endian(mut self, endian: JXLEndianness) -> Self {
+        self.pixel_format.endianness = endian.into();
+        self
+    }
+
+    /// Set align
+    pub fn align(mut self, align: u64) -> Self {
+        self.pixel_format.align = align;
+        self
+    }
+
+    /// Set memory manager
+    pub fn memory_manager(mut self, memory_manager: Box<dyn JXLMemoryManager>) -> Self {
+        self.memory_manager = Some(memory_manager);
+        self
+    }
+
+    /// Set parallel runner
+    pub fn parallel_runner(mut self, parallel_runner: Box<dyn JXLParallelRunner>) -> Self {
+        self.parallel_runner = Some(parallel_runner);
+        self
+    }
+
+    /// Consume the builder and get the decoder
+    pub fn build(self) -> JXLDecoder<T> {
+        JXLDecoder::new(self.pixel_format, self.memory_manager, self.parallel_runner)
+    }
+}
+
+/// Return a builder for JXLDecoder
+pub fn decoder_builder<T: PixelType>() -> JXLDecoderBuilder<T> {
+    let runner: Box<dyn JXLParallelRunner> = if cfg!(feature = "without-threads") {
+        Box::new(ParallelRunner::default())
+    } else {
+        Box::new(ThreadsRunner::default())
+    };
+
+    JXLDecoderBuilder {
+        pixel_format: JxlPixelFormat {
+            num_channels: 4,
+            data_type: T::pixel_type(),
+            endianness: JXLEndianness::Native.into(),
+            align: 0,
+        },
+        _pixel_type: std::marker::PhantomData,
+        memory_manager: None,
+        parallel_runner: Some(runner),
     }
 }
 
@@ -181,17 +232,15 @@ mod tests {
     #[test]
     fn test_decode() -> Result<(), image::ImageError> {
         let sample = std::fs::read("test/sample.jxl")?;
-        let mut decoder: JXLDecoder<u8> = JXLDecoder::default();
-        println!(
-            "Memory manager: {:#?}, Parallel Runner: {:#?}",
-            decoder.memory_manager, decoder.parallel_runner
-        );
+        let mut decoder: JXLDecoder<u8> = decoder_builder().build();
+
         let (basic_info, buffer) = decoder.decode(&sample)?;
 
         assert_eq!(
             buffer.len(),
             (basic_info.xsize * basic_info.ysize * 4) as usize
         );
+
         Ok(())
     }
 
@@ -201,15 +250,16 @@ mod tests {
         let parallel_runner = Box::new(ParallelRunner::default());
 
         let mut decoder: JXLDecoder<u8> =
-            JXLDecoder::new(4, JXLEndianness::Native, 0, None, Some(parallel_runner));
+            decoder_builder().parallel_runner(parallel_runner).build();
+
         let parallel_buffer = decoder.decode(&sample)?;
 
-        decoder = JXLDecoder::default();
+        decoder = decoder_builder().build();
         let single_buffer = decoder.decode(&sample)?;
 
         assert!(
             parallel_buffer.1 == single_buffer.1,
-            "Rust runner should be the same as c++ one"
+            "Rust runner should be the same as C++ one"
         );
 
         Ok(())
@@ -226,7 +276,7 @@ mod tests {
         }
 
         impl JXLMemoryManager for MallocManager {
-            fn alloc(&self) -> Option<AllocFn> {
+            fn alloc(&self) -> Option<JXLAllocFn> {
                 unsafe extern "C" fn alloc(opaque: *mut c_void, size: size_t) -> *mut c_void {
                     println!("Custom alloc");
                     let layout = Layout::from_size_align(size as usize, 8).unwrap();
@@ -241,7 +291,7 @@ mod tests {
                 Some(alloc)
             }
 
-            fn free(&self) -> Option<FreeFn> {
+            fn free(&self) -> Option<JXLFreeFn> {
                 unsafe extern "C" fn free(opaque: *mut c_void, address: *mut c_void) {
                     println!("Custom dealloc");
                     let layout = (opaque as *mut MallocManager).as_mut().unwrap().layout;
@@ -257,11 +307,10 @@ mod tests {
             layout: Layout::from_size_align(0, 8)?,
         });
 
-        let mut decoder: JXLDecoder<u8> =
-            JXLDecoder::new(4, JXLEndianness::Native, 0, Some(memory_manager), None);
+        let mut decoder: JXLDecoder<u8> = decoder_builder().memory_manager(memory_manager).build();
         let custom_buffer = decoder.decode(&sample)?;
 
-        decoder = JXLDecoder::default();
+        decoder = decoder_builder().build();
         let default_buffer = decoder.decode(&sample)?;
 
         assert!(

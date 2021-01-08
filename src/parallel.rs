@@ -21,7 +21,7 @@ along with jpegxl-rs.  If not, see <https://www.gnu.org/licenses/>.
 //! # use jpegxl_rs::*;
 //! # || -> Result<(), Box<dyn std::error::Error>> {
 //! let mut parallel_runner = Box::new(ParallelRunner::default());
-//! let mut decoder: JXLDecoder<u8> = JXLDecoder::new(4, JXLEndianness::Native, 0, None, Some(parallel_runner));
+//! let mut decoder: JXLDecoder<u8> = decoder_builder().parallel_runner(parallel_runner).build();
 //! # Ok(())
 //! # };
 //! ```
@@ -33,11 +33,19 @@ use std::thread;
 
 pub use jpegxl_sys::JxlParallelRetCode;
 
-type ParallelRunnerFn = unsafe extern "C" fn(
+use crate::JXLMemoryManager;
+
+/// Parallel run initialization callback type
+pub type JXLInitFn = unsafe extern "C" fn(*mut c_void, u64) -> i32;
+/// Parallel run data processing callback type
+pub type JXLRunFn = unsafe extern "C" fn(*mut c_void, u32, u64);
+
+/// JxlParallelRunner function type
+pub type JXLParallelRunnerFn = unsafe extern "C" fn(
     runner_opaque: *mut c_void,
     jpegxl_opaque: *mut c_void,
-    init_func: Option<unsafe extern "C" fn(*mut c_void, u64) -> i32>,
-    run_func: Option<unsafe extern "C" fn(*mut c_void, u32, u64)>,
+    init_func: Option<JXLInitFn>,
+    run_func: Option<JXLRunFn>,
     start_range: u32,
     end_range: u32,
 ) -> JxlParallelRetCode;
@@ -46,7 +54,7 @@ type ParallelRunnerFn = unsafe extern "C" fn(
 pub trait JXLParallelRunner: std::fmt::Debug {
     /// FFI runner function.
     /// Check `jpeg-xl` header files for more explainations.
-    fn runner(&self) -> ParallelRunnerFn;
+    fn runner(&self) -> JXLParallelRunnerFn;
 
     /// Helper function to get an opaque pointer
     fn as_opaque_ptr(&mut self) -> *mut c_void {
@@ -72,13 +80,13 @@ impl JXLParallelRunner for ParallelRunner {
     /// Since the library explicitly states that there is no communications between each call,
     /// we can safely ignore synchronizations.
 
-    fn runner(&self) -> ParallelRunnerFn {
-        #[no_mangle]
+    fn runner(&self) -> JXLParallelRunnerFn {
+        // #[no_mangle]
         unsafe extern "C" fn runner_func(
             runner_opaque: *mut c_void,
             jpegxl_opaque: *mut c_void,
-            init_func: Option<unsafe extern "C" fn(*mut c_void, u64) -> i32>,
-            run_func: Option<unsafe extern "C" fn(*mut c_void, u32, u64)>,
+            init_func: Option<JXLInitFn>,
+            run_func: Option<JXLRunFn>,
             start_range: u32,
             end_range: u32,
         ) -> JxlParallelRetCode {
@@ -129,7 +137,10 @@ pub struct ThreadsRunner {
 #[cfg(not(feature = "without-threads"))]
 impl ThreadsRunner {
     /// Construct with number of threads
-    pub fn new(memory_manager: &JxlMemoryManagerStruct, num_workers: usize) -> Self {
+    pub fn new(memory_manager: Option<&mut dyn JXLMemoryManager>, num_workers: usize) -> Self {
+        let memory_manager = memory_manager
+            .map(|s| &mut s.to_manager() as *const JxlMemoryManager)
+            .unwrap_or(std::ptr::null());
         Self {
             runner_ptr: unsafe {
                 JxlThreadParallelRunnerCreate(memory_manager, num_workers as u64)
@@ -152,8 +163,12 @@ impl ThreadsRunner {
 
 #[cfg(not(feature = "without-threads"))]
 impl JXLParallelRunner for ThreadsRunner {
-    fn runner(&self) -> ParallelRunnerFn {
+    fn runner(&self) -> JXLParallelRunnerFn {
         JxlThreadParallelRunner
+    }
+
+    fn as_opaque_ptr(&mut self) -> *mut c_void {
+        self.runner_ptr
     }
 }
 

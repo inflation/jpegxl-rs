@@ -19,7 +19,7 @@ use jpegxl_sys::*;
 
 /// Pixel Type
 /// Currently u8, u16, u32 and f32
-pub trait PixelType: Clone + Default {
+pub trait PixelType: Clone + Default + 'static {
     /// Return the type const
     fn pixel_type() -> JxlDataType;
 }
@@ -50,9 +50,9 @@ pub enum JXLEndianness {
     /// Native Endian
     Native = 0,
     /// Little Endian
-    Little = 1,
+    Little,
     /// Big Endian
-    Big = 2,
+    Big,
 }
 
 impl From<JXLEndianness> for u32 {
@@ -63,3 +63,21 @@ impl From<JXLEndianness> for u32 {
 
 /// Basic Information
 pub type JXLBasicInfo = JxlBasicInfo;
+
+/// Encoding speed, default at Squeirrel(7)
+pub enum JXLEncodeSpeed {
+    /// Fastest, 3
+    Falcon = 3,
+    /// 4
+    Cheetah,
+    /// 5
+    Hare,
+    /// 6
+    Wombat,
+    /// 7
+    Squeirrel,
+    /// 8
+    Kitten,
+    /// Slowest, 9
+    Tortoise,
+}
