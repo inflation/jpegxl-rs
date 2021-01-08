@@ -45,10 +45,18 @@ pub enum EncodeSpeed {
     Tortoise,
 }
 
+impl From<EncodeSpeed> for i32 {
+    fn from(s: EncodeSpeed) -> Self {
+        s as i32
+    }
+}
+
 /// JPEG XL Encoder
 pub struct JXLEncoder {
     /// Opaque pointer to the underlying encoder
     enc: *mut JxlEncoder,
+    /// Opaque pointer to the encoder options
+    options_ptr: *mut JxlEncoderOptions,
 
     /// Pixel format
     pub pixel_format: JxlPixelFormat,
@@ -75,12 +83,37 @@ impl JXLEncoder {
             }
         };
 
+        let options_ptr = unsafe { JxlEncoderOptionsCreate(enc, null()) };
+
         Self {
             enc,
             pixel_format,
+            options_ptr,
             _memory_manager: memory_manager,
             parallel_runner,
         }
+    }
+
+    /// Set lossless mode. Default is lossy.
+    pub fn set_lossless(&self, lossless: bool) {
+        unsafe { JxlEncoderOptionsSetLossless(self.options_ptr, lossless.into()) };
+    }
+
+    /// Set speed.
+    /// Default: EncodeSpeed::Squirrel (7).
+    pub fn set_speed(&self, speed: EncodeSpeed) {
+        unsafe { JxlEncoderOptionsSetEffort(self.options_ptr, speed.into()) };
+    }
+
+    /// Set quality for lossy compression: target max butteraugli distance, lower = higher quality.
+    ///  Range: 0 .. 15.<br />
+    ///    0.0 = mathematically lossless (however, use `set_lossless` to use true lossless). <br />
+    ///    1.0 = visually lossless. <br />
+    ///    Recommended range: 0.5 .. 3.0. <br />
+    ///    Default value: 1.0. <br />
+    ///    If `set_lossless` is used, this value is unused and implied to be 0.
+    pub fn set_quality(&self, quality: f32) {
+        unsafe { JxlEncoderOptionsSetDistance(self.options_ptr, quality) };
     }
 
     /// Encode a JPEG XL image.<br />
@@ -101,6 +134,8 @@ impl JXLEncoder {
         xsize: u64,
         ysize: u64,
     ) -> Result<Vec<u8>, EncodeError> {
+        self.pixel_format.data_type = T::pixel_type();
+
         unsafe {
             if let Some(ref mut runner) = self.parallel_runner {
                 check_enc_status(JxlEncoderSetParallelRunner(
@@ -113,10 +148,10 @@ impl JXLEncoder {
             check_enc_status(JxlEncoderSetDimensions(self.enc, xsize, ysize))?;
 
             check_enc_status(JxlEncoderAddImageFrame(
-                JxlEncoderOptionsCreate(self.enc, std::ptr::null()),
+                self.options_ptr,
                 &self.pixel_format,
-                data.as_ptr() as *mut std::ffi::c_void,
-                data.len() as u64,
+                data.as_ptr() as *mut c_void,
+                std::mem::size_of_val(data) as u64,
             ))?;
 
             const CHUNK_SIZE: usize = 1024 * 512; // 512 KB is a good initial value
@@ -163,6 +198,24 @@ pub struct JXLEncoderBuilder {
 }
 
 impl JXLEncoderBuilder {
+    /// Set number of channels
+    pub fn num_channels(mut self, num: u32) -> Self {
+        self.pixel_format.num_channels = num;
+        self
+    }
+
+    /// Set endianness
+    pub fn endian(mut self, endian: Endianness) -> Self {
+        self.pixel_format.endianness = endian.into();
+        self
+    }
+
+    /// Set align
+    pub fn align(mut self, align: u64) -> Self {
+        self.pixel_format.align = align;
+        self
+    }
+
     /// Set memory manager
     pub fn memory_manager(mut self, memory_manager: Box<dyn JXLMemoryManager>) -> Self {
         self.memory_manager = Some(memory_manager);
@@ -208,11 +261,11 @@ mod tests {
     use image::io::Reader as ImageReader;
     #[test]
     fn test_encode() -> Result<(), image::ImageError> {
-        let sample = ImageReader::open("test/sample.png")?.decode()?.to_rgba16();
-        let mut encoder = encoder_builder().build();
+        let sample = ImageReader::open("test/sample.png")?.decode()?.to_rgb8();
+        let mut encoder = encoder_builder().num_channels(3).build();
 
         let _buffer = encoder.encode(
-            &sample.as_raw(),
+            sample.as_raw(),
             sample.width() as u64,
             sample.height() as u64,
         )?;
@@ -228,14 +281,14 @@ mod tests {
         let mut encoder = encoder_builder().parallel_runner(parallel_runner).build();
 
         let parallel_buffer = encoder.encode(
-            &sample.as_raw(),
+            sample.as_raw(),
             sample.width() as u64,
             sample.height() as u64,
         )?;
 
         encoder = encoder_builder().build();
         let single_buffer = encoder.encode(
-            &sample.as_raw(),
+            sample.as_raw(),
             sample.width() as u64,
             sample.height() as u64,
         )?;
@@ -292,14 +345,14 @@ mod tests {
 
         let mut encoder = encoder_builder().memory_manager(memory_manager).build();
         let custom_buffer = encoder.encode(
-            &sample.as_raw(),
+            sample.as_raw(),
             sample.width() as u64,
             sample.height() as u64,
         )?;
 
         encoder = encoder_builder().build();
         let default_buffer = encoder.encode(
-            &sample.as_raw(),
+            sample.as_raw(),
             sample.width() as u64,
             sample.height() as u64,
         )?;

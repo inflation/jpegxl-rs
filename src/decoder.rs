@@ -99,7 +99,7 @@ impl<T: PixelType> JXLDecoder<T> {
             ))?;
 
             let next_in = &mut data.as_ptr();
-            let mut avail_in = data.len() as u64;
+            let mut avail_in = std::mem::size_of_val(data) as u64;
 
             let mut basic_info: Option<BasicInfo> = None;
             let mut buffer: Vec<T> = Vec::new();
