@@ -15,6 +15,19 @@ You should have received a copy of the GNU General Public License
 along with jpegxl-rs.  If not, see <https://www.gnu.org/licenses/>.
 */
 
+//! Encoder of JPEG XL format
+//! # Example
+//! ```
+//! # use jpegxl_rs::encoder::*;
+//! # || -> Result<(), Box<dyn std::error::Error>> {
+//! use image::io::Reader as ImageReader;
+//! let sample = ImageReader::open("test/sample.png")?.decode()?.to_rgba16();
+//! let mut encoder = encoder_builder().build();
+//! let buffer = encoder.encode(&sample, sample.width() as u64, sample.height() as u64)?;
+//! # Ok(())
+//! # };
+//! ```
+
 use std::ffi::c_void;
 use std::ptr::null;
 
@@ -117,17 +130,6 @@ impl JXLEncoder {
     }
 
     /// Encode a JPEG XL image.<br />
-    /// # Example
-    /// ```
-    /// # use jpegxl_rs::*;
-    /// # use image::io::Reader as ImageReader;
-    /// # || -> Result<(), Box<dyn std::error::Error>> {
-    /// let sample = ImageReader::open("test/sample.png")?.decode()?.to_rgba16();
-    /// let mut encoder = encoder_builder().build();
-    /// let buffer = encoder.encode(&sample, sample.width() as u64, sample.height() as u64)?;
-    /// # Ok(())
-    /// # };
-    /// ```
     pub fn encode<T: PixelType>(
         &mut self,
         data: &[T],
@@ -263,6 +265,7 @@ mod tests {
     fn test_encode() -> Result<(), image::ImageError> {
         let sample = ImageReader::open("test/sample.png")?.decode()?.to_rgb8();
         let mut encoder = encoder_builder().num_channels(3).build();
+        encoder.set_speed(EncodeSpeed::Falcon);
 
         let _buffer = encoder.encode(
             sample.as_raw(),
@@ -279,6 +282,7 @@ mod tests {
         let parallel_runner = Box::new(ParallelRunner::default());
 
         let mut encoder = encoder_builder().parallel_runner(parallel_runner).build();
+        encoder.set_speed(EncodeSpeed::Falcon);
 
         let parallel_buffer = encoder.encode(
             sample.as_raw(),
@@ -287,6 +291,7 @@ mod tests {
         )?;
 
         encoder = encoder_builder().build();
+        encoder.set_speed(EncodeSpeed::Falcon);
         let single_buffer = encoder.encode(
             sample.as_raw(),
             sample.width() as u64,
@@ -344,6 +349,7 @@ mod tests {
         });
 
         let mut encoder = encoder_builder().memory_manager(memory_manager).build();
+        encoder.set_speed(EncodeSpeed::Falcon);
         let custom_buffer = encoder.encode(
             sample.as_raw(),
             sample.width() as u64,
@@ -351,6 +357,7 @@ mod tests {
         )?;
 
         encoder = encoder_builder().build();
+        encoder.set_speed(EncodeSpeed::Falcon);
         let default_buffer = encoder.encode(
             sample.as_raw(),
             sample.width() as u64,

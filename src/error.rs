@@ -15,9 +15,7 @@ You should have received a copy of the GNU General Public License
 along with jpegxl-rs.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-// #![allow(non_upper_case_globals)]
-// #![allow(non_camel_case_types)]
-// #![allow(non_snake_case)]
+//! Decoder and encoder errors
 
 use jpegxl_sys::*;
 

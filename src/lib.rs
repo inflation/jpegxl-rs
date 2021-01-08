@@ -19,25 +19,68 @@ along with jpegxl-rs.  If not, see <https://www.gnu.org/licenses/>.
 #![allow(non_upper_case_globals)]
 #![allow(non_camel_case_types)]
 #![allow(non_snake_case)]
-//! A safe JPEGXL Decoder wrapper.
+#![deny(clippy::all)]
+
+//! # Overview
+//! A safe JPEGXL wrapper over `jpeg-xl` library. Check out the original [library](https://gitlab.com/wg1/jpeg-xl)
+//! and the [bindings](https://github.com/inflation/jpegxl-sys).
+
+//! # Usage
+
+//! ## Decoding
+//! ```rust
+//! # || -> Result<(), Box<dyn std::error::Error>> {  
+//! use jpegxl_rs::decoder::*;
+//! let sample = std::fs::read("test/sample.jxl")?;
+//! let mut decoder: JXLDecoder<u8> = decoder_builder().build();
+//! let (info, buffer) = decoder.decode(&sample)?;
+//! # Ok(()) };
+//! ```
+
+//! Set output pixel paramaters
+//! ```rust
+//! // Pixel type is set by type parameter
+//! # || -> Result<(), Box<dyn std::error::Error>> {
+//! use jpegxl_rs::{decoder::*, Endianness};
+//! let mut decoder: JXLDecoder<u16> = decoder_builder()
+//!                                     .num_channels(3)
+//!                                     .endian(Endianness::Big)
+//!                                     .align(8)
+//!                                     .build();
+//! # Ok(()) };
+//! ```
+
+//! ## Encoding
+//! ```rust
+//! # use jpegxl_rs::encoder::*;
+//! # || -> Result<(), Box<dyn std::error::Error>> {
+//! use image::io::Reader as ImageReader;
+//! let sample = ImageReader::open("test/sample.png")?.decode()?.to_rgba16();
+//! let mut encoder = encoder_builder().build();
+//! let buffer: Vec<u8> = encoder.encode(
+//!                         &sample,
+//!                         sample.width() as u64,
+//!                         sample.height() as u64
+//!                       )?;
+//! # Ok(()) };
+//! ```
+
+//! ## [`image`](https://crates.io/crates/image) crate integration
+//! The integration is enabled by default. If you don't need it, disable `with-image` feature.
+//! ``` rust
+
+//! ```
 
 mod common;
-/// Decoder
 pub mod decoder;
-/// Encoder
 pub mod encoder;
-/// Error types and helper functions
 pub mod error;
-/// Memory manager interface
 pub mod memory;
-/// Parallel runner interface
 pub mod parallel;
 
 #[cfg(feature = "with-image")]
-mod image_support;
+pub mod image;
 
+pub use common::*;
 pub use decoder::*;
 pub use encoder::*;
-
-#[cfg(feature = "with-image")]
-pub use image_support::*;

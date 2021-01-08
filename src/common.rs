@@ -15,12 +15,14 @@ You should have received a copy of the GNU General Public License
 along with jpegxl-rs.  If not, see <https://www.gnu.org/licenses/>.
 */
 
+//! Common types used across the crate
+
 use jpegxl_sys::*;
 
-/// Pixel Type
-/// Currently u8, u16, u32 and f32
+/// Pixel data type.
+/// Currently u8, u16, u32 and f32 are supported.
 pub trait PixelType: Clone + Default + 'static {
-    /// Return the type const
+    /// Return the c const
     fn pixel_type() -> JxlDataType;
 }
 impl PixelType for u8 {
@@ -46,6 +48,7 @@ impl PixelType for f32 {
 
 /// Endinness
 #[repr(C)]
+#[derive(Copy, Clone)]
 pub enum Endianness {
     /// Native Endian
     Native = 0,
@@ -60,4 +63,3 @@ impl From<Endianness> for u32 {
         endianness as u32
     }
 }
-

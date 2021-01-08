@@ -15,19 +15,20 @@ You should have received a copy of the GNU General Public License
 along with jpegxl-rs.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-//! Example implementation of a multithread runner
+//! Parallel runner interface
 //! # Example
 //! ```
-//! # use jpegxl_rs::{parallel::*, decoder::*};
 //! # || -> Result<(), Box<dyn std::error::Error>> {
+//! use jpegxl_rs::{parallel::*, decoder::*};
 //! let mut parallel_runner = Box::new(ParallelRunner::default());
+//! // Or use the default C++ Threadpool runner:
+//! let mut parallel_runner = Box::new(ThreadsRunner::default());
 //! let mut decoder: JXLDecoder<u8> = decoder_builder().parallel_runner(parallel_runner).build();
 //! # Ok(())
 //! # };
 //! ```
 
 use jpegxl_sys::*;
-use num_cpus;
 use std::ffi::c_void;
 use std::thread;
 
@@ -114,7 +115,7 @@ impl JXLParallelRunner for ParallelRunner {
                 })
                 .for_each(|t| t.join().unwrap());
 
-            return 0;
+            0
         }
         runner_func
     }

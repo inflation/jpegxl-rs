@@ -15,8 +15,64 @@ You should have received a copy of the GNU General Public License
 along with jpegxl-rs.  If not, see <https://www.gnu.org/licenses/>.
 */
 
+//! Memory manager interface
+//! # Example
+//! ```
+//! # || -> Result<(), Box<dyn std::error::Error>> {
+//!		use jpegxl_rs::memory::*;
+//!		use std::alloc::{GlobalAlloc, Layout, System};
+//!     use std::ffi::c_void;
+//!
+//!		#[derive(Debug)]
+//!		struct MallocManager {
+//!			layout: Layout,
+//!		}
+//!
+//!		impl JXLMemoryManager for MallocManager {
+//!			fn alloc(&self) -> Option<AllocFn> {
+//!				unsafe extern "C" fn alloc(opaque: *mut c_void, size: size_t) -> *mut c_void {
+//!					println!("Custom alloc");
+//!					let layout = Layout::from_size_align(size as usize, 8).unwrap();
+//!					let address = System.alloc(layout);
+//!
+//!					let manager = (opaque as *mut MallocManager).as_mut().unwrap();
+//!					manager.layout = layout;
+//!
+//!					address as *mut c_void
+//!				}
+//!
+//!				Some(alloc)
+//!			}
+//!
+//!			fn free(&self) -> Option<FreeFn> {
+//!				unsafe extern "C" fn free(opaque: *mut c_void, address: *mut c_void) {
+//!					println!("Custom dealloc");
+//!					let layout = (opaque as *mut MallocManager).as_mut().unwrap().layout;
+//!					System.dealloc(address as *mut u8, layout);
+//!				}
+//!
+//!				Some(free)
+//!			}
+//!		}
+//!
+//!		let sample = std::fs::read("test/sample.jxl")?;
+//!		let memory_manager = Box::new(MallocManager {
+//!			layout: Layout::from_size_align(0, 8)?,
+//!		});
+//!
+//!     use jpegxl_rs::decoder::*;
+//!
+//!		let mut decoder: JXLDecoder<u8> = decoder_builder()
+//!                                          .memory_manager(memory_manager)
+//!                                          .build();
+//!		let custom_buffer = decoder.decode(&sample)?;
+//! # Ok(()) };
+//! ```
+
 use jpegxl_sys::*;
 use std::ffi::c_void;
+
+pub use jpegxl_sys::size_t;
 
 /// Allocator function type
 pub type AllocFn = unsafe extern "C" fn(opaque: *mut c_void, size: size_t) -> *mut c_void;
@@ -24,6 +80,7 @@ pub type AllocFn = unsafe extern "C" fn(opaque: *mut c_void, size: size_t) -> *m
 pub type FreeFn = unsafe extern "C" fn(opaque: *mut c_void, address: *mut c_void);
 
 /// General trait for a memory manager
+
 pub trait JXLMemoryManager: std::fmt::Debug {
     /// Return a custom allocator function. Can be None for using default one
     fn alloc(&self) -> Option<AllocFn>;

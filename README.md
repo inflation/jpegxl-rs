@@ -1,22 +1,54 @@
 # jpegxl-rs
 
-`jpegxl-rs` is a safe wrapper over `jpeg-xl` library. Check out the original library [here](https://gitlab.com/wg1/jpeg-xl)
-and the bindings [here](https://github.com/inflation/jpegxl-sys).
+`jpegxl-rs` is a safe wrapper over `jpeg-xl` library. Check out the original [library](https://gitlab.com/wg1/jpeg-xl)
+and the [bindings](https://github.com/inflation/jpegxl-sys).
 
 ## Building
 
-Install the `jpeg-xl` library system-wide or specify `PKG_CONFIG_PATH` to search for needed paths. Optionally, you can
-overwrite the include path and lib path with `DEP_JPEGXL_INCLUDE` and `DEP_JPEGXL_LIB` respectively.
+The library build `jpeg-xl` and link to `libc++` by default. Optionally, you can set `--features without-build`, then
+set the include path and lib path with `DEP_JXL_INCLUDE` and `DEP_JXL_LIB` respectively.
 
-If you want to build the library within cargo, enable `build-jpegxl` features for `jpegxl-sys` in your `Cargo.toml`.
+If you don't want to depend on C++ standard library, use `--features without-threads` to disable default threadpool.
 
-You need to have a working `llvm` environment. Note that this will link to `libc++` by default
-(since you already use llvm). You can modify it by setting `DEP_JPEGXL_CXXLIB`.
+You need to have a working `llvm` environment.
 
 ## Usage
 
-Check out testing in `src/lib.rs` for some examples.
+### Decoding
 
-### [`image`](https://crates.io/crates/image) crate integration (WIP)
+```rust
+let sample = std::fs::read("test/sample.jxl")?;
+let mut decoder: JXLDecoder<u8> = decoder_builder().build();
+let (info, buffer) = decoder.decode(&sample)?;
+```
 
-Enable `with-image` feature. Then you can use `image`'s decoder interface.
+Set output pixel paramaters
+
+```rust
+// Pixel type is set by type parameter
+let mut decoder: JXLDecoder<u16> = decoder_builder()
+                                    .num_channel(3)
+                                    .endianness(Endianness::Big)
+                                    .align(8)
+                                    .build();
+```
+
+### Encoding
+
+```rust
+let sample = ImageReader::open("test/sample.png")?.decode()?.to_rgba16();
+let mut encoder = encoder_builder().build();
+let buffer: Vec<u8> = encoder.encode(
+                        &sample, 
+                        sample.width() as u64, 
+                        sample.height() as u64
+                      )?;
+```
+
+### [`image`](https://crates.io/crates/image) crate integration
+
+The integration is enabled by default. If you don't need it, disable `with-image` feature.
+
+``` rust
+
+```
