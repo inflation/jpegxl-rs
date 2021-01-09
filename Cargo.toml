@@ -37,3 +37,7 @@ bench = false
 [[bench]]
 harness = false
 name = "decode"
+
+[[bin]]
+name = "threadpool"
+path = "src/main.rs"

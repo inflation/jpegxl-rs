@@ -130,7 +130,7 @@ impl Default for ParallelRunner {
 
 #[cfg(not(feature = "without-threads"))]
 #[derive(Debug)]
-/// Wrapper for default threadspool implementation with C++ standard library
+/// Wrapper for default threadpool implementation with C++ standard library
 pub struct ThreadsRunner {
     runner_ptr: *mut c_void,
 }

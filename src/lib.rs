@@ -85,6 +85,7 @@ pub mod encoder;
 pub mod error;
 pub mod memory;
 pub mod parallel;
+pub mod threadpool;
 
 #[cfg(feature = "with-image")]
 pub mod image;
