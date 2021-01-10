@@ -32,6 +32,10 @@ along with jpegxl-rs.  If not, see <https://www.gnu.org/licenses/>.
 //!                                     .align(8)
 //!                                     .build();
 //!
+//! Ok(()) };
+//! ```
+//!
+//! ```ignore
 //! // Set custom parallel runner and memory manager
 //! # use jpegxl_rs::{memory::*, parallel::*};
 //! let manager = Box::new(MallocManager::default());
@@ -40,7 +44,6 @@ along with jpegxl-rs.  If not, see <https://www.gnu.org/licenses/>.
 //!                                     .memory_manager(manager)
 //!                                     .parallel_runner(runner)
 //!                                     .build();
-//! Ok(()) };
 //! ```
 
 use std::ffi::c_void;
@@ -259,12 +262,6 @@ impl<T: PixelType> JXLDecoderBuilder<T> {
 
 /// Return a builder for JXLDecoder
 pub fn decoder_builder<T: PixelType>() -> JXLDecoderBuilder<T> {
-    let runner: Box<dyn JXLParallelRunner> = if cfg!(feature = "without-threads") {
-        Box::new(ParallelRunner::default())
-    } else {
-        Box::new(ThreadsRunner::default())
-    };
-
     JXLDecoderBuilder {
         pixel_format: PrefferedPixelFormat {
             num_channels: None,
@@ -273,7 +270,7 @@ pub fn decoder_builder<T: PixelType>() -> JXLDecoderBuilder<T> {
         },
         _pixel_type: std::marker::PhantomData,
         memory_manager: None,
-        parallel_runner: Some(runner),
+        parallel_runner: choose_runner(),
     }
 }
 
@@ -315,9 +312,10 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "with-rayon")]
     fn test_rust_runner_decode() -> Result<(), ImageError> {
         let sample = std::fs::read("test/sample.jxl")?;
-        let parallel_runner = Box::new(ParallelRunner::default());
+        let parallel_runner = Box::new(RayonRunner::default());
 
         let mut decoder: JXLDecoder<u8> =
             decoder_builder().parallel_runner(parallel_runner).build();

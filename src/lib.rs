@@ -85,9 +85,8 @@ pub mod encoder;
 pub mod error;
 pub mod memory;
 pub mod parallel;
-pub mod threadpool;
 
-#[cfg(feature = "with-image")]
+#[cfg(not(feature = "without-image"))]
 pub mod image;
 
 pub use common::*;

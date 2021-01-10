@@ -9,6 +9,7 @@ The library build `jpeg-xl` and link to `libc++` by default. Optionally, you can
 set the include path and lib path with `DEP_JXL_INCLUDE` and `DEP_JXL_LIB` respectively.
 
 If you don't want to depend on C++ standard library, use `--features without-threads` to disable default threadpool.
+Instead, you can enable `with-rayon` feature to use its threadpool.
 
 You need to have a working `llvm` environment.
 
@@ -51,7 +52,7 @@ let buffer: Vec<u8> = encoder.encode(
 
 ### [`image`](https://crates.io/crates/image) crate integration
 
-The integration is enabled by default. If you don't need it, disable `with-image` feature.
+The integration is enabled by default. If you don't need it, use `without-image` feature.
 
 ```rust
 use jpegxl_rs::image::*;

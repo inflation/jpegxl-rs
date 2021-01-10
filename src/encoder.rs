@@ -30,11 +30,11 @@ along with jpegxl-rs.  If not, see <https://www.gnu.org/licenses/>.
 //! Set encoder options
 //! ```
 //! # || -> Result<(), Box<dyn std::error::Error>> {
-//! # use jpegxl_rs::{memory::*, parallel::*};
+//! # use jpegxl_rs::*;
 //! let mut encoder = encoder_builder()
 //!                     .lossless(true)
 //!                     .speed(EncodeSpeed::Falcon)
-//!                     .build()
+//!                     .build();
 //! // You can change the settings after initialization
 //! encoder.set_lossless(false);
 //! encoder.set_quality(3.0);
@@ -298,12 +298,6 @@ impl JXLEncoderBuilder {
 
 /// Return a builder for JXLEncoder
 pub fn encoder_builder() -> JXLEncoderBuilder {
-    let runner: Box<dyn JXLParallelRunner> = if cfg!(feature = "without-threads") {
-        Box::new(ParallelRunner::default())
-    } else {
-        Box::new(ThreadsRunner::default())
-    };
-
     JXLEncoderBuilder {
         pixel_format: JxlPixelFormat {
             num_channels: 4,
@@ -317,7 +311,7 @@ pub fn encoder_builder() -> JXLEncoderBuilder {
             quality: None,
         },
         memory_manager: None,
-        parallel_runner: Some(runner),
+        parallel_runner: choose_runner(),
     }
 }
 
@@ -363,9 +357,10 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "with-rayon")]
     fn test_rust_runner_encode() -> Result<(), Box<dyn std::error::Error>> {
         let sample = ImageReader::open("test/sample.png")?.decode()?.to_rgba16();
-        let parallel_runner = Box::new(ParallelRunner::default());
+        let parallel_runner = Box::new(RayonRunner::default());
 
         let mut encoder = encoder_builder()
             .speed(EncodeSpeed::Falcon)

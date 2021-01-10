@@ -93,7 +93,7 @@ pub trait JXLMemoryManager: std::fmt::Debug {
 
 /// Example implement of JXLMemoryManager
 #[derive(Debug)]
-pub struct MallocManager {
+pub(crate) struct MallocManager {
     layout: Layout,
 }
 
