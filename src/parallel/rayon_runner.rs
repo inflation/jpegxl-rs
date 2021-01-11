@@ -62,7 +62,7 @@ impl RayonRunner {
                 return ret_code;
             };
 
-            let mut chunk_size =
+            let chunk_size =
                 ((end_range - start_range) as f64 / num_threads as f64).ceil() as usize;
 
             let ptr = CPointer(jpegxl_opaque);

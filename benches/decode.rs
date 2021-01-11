@@ -13,11 +13,14 @@ pub fn criterion_benchmark(c: &mut Criterion) {
         b.iter(|| decoder.decode(black_box(&sample)))
     });
 
-    let parallel_runner = Box::new(RayonRunner::new(Some(8)));
-    decoder = decoder_builder().parallel_runner(parallel_runner).build();
-    group.bench_function("rust threads decode", |b| {
-        b.iter(|| decoder.decode(black_box(&sample)))
-    });
+    #[cfg(feature = "with-rayon")]
+    {
+        let parallel_runner = Box::new(RayonRunner::new(Some(8)));
+        decoder = decoder_builder().parallel_runner(parallel_runner).build();
+        group.bench_function("rust threads decode", |b| {
+            b.iter(|| decoder.decode(black_box(&sample)))
+        });
+    }
     group.finish();
 }
 
