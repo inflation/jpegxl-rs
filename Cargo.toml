@@ -30,7 +30,6 @@ image = "0.23.12"
 
 [package.metadata.docs.rs]
 features = ["docsrs", "with-rayon"]
-no-default-features = true
 
 [lib]
 bench = false
