@@ -96,7 +96,7 @@ impl<'a, T: PixelType> ImageDecoder<'a> for JXLImageDecoder<T> {
 
         let vec_u8 = unsafe {
             Vec::from_raw_parts(
-                v.as_mut_ptr() as *mut u8,
+                v.as_mut_ptr() as _,
                 v.len() * std::mem::size_of::<u16>(),
                 v.capacity(),
             )

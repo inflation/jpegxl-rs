@@ -61,8 +61,8 @@ along with jpegxl-rs.  If not, see <https://www.gnu.org/licenses/>.
 //! let mut encoder = encoder_builder().build();
 //! let buffer: Vec<u8> = encoder.encode(
 //!                         &sample,
-//!                         sample.width() as u64,
-//!                         sample.height() as u64
+//!                         sample.width() as _,
+//!                         sample.height() as _
 //!                       )?;
 //! # Ok(()) };
 //! ```

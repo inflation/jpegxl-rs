@@ -57,13 +57,12 @@ impl RayonRunner {
             let runner = (runner_opaque as *mut RayonRunner).as_ref().unwrap();
             let pool = &runner.pool;
             let num_threads = pool.current_num_threads();
-            let ret_code = init_func.unwrap()(jpegxl_opaque, num_threads as u64);
+            let ret_code = init_func.unwrap()(jpegxl_opaque, num_threads as _);
             if ret_code != 0 {
                 return ret_code;
             };
 
-            let chunk_size =
-                ((end_range - start_range) as f64 / num_threads as f64).ceil() as usize;
+            let chunk_size = ((end_range - start_range) as f64 / num_threads as f64).ceil() as _;
 
             let ptr = CPointer(jpegxl_opaque);
             (start_range..end_range)
@@ -71,7 +70,7 @@ impl RayonRunner {
                 .chunks(chunk_size)
                 .for_each(|s| {
                     pool.install(move || {
-                        let id = pool.current_thread_index().unwrap() as u64;
+                        let id = pool.current_thread_index().unwrap() as _;
                         for i in s {
                             run_func.unwrap()(ptr.0, *i, id);
                         }

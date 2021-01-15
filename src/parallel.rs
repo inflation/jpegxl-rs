@@ -64,7 +64,7 @@ pub trait JXLParallelRunner: std::fmt::Debug {
 
     /// Helper function to get an opaque pointer
     fn as_opaque_ptr(&mut self) -> *mut c_void {
-        self as *mut Self as *mut c_void
+        self as *mut Self as _
     }
 }
 

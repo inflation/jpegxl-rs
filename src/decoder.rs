@@ -37,7 +37,6 @@ along with jpegxl-rs.  If not, see <https://www.gnu.org/licenses/>.
 //!
 //! ```ignore
 //! // Set custom parallel runner and memory manager
-//! # use jpegxl_rs::{memory::*, parallel::*};
 //! let manager = Box::new(MallocManager::default());
 //! let runner = Box::new(ThreadsRunner::default());
 //! let mut decoder: JXLDecoder<u8> = decoder_builder()
@@ -125,7 +124,7 @@ impl<T: PixelType> JXLDecoder<T> {
             ))?;
 
             let next_in = &mut data.as_ptr();
-            let mut avail_in = std::mem::size_of_val(data) as u64;
+            let mut avail_in = std::mem::size_of_val(data) as _;
 
             let mut basic_info = None;
             let mut pixel_format = None;
@@ -181,8 +180,8 @@ impl<T: PixelType> JXLDecoder<T> {
                                 self.dec, &format, &mut size,
                             ))?;
 
-                            buffer = Vec::with_capacity(size as usize);
-                            buffer.set_len(size as usize);
+                            buffer = Vec::with_capacity(size as _);
+                            buffer.set_len(size as _);
                             check_dec_status(JxlDecoderSetImageOutBuffer(
                                 self.dec,
                                 &format,
@@ -286,10 +285,7 @@ mod tests {
 
         let (basic_info, buffer) = decoder.decode(&sample)?;
 
-        assert_eq!(
-            buffer.len(),
-            (basic_info.xsize * basic_info.ysize * 4) as usize
-        );
+        assert_eq!(buffer.len(), (basic_info.xsize * basic_info.ysize * 4) as _);
 
         Ok(())
     }
@@ -304,10 +300,7 @@ mod tests {
 
         let (basic_info, buffer) = decoder.decode(&sample)?;
 
-        assert_eq!(
-            buffer.len(),
-            (basic_info.xsize * basic_info.ysize * 3) as usize
-        );
+        assert_eq!(buffer.len(), (basic_info.xsize * basic_info.ysize * 3) as _);
 
         Ok(())
     }

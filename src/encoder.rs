@@ -23,7 +23,7 @@ along with jpegxl-rs.  If not, see <https://www.gnu.org/licenses/>.
 //! use image::io::Reader as ImageReader;
 //! let sample = ImageReader::open("test/sample.png")?.decode()?.to_rgba16();
 //! let mut encoder = encoder_builder().build();
-//! let buffer = encoder.encode(&sample, sample.width() as u64, sample.height() as u64)?;
+//! let buffer = encoder.encode(&sample, sample.width() as _, sample.height() as _)?;
 //! # Ok(()) };
 //! ```
 //!
@@ -41,7 +41,7 @@ along with jpegxl-rs.  If not, see <https://www.gnu.org/licenses/>.
 //! # Ok(()) };
 //! ```
 
-use std::ffi::c_void;
+use std::convert::TryInto;
 use std::ptr::null;
 
 use jpegxl_sys::*;
@@ -188,8 +188,8 @@ impl JXLEncoder {
             check_enc_status(JxlEncoderAddImageFrame(
                 self.options_ptr,
                 &self.pixel_format,
-                data.as_ptr() as *mut c_void,
-                std::mem::size_of_val(data) as u64,
+                data.as_ptr() as _,
+                std::mem::size_of_val(data) as _,
             ))?;
 
             const CHUNK_SIZE: usize = 1024 * 512; // 512 KB is a good initial value
@@ -201,20 +201,20 @@ impl JXLEncoder {
             loop {
                 status = JxlEncoderProcessOutput(
                     self.enc,
-                    &mut next_out as *mut *mut u8,
-                    &mut (avail_out as u64) as *mut u64,
+                    &mut next_out as _,
+                    &mut (avail_out as u64) as _,
                 );
 
                 if status != JxlEncoderStatus_JXL_ENC_NEED_MORE_OUTPUT {
                     break;
                 }
 
-                let offset = next_out as usize - buffer.as_ptr() as usize;
+                let offset = next_out.offset_from(buffer.as_ptr()).try_into().unwrap();
                 buffer.resize(buffer.len() * 2, 0);
                 next_out = buffer.as_mut_ptr().add(offset);
                 avail_out = buffer.len() - offset;
             }
-            buffer.truncate(next_out as usize - buffer.as_ptr() as usize);
+            buffer.truncate(next_out.offset_from(buffer.as_ptr()).try_into().unwrap());
             check_enc_status(status)?;
 
             Ok(buffer)
@@ -328,11 +328,7 @@ mod tests {
             .num_channels(3)
             .build();
 
-        encoder.encode(
-            sample.as_raw(),
-            sample.width() as u64,
-            sample.height() as u64,
-        )?;
+        encoder.encode(sample.as_raw(), sample.width() as _, sample.height() as _)?;
 
         Ok(())
     }
@@ -347,11 +343,7 @@ mod tests {
             .quality(3.0)
             .build();
 
-        encoder.encode(
-            sample.as_raw(),
-            sample.width() as u64,
-            sample.height() as u64,
-        )?;
+        encoder.encode(sample.as_raw(), sample.width() as _, sample.height() as _)?;
 
         Ok(())
     }
@@ -367,18 +359,12 @@ mod tests {
             .parallel_runner(parallel_runner)
             .build();
 
-        let parallel_buffer = encoder.encode(
-            sample.as_raw(),
-            sample.width() as u64,
-            sample.height() as u64,
-        )?;
+        let parallel_buffer =
+            encoder.encode(sample.as_raw(), sample.width() as _, sample.height() as _)?;
 
         encoder = encoder_builder().speed(EncodeSpeed::Falcon).build();
-        let single_buffer = encoder.encode(
-            sample.as_raw(),
-            sample.width() as u64,
-            sample.height() as u64,
-        )?;
+        let single_buffer =
+            encoder.encode(sample.as_raw(), sample.width() as _, sample.height() as _)?;
 
         assert!(
             parallel_buffer == single_buffer,
@@ -399,18 +385,12 @@ mod tests {
             .speed(EncodeSpeed::Falcon)
             .memory_manager(memory_manager)
             .build();
-        let custom_buffer = encoder.encode(
-            sample.as_raw(),
-            sample.width() as u64,
-            sample.height() as u64,
-        )?;
+        let custom_buffer =
+            encoder.encode(sample.as_raw(), sample.width() as _, sample.height() as _)?;
 
         encoder = encoder_builder().speed(EncodeSpeed::Falcon).build();
-        let default_buffer = encoder.encode(
-            sample.as_raw(),
-            sample.width() as u64,
-            sample.height() as u64,
-        )?;
+        let default_buffer =
+            encoder.encode(sample.as_raw(), sample.width() as _, sample.height() as _)?;
 
         assert!(
             custom_buffer == default_buffer,

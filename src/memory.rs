@@ -32,7 +32,7 @@ along with jpegxl-rs.  If not, see <https://www.gnu.org/licenses/>.
 //!            fn alloc(&self) -> Option<AllocFn> {
 //!                unsafe extern "C" fn alloc(opaque: *mut c_void, size: size_t) -> *mut c_void {
 //!                    println!("Custom alloc");
-//!                    let layout = Layout::from_size_align(size as usize, 8).unwrap();
+//!                    let layout = Layout::from_size_align(size as _, 8).unwrap();
 //!                    let address = System.alloc(layout);
 //!
 //!                    let manager = (opaque as *mut MallocManager).as_mut().unwrap();
@@ -48,7 +48,7 @@ along with jpegxl-rs.  If not, see <https://www.gnu.org/licenses/>.
 //!                unsafe extern "C" fn free(opaque: *mut c_void, address: *mut c_void) {
 //!                    println!("Custom dealloc");
 //!                    let layout = (opaque as *mut MallocManager).as_mut().unwrap().layout;
-//!                    System.dealloc(address as *mut u8, layout);
+//!                    System.dealloc(address as _, layout);
 //!                }
 //!
 //!                Some(free)
@@ -87,7 +87,7 @@ pub trait JXLMemoryManager: std::fmt::Debug {
 
     /// Helper function to get an opaque pointer
     fn as_opaque_ptr(&mut self) -> *mut c_void {
-        self as *mut Self as *mut c_void
+        self as *mut Self as _
     }
 }
 
@@ -108,13 +108,13 @@ impl Default for MallocManager {
 impl JXLMemoryManager for MallocManager {
     fn alloc(&self) -> Option<AllocFn> {
         unsafe extern "C" fn alloc(opaque: *mut c_void, size: size_t) -> *mut c_void {
-            let layout = Layout::from_size_align(size as usize, 8).unwrap();
+            let layout = Layout::from_size_align(size as _, 8).unwrap();
             let address = System.alloc(layout);
 
             let manager = (opaque as *mut MallocManager).as_mut().unwrap();
             manager.layout = layout;
 
-            address as *mut c_void
+            address as _
         }
 
         Some(alloc)
@@ -123,7 +123,7 @@ impl JXLMemoryManager for MallocManager {
     fn free(&self) -> Option<FreeFn> {
         unsafe extern "C" fn free(opaque: *mut c_void, address: *mut c_void) {
             let layout = (opaque as *mut MallocManager).as_mut().unwrap().layout;
-            System.dealloc(address as *mut u8, layout);
+            System.dealloc(address as _, layout);
         }
 
         Some(free)

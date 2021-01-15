@@ -32,12 +32,10 @@ impl ThreadsRunner {
     /// Construct with number of threads
     pub fn new(memory_manager: Option<&mut dyn JXLMemoryManager>, num_workers: usize) -> Self {
         let memory_manager = memory_manager
-            .map(|s| &mut s.to_manager() as *const JxlMemoryManager)
+            .map(|s| &mut s.to_manager() as _)
             .unwrap_or(std::ptr::null());
         Self {
-            runner_ptr: unsafe {
-                JxlThreadParallelRunnerCreate(memory_manager, num_workers as u64)
-            },
+            runner_ptr: unsafe { JxlThreadParallelRunnerCreate(memory_manager, num_workers as _) },
         }
     }
 }
