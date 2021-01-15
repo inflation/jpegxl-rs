@@ -8,7 +8,7 @@ pub fn criterion_benchmark(c: &mut Criterion) {
     group.sample_size(10);
 
     let sample = std::fs::read("test/sample.jxl").unwrap();
-    let mut decoder: JXLDecoder<u8> = decoder_builder().build();
+    let mut decoder: JXLDecoder<u8> = decoder_builder().build().unwrap();
     group.bench_function("c++ threadpool decode", |b| {
         b.iter(|| decoder.decode(black_box(&sample)))
     });
@@ -16,7 +16,10 @@ pub fn criterion_benchmark(c: &mut Criterion) {
     #[cfg(feature = "with-rayon")]
     {
         let parallel_runner = Box::new(RayonRunner::new(Some(8)));
-        decoder = decoder_builder().parallel_runner(parallel_runner).build();
+        decoder = decoder_builder()
+            .parallel_runner(parallel_runner)
+            .build()
+            .unwrap();
         group.bench_function("rust threads decode", |b| {
             b.iter(|| decoder.decode(black_box(&sample)))
         });

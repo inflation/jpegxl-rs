@@ -65,7 +65,7 @@ pub struct JXLImageDecoder<T: PixelType> {
 impl<T: PixelType> JXLImageDecoder<T> {
     /// Create a new JPEG XL Decoder.
     pub fn new(input: &[u8]) -> ImageResult<JXLImageDecoder<T>> {
-        let mut dec: JXLDecoder<T> = decoder_builder().build();
+        let mut dec: JXLDecoder<T> = decoder_builder().build()?;
         // TODO: Stream decoding
         let (info, buffer) = dec.decode(input)?;
 

@@ -20,29 +20,27 @@ along with jpegxl-rs.  If not, see <https://www.gnu.org/licenses/>.
 //! ```
 //! # use jpegxl_rs::*;
 //! # || -> Result<(), Box<dyn std::error::Error>> {
-//! let mut decoder: JXLDecoder<u8> = decoder_builder().build();
+//! let mut decoder: JXLDecoder<u8> = decoder_builder().build()?;
 //!
 //! // Use another pixel data type
-//! let mut decoder: JXLDecoder<f32> = decoder_builder().build();
+//! let mut decoder: JXLDecoder<f32> = decoder_builder().build()?;
 //!
 //! // Customize pixel format
 //! let mut decoder: JXLDecoder<u8> = decoder_builder()
 //!                                     .num_channels(3)
 //!                                     .endian(Endianness::Big)
 //!                                     .align(8)
-//!                                     .build();
+//!                                     .build()?;
 //!
-//! Ok(()) };
-//! ```
-//!
-//! ```ignore
 //! // Set custom parallel runner and memory manager
+//! use jpegxl_rs::{parallel::ThreadsRunner, memory::MallocManager};
 //! let manager = Box::new(MallocManager::default());
 //! let runner = Box::new(ThreadsRunner::default());
 //! let mut decoder: JXLDecoder<u8> = decoder_builder()
 //!                                     .memory_manager(manager)
 //!                                     .parallel_runner(runner)
-//!                                     .build();
+//!                                     .build()?;
+//! # Ok(()) };
 //! ```
 
 use std::ffi::c_void;
@@ -87,7 +85,7 @@ impl<T: PixelType> JXLDecoder<T> {
         pixel_format: PrefferedPixelFormat,
         mut memory_manager: Option<Box<dyn JXLMemoryManager>>,
         parallel_runner: Option<Box<dyn JXLParallelRunner>>,
-    ) -> Self {
+    ) -> Result<Self, DecodeError> {
         let dec = unsafe {
             if let Some(memory_manager) = &mut memory_manager {
                 JxlDecoderCreate(&memory_manager.to_manager())
@@ -96,13 +94,17 @@ impl<T: PixelType> JXLDecoder<T> {
             }
         };
 
-        Self {
+        if dec.is_null() {
+            return Err(DecodeError::CannotCreateDecoder);
+        }
+
+        Ok(Self {
             dec,
             pixel_format,
             _pixel_type: std::marker::PhantomData,
             _memory_manager: memory_manager,
             parallel_runner,
-        }
+        })
     }
 
     /// Decode a JPEG XL image.<br />
@@ -167,7 +169,7 @@ impl<T: PixelType> JXLDecoder<T> {
                         pixel_format = Some(JxlPixelFormat {
                             num_channels,
                             data_type: T::pixel_type(),
-                            endianness: endianness.into(),
+                            endianness,
                             align,
                         })
                     }
@@ -255,7 +257,7 @@ impl<T: PixelType> JXLDecoderBuilder<T> {
     }
 
     /// Consume the builder and get the decoder
-    pub fn build(self) -> JXLDecoder<T> {
+    pub fn build(self) -> Result<JXLDecoder<T>, DecodeError> {
         JXLDecoder::new(self.pixel_format, self.memory_manager, self.parallel_runner)
     }
 }
@@ -281,7 +283,7 @@ mod tests {
     #[test]
     fn test_decode() -> Result<(), ImageError> {
         let sample = std::fs::read("test/sample.jxl")?;
-        let mut decoder: JXLDecoder<u8> = decoder_builder().build();
+        let mut decoder: JXLDecoder<u8> = decoder_builder().build()?;
 
         let (basic_info, buffer) = decoder.decode(&sample)?;
 
@@ -296,7 +298,7 @@ mod tests {
         let mut decoder: JXLDecoder<u8> = decoder_builder()
             .num_channels(3)
             .endian(Endianness::Big)
-            .build();
+            .build()?;
 
         let (basic_info, buffer) = decoder.decode(&sample)?;
 
@@ -312,11 +314,11 @@ mod tests {
         let parallel_runner = Box::new(RayonRunner::default());
 
         let mut decoder: JXLDecoder<u8> =
-            decoder_builder().parallel_runner(parallel_runner).build();
+            decoder_builder().parallel_runner(parallel_runner).build()?;
 
         let parallel_buffer = decoder.decode(&sample)?;
 
-        decoder = decoder_builder().build();
+        decoder = decoder_builder().build()?;
         let single_buffer = decoder.decode(&sample)?;
 
         assert!(
@@ -334,10 +336,11 @@ mod tests {
         let sample = std::fs::read("test/sample.jxl")?;
         let memory_manager = Box::new(MallocManager::default());
 
-        let mut decoder: JXLDecoder<u8> = decoder_builder().memory_manager(memory_manager).build();
+        let mut decoder: JXLDecoder<u8> =
+            decoder_builder().memory_manager(memory_manager).build()?;
         let custom_buffer = decoder.decode(&sample)?;
 
-        decoder = decoder_builder().build();
+        decoder = decoder_builder().build()?;
         let default_buffer = decoder.decode(&sample)?;
 
         assert!(

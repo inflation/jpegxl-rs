@@ -20,7 +20,7 @@ You need to have a working `llvm` environment.
 ```rust
 use jpegxl_rs::*;
 let sample = std::fs::read("test/sample.jxl")?;
-let mut decoder: JXLDecoder<u8> = decoder_builder().build();
+let mut decoder: JXLDecoder<u8> = decoder_builder().build()?;
 let (info, buffer) = decoder.decode(&sample)?;
 ```
 
@@ -32,7 +32,7 @@ let mut decoder: JXLDecoder<u16> = decoder_builder()
                                     .num_channel(3)
                                     .endianness(Endianness::Big)
                                     .align(8)
-                                    .build();
+                                    .build()?;
 ```
 
 ### Encoding
@@ -42,7 +42,7 @@ use jpegxl_rs::*;
 use image::io::Reader as ImageReader;
 
 let sample = ImageReader::open("test/sample.png")?.decode()?.to_rgba16();
-let mut encoder = encoder_builder().build();
+let mut encoder = encoder_builder().build()?;
 let buffer: Vec<u8> = encoder.encode(
                         &sample, 
                         sample.width() as _, 

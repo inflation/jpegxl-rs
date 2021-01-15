@@ -18,54 +18,46 @@ along with jpegxl-rs.  If not, see <https://www.gnu.org/licenses/>.
 //! Decoder and encoder errors
 
 use jpegxl_sys::*;
+use thiserror::Error;
 
 /// Errors derived from JxlDecoderStatus
-#[derive(Debug)]
+#[derive(Error, Debug)]
 pub enum DecodeError {
     /// Cannot create a decoder
+    #[error("Cannot create a decoder")]
     CannotCreateDecoder,
     /// Unknown Error
     // TODO: underlying library is working on a way to retrieve error message
+    #[error("Unknown decoder error")]
     GenericError,
     /// Need more input bytes
+    #[error("Doesn't need more input")]
     NeedMoreInput,
     /// Unknown status
+    #[error("Unknown status: `{0}`")]
     UnknownStatus(JxlDecoderStatus),
 }
 
 /// Errors derived from JxlEncoderStatus
-#[derive(Debug)]
+#[derive(Error, Debug)]
 pub enum EncodeError {
+    /// Cannot create a decoder
+    #[error("Cannot create an encoder")]
+    CannotCreateEncoder,
     /// Unknown Error
     // TODO: underlying library is working on a way to retrieve error message
+    #[error("Unknown encoder error")]
     GenericError,
-    /// Need more input bytes
-    NeedMoreOutput,
     /// Unknown status
+    #[error("Unknown status: `{0}`")]
     UnknownStatus(JxlEncoderStatus),
 }
-
-impl std::fmt::Display for DecodeError {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(f, "{}", self)
-    }
-}
-
-impl std::fmt::Display for EncodeError {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(f, "{}", self)
-    }
-}
-
-impl std::error::Error for DecodeError {}
-impl std::error::Error for EncodeError {}
 
 /// Error mapping from underlying C const to JxlDecoderStatus enum
 pub(crate) fn check_dec_status(status: JxlDecoderStatus) -> Result<(), DecodeError> {
     match status {
         JxlDecoderStatus_JXL_DEC_SUCCESS => Ok(()),
         JxlDecoderStatus_JXL_DEC_ERROR => Err(DecodeError::GenericError),
-        JxlDecoderStatus_JXL_DEC_NEED_MORE_INPUT => Err(DecodeError::NeedMoreInput),
         _ => Err(DecodeError::UnknownStatus(status)),
     }
 }
@@ -75,7 +67,6 @@ pub(crate) fn check_enc_status(status: JxlEncoderStatus) -> Result<(), EncodeErr
     match status {
         JxlEncoderStatus_JXL_ENC_SUCCESS => Ok(()),
         JxlEncoderStatus_JXL_ENC_ERROR => Err(EncodeError::GenericError),
-        JxlEncoderStatus_JXL_ENC_NEED_MORE_OUTPUT => Err(EncodeError::NeedMoreOutput),
         _ => Err(EncodeError::UnknownStatus(status)),
     }
 }

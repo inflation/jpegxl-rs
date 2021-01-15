@@ -19,52 +19,20 @@ along with jpegxl-rs.  If not, see <https://www.gnu.org/licenses/>.
 //! # Example
 //! ```
 //! # || -> Result<(), Box<dyn std::error::Error>> {
-//!        use jpegxl_rs::memory::*;
-//!        use std::alloc::{GlobalAlloc, Layout, System};
-//!        use std::ffi::c_void;
-//!
-//!        #[derive(Debug)]
-//!        struct MallocManager {
-//!            layout: Layout,
-//!        }
-//!
-//!        impl JXLMemoryManager for MallocManager {
-//!            fn alloc(&self) -> Option<AllocFn> {
-//!                unsafe extern "C" fn alloc(opaque: *mut c_void, size: size_t) -> *mut c_void {
-//!                    println!("Custom alloc");
-//!                    let layout = Layout::from_size_align(size as _, 8).unwrap();
-//!                    let address = System.alloc(layout);
-//!
-//!                    let manager = (opaque as *mut MallocManager).as_mut().unwrap();
-//!                    manager.layout = layout;
-//!
-//!                    address as *mut c_void
-//!                }
-//!
-//!                Some(alloc)
-//!            }
-//!
-//!            fn free(&self) -> Option<FreeFn> {
-//!                unsafe extern "C" fn free(opaque: *mut c_void, address: *mut c_void) {
-//!                    println!("Custom dealloc");
-//!                    let layout = (opaque as *mut MallocManager).as_mut().unwrap().layout;
-//!                    System.dealloc(address as _, layout);
-//!                }
-//!
-//!                Some(free)
-//!            }
-//!        }
-//! # Ok(()) };
+//! use jpegxl_rs::{memory::*, decoder::*};
+//! let mut manager = Box::new(MallocManager::default());
+//! let mut decoder: JXLDecoder<u8> = decoder_builder().memory_manager(manager).build()?;
+//! # Ok(())
+//! # };
 //! ```
 
 use std::alloc::{GlobalAlloc, Layout, System};
 use std::ffi::c_void;
 
-pub use jpegxl_sys::size_t;
 use jpegxl_sys::*;
 
 /// Allocator function type
-pub type AllocFn = unsafe extern "C" fn(opaque: *mut c_void, size: size_t) -> *mut c_void;
+pub type AllocFn = unsafe extern "C" fn(opaque: *mut c_void, size: u64) -> *mut c_void;
 /// Deallocator function type
 pub type FreeFn = unsafe extern "C" fn(opaque: *mut c_void, address: *mut c_void);
 
@@ -93,7 +61,7 @@ pub trait JXLMemoryManager: std::fmt::Debug {
 
 /// Example implement of JXLMemoryManager
 #[derive(Debug)]
-pub(crate) struct MallocManager {
+pub struct MallocManager {
     layout: Layout,
 }
 
@@ -107,7 +75,7 @@ impl Default for MallocManager {
 
 impl JXLMemoryManager for MallocManager {
     fn alloc(&self) -> Option<AllocFn> {
-        unsafe extern "C" fn alloc(opaque: *mut c_void, size: size_t) -> *mut c_void {
+        unsafe extern "C" fn alloc(opaque: *mut c_void, size: u64) -> *mut c_void {
             let layout = Layout::from_size_align(size as _, 8).unwrap();
             let address = System.alloc(layout);
 

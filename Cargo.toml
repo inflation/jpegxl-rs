@@ -7,7 +7,7 @@ license = "GPL-3.0-or-later"
 name = "jpegxl-rs"
 readme = "README.md"
 repository = "https://github.com/inflation/jpegxl-rs"
-version = "0.2.3-beta.1"
+version = "0.2.3-beta.2"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -23,6 +23,7 @@ without-threads = ["jpegxl-sys/without-threads"]
 image = {version = "0.23.12", optional = true}
 jpegxl-sys = {version = "0.2.2", path = "../jpegxl-sys"}
 rayon = {version = "1.5.0", optional = true}
+thiserror = "1.0.23"
 
 [dev-dependencies]
 criterion = "0.3"
