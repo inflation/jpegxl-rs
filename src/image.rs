@@ -22,8 +22,6 @@ use image::{
     ColorType, ImageDecoder, ImageResult,
 };
 
-use jpegxl_sys::{JxlDataType_JXL_TYPE_UINT16, JxlDataType_JXL_TYPE_UINT8};
-
 use crate::{common::*, decoder_builder, error::*, BasicInfo, JXLDecoder};
 
 // Error conversion
@@ -74,16 +72,34 @@ impl<T: PixelType> JXLImageDecoder<T> {
     }
 }
 
-impl<'a, T: PixelType> ImageDecoder<'a> for JXLImageDecoder<T> {
+impl<'a> ImageDecoder<'a> for JXLImageDecoder<u8> {
     type Reader = std::io::Cursor<Vec<u8>>;
 
     fn color_type(&self) -> ColorType {
-        match (T::pixel_type(), self.info.num_extra_channels) {
-            (JxlDataType_JXL_TYPE_UINT8, 0) => ColorType::Rgb8,
-            (JxlDataType_JXL_TYPE_UINT16, 0) => ColorType::Rgb16,
-            (JxlDataType_JXL_TYPE_UINT8, _) => ColorType::Rgba8,
-            (JxlDataType_JXL_TYPE_UINT16, _) => ColorType::Rgba16,
-            _ => unimplemented!(),
+        if self.info.num_extra_channels == 0 {
+            ColorType::Rgb8
+        } else {
+            ColorType::Rgba8
+        }
+    }
+
+    fn dimensions(&self) -> (u32, u32) {
+        (self.info.xsize, self.info.ysize)
+    }
+
+    fn into_reader(self) -> image::ImageResult<Self::Reader> {
+        Ok(std::io::Cursor::new(self.buffer))
+    }
+}
+
+impl<'a> ImageDecoder<'a> for JXLImageDecoder<u16> {
+    type Reader = std::io::Cursor<Vec<u8>>;
+
+    fn color_type(&self) -> ColorType {
+        if self.info.num_extra_channels == 0 {
+            ColorType::Rgb16
+        } else {
+            ColorType::Rgba16
         }
     }
 
