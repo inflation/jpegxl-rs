@@ -21,7 +21,7 @@ without-threads = ["jpegxl-sys/without-threads"]
 
 [dependencies]
 image = {version = "0.23.12", optional = true}
-jpegxl-sys = {version = "0.2.2", path = "../jpegxl-sys"}
+jpegxl-sys = "0.2.3"
 rayon = {version = "1.5.0", optional = true}
 thiserror = "1.0.23"
 
