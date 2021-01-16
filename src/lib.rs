@@ -14,11 +14,7 @@ GNU General Public License for more details.
 You should have received a copy of the GNU General Public License
 along with jpegxl-rs.  If not, see <https://www.gnu.org/licenses/>.
 */
-
 #![deny(missing_docs)]
-#![allow(non_upper_case_globals)]
-#![allow(non_camel_case_types)]
-#![allow(non_snake_case)]
 #![deny(clippy::all)]
 
 //! # Overview
