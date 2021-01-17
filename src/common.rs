@@ -17,7 +17,10 @@ along with jpegxl-rs.  If not, see <https://www.gnu.org/licenses/>.
 
 //! Common types used across the crate
 
-use jpegxl_sys::*;
+use jpegxl_sys::{
+    JxlDataType, JxlDataType_JXL_TYPE_FLOAT, JxlDataType_JXL_TYPE_UINT16,
+    JxlDataType_JXL_TYPE_UINT32, JxlDataType_JXL_TYPE_UINT8,
+};
 
 /// Pixel data type.
 /// Currently u8, u16, u32 and f32 are supported.

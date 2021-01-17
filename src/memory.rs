@@ -19,17 +19,19 @@ along with jpegxl-rs.  If not, see <https://www.gnu.org/licenses/>.
 //! # Example
 //! ```
 //! # || -> Result<(), Box<dyn std::error::Error>> {
-//! use jpegxl_rs::{memory::*, decoder::*};
+//! use jpegxl_rs::{decoder_builder, JXLDecoder, memory::MallocManager};
 //! let mut manager = Box::new(MallocManager::default());
 //! let mut decoder: JXLDecoder<u8> = decoder_builder().memory_manager(manager).build()?;
 //! # Ok(())
 //! # };
 //! ```
 
-use std::alloc::{GlobalAlloc, Layout, System};
-use std::ffi::c_void;
-
-use jpegxl_sys::*;
+use jpegxl_sys::{size_t, JxlMemoryManager};
+use std::{
+    alloc::{GlobalAlloc as _, Layout, System},
+    convert::TryInto as _,
+    ffi::c_void,
+};
 
 /// Allocator function type
 pub type AllocFn = unsafe extern "C" fn(opaque: *mut c_void, size: u64) -> *mut c_void;
@@ -59,7 +61,7 @@ pub trait JXLMemoryManager: std::fmt::Debug {
     }
 }
 
-/// Example implement of JXLMemoryManager
+/// Example implement of `[JXLMemoryManager]`
 #[derive(Debug)]
 pub struct MallocManager {
     layout: Layout,
@@ -75,8 +77,8 @@ impl Default for MallocManager {
 
 impl JXLMemoryManager for MallocManager {
     fn alloc(&self) -> Option<AllocFn> {
-        unsafe extern "C" fn alloc(opaque: *mut c_void, size: u64) -> *mut c_void {
-            let layout = Layout::from_size_align(size as _, 8).unwrap();
+        unsafe extern "C" fn alloc(opaque: *mut c_void, size: size_t) -> *mut c_void {
+            let layout = Layout::from_size_align(size.try_into().unwrap(), 8).unwrap();
             let address = System.alloc(layout);
 
             let manager = (opaque as *mut MallocManager).as_mut().unwrap();

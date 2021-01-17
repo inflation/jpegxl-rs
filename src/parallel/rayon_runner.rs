@@ -32,7 +32,7 @@ unsafe impl Send for CPointer {}
 #[derive(Debug)]
 pub struct RayonRunner {
     pool: ThreadPool,
-    runner_func: ParallelRunnerFn,
+    runner_func: RunnerFn,
 }
 
 #[cfg(not(feature = "without-rayon"))]
@@ -86,7 +86,7 @@ impl RayonRunner {
 
 #[cfg(not(feature = "without-rayon"))]
 impl JXLParallelRunner for RayonRunner {
-    fn runner(&self) -> ParallelRunnerFn {
+    fn runner(&self) -> RunnerFn {
         self.runner_func
     }
 }

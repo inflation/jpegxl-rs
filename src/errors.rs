@@ -18,10 +18,11 @@ along with jpegxl-rs.  If not, see <https://www.gnu.org/licenses/>.
 
 //! Decoder and encoder errors
 
+#[allow(clippy::wildcard_imports)]
 use jpegxl_sys::*;
 use thiserror::Error;
 
-/// Errors derived from JxlDecoderStatus
+/// Errors derived from [`JxlDecoderStatus`]
 #[derive(Error, Debug)]
 pub enum DecodeError {
     /// Cannot create a decoder
@@ -39,7 +40,7 @@ pub enum DecodeError {
     UnknownStatus(JxlDecoderStatus),
 }
 
-/// Errors derived from JxlEncoderStatus
+/// Errors derived from [`JxlEncoderStatus`]
 #[derive(Error, Debug)]
 pub enum EncodeError {
     /// Cannot create a decoder
@@ -54,7 +55,7 @@ pub enum EncodeError {
     UnknownStatus(JxlEncoderStatus),
 }
 
-/// Error mapping from underlying C const to JxlDecoderStatus enum
+/// Error mapping from underlying C const to `JxlDecoderStatus` enum
 pub(crate) fn check_dec_status(status: JxlDecoderStatus) -> Result<(), DecodeError> {
     match status {
         JxlDecoderStatus_JXL_DEC_SUCCESS => Ok(()),
@@ -63,7 +64,7 @@ pub(crate) fn check_dec_status(status: JxlDecoderStatus) -> Result<(), DecodeErr
     }
 }
 
-/// Error mapping from underlying C const to JxlEncoderStatus enum
+/// Error mapping from underlying C const to `JxlEncoderStatus` enum
 pub(crate) fn check_enc_status(status: JxlEncoderStatus) -> Result<(), EncodeError> {
     match status {
         JxlEncoderStatus_JXL_ENC_SUCCESS => Ok(()),

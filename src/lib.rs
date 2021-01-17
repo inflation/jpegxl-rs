@@ -16,6 +16,7 @@ along with jpegxl-rs.  If not, see <https://www.gnu.org/licenses/>.
 */
 #![deny(missing_docs)]
 #![deny(clippy::all)]
+#![warn(clippy::pedantic)]
 
 //! # Overview
 //! A safe JPEGXL wrapper over `jpeg-xl` library. Check out the original [library](https://gitlab.com/wg1/jpeg-xl)
@@ -24,61 +25,61 @@ along with jpegxl-rs.  If not, see <https://www.gnu.org/licenses/>.
 //! # Usage
 
 //! ## Decoding
-//! ```rust
-//! # || -> Result<(), Box<dyn std::error::Error>> {  
-//! use jpegxl_rs::*;
-//!
-//! let sample = std::fs::read("test/sample.jxl")?;
-//! let mut decoder: JXLDecoder<u8> = decoder_builder().build()?;
-//! let (info, buffer) = decoder.decode(&sample)?;
-//! # Ok(()) };
 //! ```
-//!
-//! Set output pixel paramaters
-//! ```rust
-//! // Pixel type is set by type parameter
-//! # || -> Result<(), Box<dyn std::error::Error>> {
 //! # use jpegxl_rs::*;
-//! let mut decoder: JXLDecoder<u16> = decoder_builder()
+//! # || -> Result<(), Box<dyn std::error::Error>> {
+//! let mut decoder: JXLDecoder<u8> = decoder_builder().build()?;
+//!
+//! // Use another pixel data type
+//! let mut decoder: JXLDecoder<f32> = decoder_builder().build()?;
+//!
+//! // Customize pixel format
+//! let mut decoder: JXLDecoder<u8> = decoder_builder()
 //!                                     .num_channels(3)
 //!                                     .endian(Endianness::Big)
 //!                                     .align(8)
+//!                                     .build()?;
+//!
+//! // Set custom parallel runner and memory manager
+//! use jpegxl_rs::{parallel::ThreadsRunner, memory::MallocManager};
+//! let manager = Box::new(MallocManager::default());
+//! let runner = Box::new(ThreadsRunner::default());
+//! let mut decoder: JXLDecoder<u8> = decoder_builder()
+//!                                     .memory_manager(manager)
+//!                                     .parallel_runner(runner)
 //!                                     .build()?;
 //! # Ok(()) };
 //! ```
 
 //! ## Encoding
-//! ```rust
-//! # use jpegxl_rs::encoder::*;
+//! ```
+//! # use jpegxl_rs::encoder_builder;
 //! # || -> Result<(), Box<dyn std::error::Error>> {
 //! use image::io::Reader as ImageReader;
-//!
 //! let sample = ImageReader::open("test/sample.png")?.decode()?.to_rgba16();
 //! let mut encoder = encoder_builder().build()?;
-//! let buffer: Vec<u8> = encoder.encode(
-//!                         &sample,
-//!                         sample.width() as _,
-//!                         sample.height() as _
-//!                       )?;
+//! let buffer = encoder.encode(&sample, sample.width() as _, sample.height() as _)?;
 //! # Ok(()) };
 //! ```
 //!
-//! ## [`image`](https://crates.io/crates/image) crate integration
-//! The integration is enabled by default. If you don't need it, disable `with-image` feature.
+//! Set encoder options
 //! ```
 //! # || -> Result<(), Box<dyn std::error::Error>> {
-//! use jpegxl_rs::image::*;
-//!
-//! let sample = std::fs::read("test/sample.jxl")?;
-//! let decoder: JXLImageDecoder<u16> = JXLImageDecoder::new(&sample)?;
-//! let img = image::DynamicImage::from_decoder(decoder)?;       
+//! # use jpegxl_rs::*;
+//! let mut encoder = encoder_builder()
+//!                     .lossless(true)
+//!                     .speed(EncodeSpeed::Falcon)
+//!                     .build()?;
+//! // You can change the settings after initialization
+//! encoder.set_lossless(false);
+//! encoder.set_quality(3.0);
 //! # Ok(()) };
 //! ```
 
 mod common;
-pub mod decoder;
-pub mod encoder;
-pub mod error;
+mod decode;
+mod encode;
+mod errors;
 pub mod memory;
 pub mod parallel;
 
@@ -86,5 +87,6 @@ pub mod parallel;
 pub mod image;
 
 pub use common::*;
-pub use decoder::*;
-pub use encoder::*;
+pub use decode::*;
+pub use encode::*;
+pub use errors::*;

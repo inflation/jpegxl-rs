@@ -17,43 +17,16 @@ along with jpegxl-rs.  If not, see <https://www.gnu.org/licenses/>.
 #![allow(non_upper_case_globals)]
 
 //! Decoder of JPEG XL format
-//! # Example
-//! ```
-//! # use jpegxl_rs::*;
-//! # || -> Result<(), Box<dyn std::error::Error>> {
-//! let mut decoder: JXLDecoder<u8> = decoder_builder().build()?;
-//!
-//! // Use another pixel data type
-//! let mut decoder: JXLDecoder<f32> = decoder_builder().build()?;
-//!
-//! // Customize pixel format
-//! let mut decoder: JXLDecoder<u8> = decoder_builder()
-//!                                     .num_channels(3)
-//!                                     .endian(Endianness::Big)
-//!                                     .align(8)
-//!                                     .build()?;
-//!
-//! // Set custom parallel runner and memory manager
-//! use jpegxl_rs::{parallel::ThreadsRunner, memory::MallocManager};
-//! let manager = Box::new(MallocManager::default());
-//! let runner = Box::new(ThreadsRunner::default());
-//! let mut decoder: JXLDecoder<u8> = decoder_builder()
-//!                                     .memory_manager(manager)
-//!                                     .parallel_runner(runner)
-//!                                     .build()?;
-//! # Ok(()) };
-//! ```
 
-use std::ffi::c_void;
-use std::ptr::null;
-
+#[allow(clippy::wildcard_imports)]
 use jpegxl_sys::*;
+use std::{convert::TryInto as _, ptr::null};
 
-pub use super::*;
 use crate::{
-    error::{check_dec_status, DecodeError},
-    memory::*,
-    parallel::*,
+    common::{Endianness, PixelType},
+    errors::{check_dec_status, DecodeError},
+    memory::JXLMemoryManager,
+    parallel::{choose_runner, JXLParallelRunner},
 };
 
 /// Basic Information
@@ -88,11 +61,10 @@ impl<T: PixelType> JXLDecoder<T> {
         parallel_runner: Option<Box<dyn JXLParallelRunner>>,
     ) -> Result<Self, DecodeError> {
         let dec = unsafe {
-            if let Some(memory_manager) = &mut memory_manager {
-                JxlDecoderCreate(&memory_manager.to_manager())
-            } else {
-                JxlDecoderCreate(null())
-            }
+            memory_manager.as_mut().map_or_else(
+                || JxlDecoderCreate(null()),
+                |memory_manager| JxlDecoderCreate(&memory_manager.to_manager()),
+            )
         };
 
         if dec.is_null() {
@@ -110,6 +82,8 @@ impl<T: PixelType> JXLDecoder<T> {
 
     /// Decode a JPEG XL image.<br />
     /// Currently only support RGB(A)8/16/32 encoded static image. Color info and transformation info are discarded.
+    /// # Errors
+    /// Return a [`DecodeError`] when internal decoder fails
     pub fn decode(&mut self, data: &[u8]) -> Result<(BasicInfo, Vec<T>), DecodeError> {
         unsafe {
             if let Some(ref mut runner) = self.parallel_runner {
@@ -121,6 +95,7 @@ impl<T: PixelType> JXLDecoder<T> {
             }
 
             // Stop after getting the basic info and decoding the image
+            #[allow(clippy::cast_possible_wrap)]
             check_dec_status(JxlDecoderSubscribeEvents(
                 self.dec,
                 (JxlDecoderStatus_JXL_DEC_BASIC_INFO | JxlDecoderStatus_JXL_DEC_FULL_IMAGE) as i32,
@@ -163,8 +138,7 @@ impl<T: PixelType> JXLDecoder<T> {
                         let endianness = self
                             .pixel_format
                             .endianness
-                            .map(Endianness::into)
-                            .unwrap_or(format.endianness);
+                            .map_or(format.endianness, Endianness::into);
                         let align = self.pixel_format.align.unwrap_or(format.align);
 
                         pixel_format = Some(JxlPixelFormat {
@@ -177,18 +151,18 @@ impl<T: PixelType> JXLDecoder<T> {
 
                     // Get the output buffer
                     JxlDecoderStatus_JXL_DEC_NEED_IMAGE_OUT_BUFFER => {
-                        let mut size: u64 = 0;
+                        let mut size: size_t = 0;
                         if let Some(format) = pixel_format {
                             check_dec_status(JxlDecoderImageOutBufferSize(
                                 self.dec, &format, &mut size,
                             ))?;
 
-                            buffer = Vec::with_capacity(size as _);
-                            buffer.set_len(size as _);
+                            buffer = Vec::with_capacity(size.try_into().unwrap());
+                            buffer.set_len(size.try_into().unwrap());
                             check_dec_status(JxlDecoderSetImageOutBuffer(
                                 self.dec,
                                 &format,
-                                buffer.as_mut_ptr() as *mut c_void,
+                                buffer.as_mut_ptr() as _,
                                 size,
                             ))?;
                         } else {
@@ -199,11 +173,8 @@ impl<T: PixelType> JXLDecoder<T> {
                     JxlDecoderStatus_JXL_DEC_FULL_IMAGE => continue,
                     JxlDecoderStatus_JXL_DEC_SUCCESS => {
                         JxlDecoderReset(self.dec);
-                        return if let Some(info) = basic_info {
-                            Ok((info, buffer))
-                        } else {
-                            Err(DecodeError::GenericError)
-                        };
+                        return basic_info
+                            .map_or(Err(DecodeError::GenericError), |info| Ok((info, buffer)));
                     }
                     _ => return Err(DecodeError::UnknownStatus(status)),
                 }
@@ -218,7 +189,7 @@ impl<T: PixelType> Drop for JXLDecoder<T> {
     }
 }
 
-/// Builder for JXLDecoder
+/// Builder for [`JXLDecoder`]
 pub struct JXLDecoderBuilder<T: PixelType> {
     pixel_format: PrefferedPixelFormat,
     _pixel_type: std::marker::PhantomData<T>,
@@ -228,42 +199,50 @@ pub struct JXLDecoderBuilder<T: PixelType> {
 
 impl<T: PixelType> JXLDecoderBuilder<T> {
     /// Set number of channels for returned result
+    #[must_use]
     pub fn num_channels(mut self, num: u32) -> Self {
         self.pixel_format.num_channels = Some(num);
         self
     }
 
     /// Set endianness for returned result
+    #[must_use]
     pub fn endian(mut self, endian: Endianness) -> Self {
         self.pixel_format.endianness = Some(endian);
         self
     }
 
     /// Set align for returned result
+    #[must_use]
     pub fn align(mut self, align: u64) -> Self {
         self.pixel_format.align = Some(align);
         self
     }
 
     /// Set memory manager
+    #[must_use]
     pub fn memory_manager(mut self, memory_manager: Box<dyn JXLMemoryManager>) -> Self {
         self.memory_manager = Some(memory_manager);
         self
     }
 
     /// Set parallel runner
+    #[must_use]
     pub fn parallel_runner(mut self, parallel_runner: Box<dyn JXLParallelRunner>) -> Self {
         self.parallel_runner = Some(parallel_runner);
         self
     }
 
     /// Consume the builder and get the decoder
+    /// # Errors
+    /// Return [`DecodeError::CannotCreateDecoder`] if it fails to create the decoder.
     pub fn build(self) -> Result<JXLDecoder<T>, DecodeError> {
         JXLDecoder::new(self.pixel_format, self.memory_manager, self.parallel_runner)
     }
 }
 
-/// Return a builder for JXLDecoder
+/// Return a [`JXLDecoderBuilder`] with default settings
+#[must_use]
 pub fn decoder_builder<T: PixelType>() -> JXLDecoderBuilder<T> {
     JXLDecoderBuilder {
         pixel_format: PrefferedPixelFormat {
@@ -279,6 +258,7 @@ pub fn decoder_builder<T: PixelType>() -> JXLDecoderBuilder<T> {
 
 #[cfg(test)]
 mod tests {
+
     use super::*;
     use ::image::ImageError;
     #[test]
@@ -288,7 +268,10 @@ mod tests {
 
         let (basic_info, buffer) = decoder.decode(&sample)?;
 
-        assert_eq!(buffer.len(), (basic_info.xsize * basic_info.ysize * 4) as _);
+        assert_eq!(
+            buffer.len(),
+            (basic_info.xsize * basic_info.ysize * 4) as usize
+        );
 
         Ok(())
     }
@@ -303,7 +286,10 @@ mod tests {
 
         let (basic_info, buffer) = decoder.decode(&sample)?;
 
-        assert_eq!(buffer.len(), (basic_info.xsize * basic_info.ysize * 3) as _);
+        assert_eq!(
+            buffer.len(),
+            (basic_info.xsize * basic_info.ysize * 3) as usize
+        );
 
         Ok(())
     }
@@ -311,6 +297,8 @@ mod tests {
     #[test]
     #[cfg(feature = "with-rayon")]
     fn test_rust_runner_decode() -> Result<(), ImageError> {
+        use crate::parallel::RayonRunner;
+
         let sample = std::fs::read("test/sample.jxl")?;
         let parallel_runner = Box::new(RayonRunner::default());
 

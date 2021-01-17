@@ -19,7 +19,7 @@ along with jpegxl-rs.  If not, see <https://www.gnu.org/licenses/>.
 //! # Example
 //! ```
 //! # || -> Result<(), Box<dyn std::error::Error>> {
-//! use jpegxl_rs::{parallel::*, decoder::*};
+//! use jpegxl_rs::{JXLDecoder, decoder_builder, parallel::*};
 //! // Use the default C++ Threadpool runner:
 //! let mut parallel_runner = Box::new(ThreadsRunner::default());
 //! let mut decoder: JXLDecoder<u8> = decoder_builder().parallel_runner(parallel_runner).build()?;
@@ -30,6 +30,7 @@ along with jpegxl-rs.  If not, see <https://www.gnu.org/licenses/>.
 use std::ffi::c_void;
 
 #[cfg(feature = "with-rayon")]
+#[cfg_attr(docsrs, doc(cfg(feature = "with-rayon")))]
 pub mod rayon_runner;
 #[cfg(not(feature = "without-threads"))]
 pub mod threads_runner;
@@ -46,8 +47,8 @@ pub type InitFn = unsafe extern "C" fn(*mut c_void, u64) -> i32;
 /// Parallel runner data processing callback type
 pub type RunFn = unsafe extern "C" fn(*mut c_void, u32, u64);
 
-/// JxlParallelRunner function type
-pub type ParallelRunnerFn = unsafe extern "C" fn(
+/// `[JxlParallelRunner]` function type
+pub type RunnerFn = unsafe extern "C" fn(
     runner_opaque: *mut c_void,
     jpegxl_opaque: *mut c_void,
     init_func: Option<InitFn>,
@@ -60,7 +61,7 @@ pub type ParallelRunnerFn = unsafe extern "C" fn(
 pub trait JXLParallelRunner: std::fmt::Debug {
     /// FFI runner function.
     /// Check `jpeg-xl` header files for more explainations.
-    fn runner(&self) -> ParallelRunnerFn;
+    fn runner(&self) -> RunnerFn;
 
     /// Helper function to get an opaque pointer
     fn as_opaque_ptr(&mut self) -> *mut c_void {

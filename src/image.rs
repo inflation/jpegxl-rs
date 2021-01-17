@@ -22,7 +22,12 @@ use image::{
     ColorType, ImageDecoder, ImageResult,
 };
 
-use crate::{common::*, decoder_builder, error::*, BasicInfo, JXLDecoder};
+use crate::{
+    common::PixelType,
+    decoder_builder,
+    errors::{DecodeError, EncodeError},
+    BasicInfo, JXLDecoder,
+};
 
 // Error conversion
 impl From<DecodeError> for image::ImageError {
@@ -62,6 +67,8 @@ pub struct JXLImageDecoder<T: PixelType> {
 
 impl<T: PixelType> JXLImageDecoder<T> {
     /// Create a new JPEG XL Decoder.
+    /// # Errors
+    /// Return an [`image::ImageError`] with wrapped [`DecodeError`]
     pub fn new(input: &[u8]) -> ImageResult<JXLImageDecoder<T>> {
         let mut dec: JXLDecoder<T> = decoder_builder().build()?;
         // TODO: Stream decoding
