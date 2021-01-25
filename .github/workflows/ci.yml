@@ -15,6 +15,19 @@ jobs:
           override: true
       - uses: actions-rs/cargo@v1
         with:
+          command: fetch
+      - uses: actions/cache@v2
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+            ${{ runner.os }}-
+      - uses: actions-rs/cargo@v1
+        with:
           command: check
 
   test:
@@ -29,6 +42,19 @@ jobs:
           override: true
       - uses: actions-rs/cargo@v1
         with:
+          command: fetch
+      - uses: actions/cache@v2
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+            ${{ runner.os }}-
+      - uses: actions-rs/cargo@v1
+        with:
           command: test
 
   fmt:
@@ -36,18 +62,36 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
+      - uses: actions/cache@v2
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+            ${{ runner.os }}-
       - uses: actions-rs/toolchain@v1
         with:
           profile: minimal
           toolchain: stable
           override: true
+      - uses: actions-rs/cargo@v1
+        with:
+          command: fetch
+      - uses: actions/cache@v2
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
       - run: rustup component add rustfmt
       - uses: actions-rs/cargo@v1
         with:
           command: fmt
           args: --all -- --check
-      - name: Codecov
-        uses: codecov/codecov-action@v1.2.1
 
   clippy:
     name: Clippy
@@ -59,6 +103,19 @@ jobs:
           profile: minimal
           toolchain: stable
           override: true
+      - uses: actions-rs/cargo@v1
+        with:
+          command: fetch
+      - uses: actions/cache@v2
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+            ${{ runner.os }}-
       - run: rustup component add clippy
       - uses: actions-rs/cargo@v1
         with:
