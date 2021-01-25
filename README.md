@@ -1,5 +1,10 @@
 # jpegxl-rs
 
+[![Documentation](https://docs.rs/jpegxl-rs/badge.svg)](https://docs.rs/jpegxl-rs/)
+[![Crates.io](https://img.shields.io/crates/v/jpegxl-rs.svg)](https://crates.io/crates/jpegxl-rs)
+[![CI](https://github.com/inflation/jpegxl-rs/workflows/CI/badge.svg)](https://github.com/inflation/jpegxl-rs/actions?query=workflow%3ACI)
+[![License: GPL-3.0-or-later](https://img.shields.io/crates/l/jpegxl-rs)](LICENSE)
+
 `jpegxl-rs` is a safe wrapper over `jpeg-xl` library. Check out the original [library](https://gitlab.com/wg1/jpeg-xl)
 and the [bindings](https://github.com/inflation/jpegxl-sys).
 

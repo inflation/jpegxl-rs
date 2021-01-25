@@ -1,6 +1,6 @@
 on: [push, pull_request]
 
-name: Continuous integration
+name: CI
 
 jobs:
   check:
@@ -46,6 +46,8 @@ jobs:
         with:
           command: fmt
           args: --all -- --check
+      - name: Codecov
+        uses: codecov/codecov-action@v1.2.1
 
   clippy:
     name: Clippy

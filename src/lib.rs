@@ -68,7 +68,7 @@ along with jpegxl-rs.  If not, see <https://www.gnu.org/licenses/>.
 //! # use jpegxl_rs::*;
 //! let mut encoder = encoder_builder()
 //!                     .lossless(true)
-//!                     .speed(EncodeSpeed::Falcon)
+//!                     .speed(EncoderSpeed::Falcon)
 //!                     .build()?;
 //! // You can change the settings after initialization
 //! encoder.set_lossless(false);
