@@ -17,6 +17,7 @@ along with jpegxl-rs.  If not, see <https://www.gnu.org/licenses/>.
 #![deny(missing_docs)]
 #![deny(clippy::all)]
 #![warn(clippy::pedantic)]
+#![cfg_attr(docsrs, feature(doc_cfg))]
 
 //! # Overview
 //! A safe JPEGXL wrapper over `jpeg-xl` library. Check out the original [library](https://gitlab.com/wg1/jpeg-xl)
