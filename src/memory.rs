@@ -61,7 +61,7 @@ pub trait JXLMemoryManager: std::fmt::Debug {
     }
 }
 
-/// Example implement of `[JXLMemoryManager]`
+/// Example implement of [`JXLMemoryManager`]
 #[derive(Debug)]
 pub struct MallocManager {
     layout: Layout,

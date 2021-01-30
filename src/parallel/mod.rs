@@ -47,7 +47,7 @@ pub type InitFn = unsafe extern "C" fn(*mut c_void, u64) -> i32;
 /// Parallel runner data processing callback type
 pub type RunFn = unsafe extern "C" fn(*mut c_void, u32, u64);
 
-/// `[JxlParallelRunner]` function type
+/// [`JxlParallelRunner`] function type
 pub type RunnerFn = unsafe extern "C" fn(
     runner_opaque: *mut c_void,
     jpegxl_opaque: *mut c_void,
@@ -60,7 +60,7 @@ pub type RunnerFn = unsafe extern "C" fn(
 /// JPEG XL Parallel Runner
 pub trait JXLParallelRunner: std::fmt::Debug {
     /// FFI runner function.
-    /// Check `jpeg-xl` header files for more explainations.
+    /// Check `jpeg-xl` header files for more explanations.
     fn runner(&self) -> RunnerFn;
 
     /// Helper function to get an opaque pointer

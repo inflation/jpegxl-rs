@@ -207,7 +207,7 @@ impl JXLEncoder {
 
     /// Encode a JPEG XL image from existing raw JPEG data
     /// # Errors
-    /// Return `[EncodeError]` if internal encoder fails to encode
+    /// Return [`EncodeError`] if internal encoder fails to encode
     pub fn encode_jpeg(
         &mut self,
         data: &[u8],
@@ -219,7 +219,7 @@ impl JXLEncoder {
 
     /// Encode a JPEG XL image from pixels
     /// # Errors
-    /// Return `[EncodeError]` if internal encoder fails to encode
+    /// Return [`EncodeError`] if internal encoder fails to encode
     pub fn encode<T: PixelType>(
         &mut self,
         data: &[T],
@@ -305,7 +305,7 @@ impl JXLEncoderBuilder {
 
     /// Consume the builder and get the encoder
     /// # Errors
-    /// Return `[EncodeError::CannotCreateEncoder]` if it fails to create the encoder
+    /// Return [`EncodeError::CannotCreateEncoder`] if it fails to create the encoder
     pub fn build(self) -> Result<JXLEncoder, EncodeError> {
         JXLEncoder::new(
             self.pixel_format,
@@ -316,7 +316,7 @@ impl JXLEncoderBuilder {
     }
 }
 
-/// Return a `[JXLEncoderBuilder]` with default settings
+/// Return a [`JXLEncoderBuilder`] with default settings
 #[must_use]
 pub fn encoder_builder() -> JXLEncoderBuilder {
     JXLEncoderBuilder {
