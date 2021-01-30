@@ -32,7 +32,7 @@ use crate::{
 /// Basic Information
 pub type BasicInfo = JxlBasicInfo;
 
-struct PrefferedPixelFormat {
+struct PreferredPixelFormat {
     num_channels: Option<u32>,
     endianness: Option<Endianness>,
     align: Option<u64>,
@@ -44,7 +44,7 @@ pub struct JXLDecoder<T: PixelType> {
     dec: *mut JxlDecoder,
 
     /// Pixel format
-    pixel_format: PrefferedPixelFormat,
+    pixel_format: PreferredPixelFormat,
     _pixel_type: std::marker::PhantomData<T>,
 
     /// Memory Manager
@@ -56,7 +56,7 @@ pub struct JXLDecoder<T: PixelType> {
 
 impl<T: PixelType> JXLDecoder<T> {
     fn new(
-        pixel_format: PrefferedPixelFormat,
+        pixel_format: PreferredPixelFormat,
         mut memory_manager: Option<Box<dyn JXLMemoryManager>>,
         parallel_runner: Option<Box<dyn JXLParallelRunner>>,
     ) -> Result<Self, DecodeError> {
@@ -101,16 +101,18 @@ impl<T: PixelType> JXLDecoder<T> {
                 (JxlDecoderStatus_JXL_DEC_BASIC_INFO | JxlDecoderStatus_JXL_DEC_FULL_IMAGE) as i32,
             ))?;
 
-            let next_in = &mut data.as_ptr();
-            let mut avail_in = std::mem::size_of_val(data) as _;
+            let next_in = data.as_ptr();
+            let avail_in = std::mem::size_of_val(data) as _;
 
             let mut basic_info = None;
             let mut pixel_format = None;
             let mut buffer = Vec::new();
 
+            check_dec_status(JxlDecoderSetInput(self.dec, next_in, avail_in))?;
+
             let mut status: u32;
             loop {
-                status = JxlDecoderProcessInput(self.dec, next_in, &mut avail_in);
+                status = JxlDecoderProcessInput(self.dec);
 
                 match status {
                     JxlDecoderStatus_JXL_DEC_ERROR => return Err(DecodeError::GenericError),
@@ -191,7 +193,7 @@ impl<T: PixelType> Drop for JXLDecoder<T> {
 
 /// Builder for [`JXLDecoder`]
 pub struct JXLDecoderBuilder<T: PixelType> {
-    pixel_format: PrefferedPixelFormat,
+    pixel_format: PreferredPixelFormat,
     _pixel_type: std::marker::PhantomData<T>,
     memory_manager: Option<Box<dyn JXLMemoryManager>>,
     parallel_runner: Option<Box<dyn JXLParallelRunner>>,
@@ -245,7 +247,7 @@ impl<T: PixelType> JXLDecoderBuilder<T> {
 #[must_use]
 pub fn decoder_builder<T: PixelType>() -> JXLDecoderBuilder<T> {
     JXLDecoderBuilder {
-        pixel_format: PrefferedPixelFormat {
+        pixel_format: PreferredPixelFormat {
             num_channels: None,
             endianness: None,
             align: None,
