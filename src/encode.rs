@@ -28,7 +28,7 @@ use crate::{
     parallel::{choose_runner, JXLParallelRunner},
 };
 
-/// Encoding speed, default at Squeirrel(7)
+/// Encoding speed, default at Squirrel(7)
 #[derive(Debug)]
 pub enum EncoderSpeed {
     /// Fastest, 3
@@ -40,14 +40,14 @@ pub enum EncoderSpeed {
     /// 6
     Wombat,
     /// 7
-    Squeirrel,
+    Squirrel,
     /// 8
     Kitten,
     /// Slowest, 9
     Tortoise,
 }
 
-struct PrefferedEncoderOptions {
+struct PreferredEncoderOptions {
     lossless: Option<bool>,
     speed: Option<EncoderSpeed>,
     quality: Option<f32>,
@@ -73,7 +73,7 @@ pub struct JXLEncoder {
 impl JXLEncoder {
     fn new(
         pixel_format: JxlPixelFormat,
-        encoder_options: PrefferedEncoderOptions,
+        encoder_options: PreferredEncoderOptions,
         mut memory_manager: Option<Box<dyn JXLMemoryManager>>,
         parallel_runner: Option<Box<dyn JXLParallelRunner>>,
     ) -> Result<Self, EncodeError> {
@@ -98,7 +98,7 @@ impl JXLEncoder {
             parallel_runner,
         };
 
-        let PrefferedEncoderOptions {
+        let PreferredEncoderOptions {
             lossless,
             speed,
             quality,
@@ -138,17 +138,14 @@ impl JXLEncoder {
         unsafe { JxlEncoderOptionsSetDistance(self.options_ptr, quality) };
     }
 
-    /// Encode a JPEG XL image
-    /// # Errors
-    /// Return `[EncodeError]` if internal encoder fails to encode
-    pub fn encode<T: PixelType>(
+    // Internal encoder setup
+    fn _encode<T: PixelType>(
         &mut self,
         data: &[T],
         x_size: u64,
         y_size: u64,
+        is_jpeg: bool,
     ) -> Result<Vec<u8>, EncodeError> {
-        self.pixel_format.data_type = T::pixel_type();
-
         unsafe {
             if let Some(ref mut runner) = self.parallel_runner {
                 check_enc_status(JxlEncoderSetParallelRunner(
@@ -160,12 +157,20 @@ impl JXLEncoder {
 
             check_enc_status(JxlEncoderSetDimensions(self.enc, x_size, y_size))?;
 
-            check_enc_status(JxlEncoderAddImageFrame(
-                self.options_ptr,
-                &self.pixel_format,
-                data.as_ptr() as _,
-                std::mem::size_of_val(data) as _,
-            ))?;
+            check_enc_status(if is_jpeg {
+                JxlEncoderAddJPEGFrame(
+                    self.options_ptr,
+                    data.as_ptr() as _,
+                    std::mem::size_of_val(data) as _,
+                )
+            } else {
+                JxlEncoderAddImageFrame(
+                    self.options_ptr,
+                    &self.pixel_format,
+                    data.as_ptr() as _,
+                    std::mem::size_of_val(data) as _,
+                )
+            })?;
 
             let chunk_size = 1024 * 512; // 512 KB is a good initial value
             let mut buffer = {
@@ -199,6 +204,32 @@ impl JXLEncoder {
             Ok(buffer)
         }
     }
+
+    /// Encode a JPEG XL image from existing raw JPEG data
+    /// # Errors
+    /// Return `[EncodeError]` if internal encoder fails to encode
+    pub fn encode_jpeg(
+        &mut self,
+        data: &[u8],
+        x_size: u64,
+        y_size: u64,
+    ) -> Result<Vec<u8>, EncodeError> {
+        self._encode(data, x_size, y_size, true)
+    }
+
+    /// Encode a JPEG XL image from pixels
+    /// # Errors
+    /// Return `[EncodeError]` if internal encoder fails to encode
+    pub fn encode<T: PixelType>(
+        &mut self,
+        data: &[T],
+        x_size: u64,
+        y_size: u64,
+    ) -> Result<Vec<u8>, EncodeError> {
+        self.pixel_format.data_type = T::pixel_type();
+
+        self._encode(data, x_size, y_size, false)
+    }
 }
 
 impl Drop for JXLEncoder {
@@ -210,7 +241,7 @@ impl Drop for JXLEncoder {
 /// Builder for [`JXLEncoder`]
 pub struct JXLEncoderBuilder {
     pixel_format: JxlPixelFormat,
-    options: PrefferedEncoderOptions,
+    options: PreferredEncoderOptions,
     memory_manager: Option<Box<dyn JXLMemoryManager>>,
     parallel_runner: Option<Box<dyn JXLParallelRunner>>,
 }
@@ -295,7 +326,7 @@ pub fn encoder_builder() -> JXLEncoderBuilder {
             endianness: Endianness::Native.into(),
             align: 0,
         },
-        options: PrefferedEncoderOptions {
+        options: PreferredEncoderOptions {
             lossless: None,
             speed: None,
             quality: None,
@@ -319,6 +350,27 @@ mod tests {
             .build()?;
 
         encoder.encode(sample.as_raw(), sample.width() as _, sample.height() as _)?;
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_encode_jpeg() -> Result<(), image::ImageError> {
+        let sample = std::fs::read("test/sample.jpg")?;
+        let sample_image = ImageReader::new(std::io::Cursor::new(sample.clone()))
+            .with_guessed_format()?
+            .decode()?
+            .to_rgb8();
+        let mut encoder = encoder_builder()
+            .speed(EncoderSpeed::Falcon)
+            .num_channels(3)
+            .build()?;
+
+        encoder.encode_jpeg(
+            &sample,
+            sample_image.width() as _,
+            sample_image.height() as _,
+        )?;
 
         Ok(())
     }
