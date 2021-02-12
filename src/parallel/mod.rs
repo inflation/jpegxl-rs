@@ -19,10 +19,10 @@ along with jpegxl-rs.  If not, see <https://www.gnu.org/licenses/>.
 //! # Example
 //! ```
 //! # || -> Result<(), Box<dyn std::error::Error>> {
-//! use jpegxl_rs::{JXLDecoder, decoder_builder, parallel::*};
+//! use jpegxl_rs::{JxlDecoder, decoder_builder, parallel::*};
 //! // Use the default C++ Threadpool runner:
 //! let mut parallel_runner = Box::new(ThreadsRunner::default());
-//! let mut decoder: JXLDecoder<u8> = decoder_builder().parallel_runner(parallel_runner).build()?;
+//! let mut decoder: JxlDecoder<u8> = decoder_builder().parallel_runner(parallel_runner).build()?;
 //! # Ok(())
 //! # };
 //! ```
@@ -58,7 +58,7 @@ pub type RunnerFn = unsafe extern "C" fn(
 ) -> JxlParallelRetCode;
 
 /// JPEG XL Parallel Runner
-pub trait JXLParallelRunner: std::fmt::Debug {
+pub trait JxlParallelRunner: std::fmt::Debug {
     /// FFI runner function.
     /// Check `jpeg-xl` header files for more explanations.
     fn runner(&self) -> RunnerFn;
@@ -70,7 +70,7 @@ pub trait JXLParallelRunner: std::fmt::Debug {
 }
 
 #[allow(unreachable_code)]
-pub(crate) fn choose_runner() -> Option<Box<dyn JXLParallelRunner>> {
+pub(crate) fn choose_runner() -> Option<Box<dyn JxlParallelRunner>> {
     #[cfg(not(feature = "without-threads"))]
     return Some(Box::new(ThreadsRunner::default()));
 

@@ -25,15 +25,15 @@ You need to have a working `llvm` environment.
 ```rust
 use jpegxl_rs::*;
 let sample = std::fs::read("test/sample.jxl")?;
-let mut decoder: JXLDecoder<u8> = decoder_builder().build()?;
+let mut decoder: JxlDecoder<u8> = decoder_builder().build()?;
 let (info, buffer) = decoder.decode(&sample)?;
 ```
 
-Set output pixel paramaters
+Set output pixel parameters
 
 ```rust
 // Pixel type is set by type parameter
-let mut decoder: JXLDecoder<u16> = decoder_builder()
+let mut decoder: JxlDecoder<u16> = decoder_builder()
                                     .num_channel(3)
                                     .endianness(Endianness::Big)
                                     .align(8)
@@ -64,6 +64,6 @@ use jpegxl_rs::image::*;
 use image::DynamicImage;
 
 let sample = std::fs::read("test/sample.jxl")?;
-let decoder: JXLImageDecoder<u16> = JXLImageDecoder::new(&sample)?;
+let decoder: JxlImageDecoder<u16> = JxlImageDecoder::new(&sample)?;
 let img = DynamicImage::from_decoder(decoder)?;       
 ```

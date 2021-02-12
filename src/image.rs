@@ -26,7 +26,7 @@ use crate::{
     common::PixelType,
     decoder_builder,
     errors::{DecodeError, EncodeError},
-    BasicInfo, JXLDecoder,
+    BasicInfo, JxlDecoder,
 };
 
 // Error conversion
@@ -56,30 +56,30 @@ impl From<EncodeError> for image::ImageError {
 /// # || -> Result<(), Box<dyn std::error::Error>> {
 /// # use jpegxl_rs::image::*;
 /// let sample = std::fs::read("test/sample.jxl")?;
-/// let decoder: JXLImageDecoder<u16> = JXLImageDecoder::new(&sample)?;
+/// let decoder: JxlImageDecoder<u16> = JxlImageDecoder::new(&sample)?;
 /// let img = image::DynamicImage::from_decoder(decoder)?;       
 /// # Ok(()) };
 /// ```
-pub struct JXLImageDecoder<T: PixelType> {
+pub struct JxlImageDecoder<T: PixelType> {
     info: BasicInfo,
     buffer: Vec<T>,
 }
 
-impl<T: PixelType> JXLImageDecoder<T> {
+impl<T: PixelType> JxlImageDecoder<T> {
     /// Create a new JPEG XL Decoder.
     /// # Errors
     /// Return an [`image::ImageError`] with wrapped [`DecodeError`]
-    pub fn new(input: &[u8]) -> ImageResult<JXLImageDecoder<T>> {
-        let mut dec: JXLDecoder<T> = decoder_builder().build()?;
+    pub fn new(input: &[u8]) -> ImageResult<JxlImageDecoder<T>> {
+        let mut dec: JxlDecoder<T> = decoder_builder().build()?;
         // TODO: Stream decoding
         let (info, buffer) = dec.decode(input)?;
 
-        let decoder = JXLImageDecoder { info, buffer };
+        let decoder = JxlImageDecoder { info, buffer };
         Ok(decoder)
     }
 }
 
-impl<'a> ImageDecoder<'a> for JXLImageDecoder<u8> {
+impl<'a> ImageDecoder<'a> for JxlImageDecoder<u8> {
     type Reader = std::io::Cursor<Vec<u8>>;
 
     fn color_type(&self) -> ColorType {
@@ -99,7 +99,7 @@ impl<'a> ImageDecoder<'a> for JXLImageDecoder<u8> {
     }
 }
 
-impl<'a> ImageDecoder<'a> for JXLImageDecoder<u16> {
+impl<'a> ImageDecoder<'a> for JxlImageDecoder<u16> {
     type Reader = std::io::Cursor<Vec<u8>>;
 
     fn color_type(&self) -> ColorType {
@@ -135,7 +135,7 @@ mod tests {
     #[test]
     fn test_image_support() -> Result<(), Box<dyn std::error::Error>> {
         let sample = std::fs::read("test/sample.jxl")?;
-        let decoder: JXLImageDecoder<u16> = JXLImageDecoder::new(&sample)?;
+        let decoder: JxlImageDecoder<u16> = JxlImageDecoder::new(&sample)?;
 
         let img = image::DynamicImage::from_decoder(decoder)?;
         let sample_png = image::io::Reader::open("test/sample.png")?.decode()?;

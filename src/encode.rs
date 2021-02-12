@@ -24,8 +24,8 @@ use std::{convert::TryInto as _, ptr::null};
 use crate::{
     common::{Endianness, PixelType},
     errors::{check_enc_status, EncodeError},
-    memory::JXLMemoryManager,
-    parallel::{choose_runner, JXLParallelRunner},
+    memory::JxlMemoryManager,
+    parallel::{choose_runner, JxlParallelRunner},
 };
 
 /// Encoding speed, default at Squirrel(7)
@@ -54,9 +54,9 @@ struct PreferredEncoderOptions {
 }
 
 /// JPEG XL Encoder
-pub struct JXLEncoder {
+pub struct JxlEncoder {
     /// Opaque pointer to the underlying encoder
-    enc: *mut JxlEncoder,
+    enc: *mut jpegxl_sys::JxlEncoder,
     /// Opaque pointer to the encoder options
     options_ptr: *mut JxlEncoderOptions,
 
@@ -64,23 +64,23 @@ pub struct JXLEncoder {
     pub pixel_format: JxlPixelFormat,
 
     /// Memory Manager
-    _memory_manager: Option<Box<dyn JXLMemoryManager>>,
+    _memory_manager: Option<Box<dyn JxlMemoryManager>>,
 
     /// Parallel Runner
-    pub parallel_runner: Option<Box<dyn JXLParallelRunner>>,
+    pub parallel_runner: Option<Box<dyn JxlParallelRunner>>,
 }
 
-impl JXLEncoder {
+impl JxlEncoder {
     fn new(
         pixel_format: JxlPixelFormat,
         encoder_options: PreferredEncoderOptions,
-        mut memory_manager: Option<Box<dyn JXLMemoryManager>>,
-        parallel_runner: Option<Box<dyn JXLParallelRunner>>,
+        mut memory_manager: Option<Box<dyn JxlMemoryManager>>,
+        parallel_runner: Option<Box<dyn JxlParallelRunner>>,
     ) -> Result<Self, EncodeError> {
         let enc = unsafe {
             memory_manager.as_mut().map_or_else(
                 || JxlEncoderCreate(null()),
-                |memory_manager| JxlEncoderCreate(&memory_manager.to_manager()),
+                |memory_manager| JxlEncoderCreate(&memory_manager.as_manager()),
             )
         };
 
@@ -139,13 +139,13 @@ impl JXLEncoder {
     }
 
     // Internal encoder setup
-    fn _encode<T: PixelType>(
+    fn _encode<T: PixelType, U: PixelType>(
         &mut self,
         data: &[T],
         x_size: u32,
         y_size: u32,
         is_jpeg: bool,
-    ) -> Result<Vec<u8>, EncodeError> {
+    ) -> Result<Vec<U>, EncodeError> {
         unsafe {
             if let Some(ref mut runner) = self.parallel_runner {
                 check_enc_status(JxlEncoderSetParallelRunner(
@@ -159,23 +159,20 @@ impl JXLEncoder {
             basic_info.xsize = x_size;
             basic_info.ysize = y_size;
 
-            T::set_bits_per_sample(
-                &mut basic_info.bits_per_sample,
-                &mut basic_info.exponent_bits_per_sample,
-            );
+            let (bits, exp) = U::bits_per_sample();
+
+            basic_info.bits_per_sample = bits;
+            basic_info.exponent_bits_per_sample = exp;
 
             // TODO: Handle alpha channel better when upstream improves
+            //       Currently upstream only supports channels of 2 or 4 for alpha
             if self.pixel_format.num_channels % 2 == 0 {
-                T::set_bits_per_sample(
-                    &mut basic_info.alpha_bits,
-                    &mut basic_info.alpha_exponent_bits,
-                );
+                basic_info.alpha_bits = bits;
+                basic_info.alpha_exponent_bits = exp;
             } else {
                 basic_info.alpha_bits = 0;
                 basic_info.alpha_exponent_bits = 0;
             }
-
-            basic_info.uses_original_profile = JXL_FALSE as i32;
             check_enc_status(JxlEncoderSetBasicInfo(self.enc, &basic_info))?;
 
             check_enc_status(if is_jpeg {
@@ -194,32 +191,36 @@ impl JXLEncoder {
             })?;
 
             let chunk_size = 1024 * 512; // 512 KB is a good initial value
-            let mut buffer = {
+            let mut buffer: Vec<U> = {
                 let mut buffer = Vec::with_capacity(chunk_size);
                 buffer.set_len(chunk_size);
                 buffer
             };
-            let mut next_out: *mut u8 = buffer.as_mut_ptr();
+            let mut next_out = buffer.as_mut_ptr() as *mut u8;
             let mut avail_out = chunk_size;
 
             let mut status;
             loop {
-                status = JxlEncoderProcessOutput(
-                    self.enc,
-                    &mut next_out as _,
-                    &mut (avail_out as u64) as _,
-                );
+                status = JxlEncoderProcessOutput(self.enc, &mut next_out, &mut (avail_out as u64));
 
                 if status != JxlEncoderStatus_JXL_ENC_NEED_MORE_OUTPUT {
                     break;
                 }
 
-                let offset = next_out.offset_from(buffer.as_ptr()).try_into().unwrap();
-                buffer.resize(buffer.len() * 2, 0);
-                next_out = buffer.as_mut_ptr().add(offset);
+                let offset = next_out
+                    .offset_from(buffer.as_ptr() as *const u8)
+                    .try_into()
+                    .unwrap();
+                buffer.resize(buffer.len() * 2, U::default());
+                next_out = (buffer.as_mut_ptr() as *mut u8).add(offset);
                 avail_out = buffer.len() - offset;
             }
-            buffer.truncate(next_out.offset_from(buffer.as_ptr()).try_into().unwrap());
+            buffer.truncate(
+                next_out
+                    .offset_from(buffer.as_ptr() as *const u8)
+                    .try_into()
+                    .unwrap(),
+            );
             check_enc_status(status)?;
 
             Ok(buffer)
@@ -235,39 +236,39 @@ impl JXLEncoder {
         x_size: u32,
         y_size: u32,
     ) -> Result<Vec<u8>, EncodeError> {
-        self._encode(data, x_size, y_size, true)
+        self._encode::<u8, u8>(data, x_size, y_size, true)
     }
 
     /// Encode a JPEG XL image from pixels
     /// # Errors
     /// Return [`EncodeError`] if internal encoder fails to encode
-    pub fn encode<T: PixelType>(
+    pub fn encode<T: PixelType, U: PixelType>(
         &mut self,
         data: &[T],
         x_size: u32,
         y_size: u32,
-    ) -> Result<Vec<u8>, EncodeError> {
+    ) -> Result<Vec<U>, EncodeError> {
         self.pixel_format.data_type = T::pixel_type();
 
         self._encode(data, x_size, y_size, false)
     }
 }
 
-impl Drop for JXLEncoder {
+impl Drop for JxlEncoder {
     fn drop(&mut self) {
         unsafe { JxlEncoderDestroy(self.enc) };
     }
 }
 
-/// Builder for [`JXLEncoder`]
-pub struct JXLEncoderBuilder {
+/// Builder for [`JxlEncoder`]
+pub struct JxlEncoderBuilder {
     pixel_format: JxlPixelFormat,
     options: PreferredEncoderOptions,
-    memory_manager: Option<Box<dyn JXLMemoryManager>>,
-    parallel_runner: Option<Box<dyn JXLParallelRunner>>,
+    memory_manager: Option<Box<dyn JxlMemoryManager>>,
+    parallel_runner: Option<Box<dyn JxlParallelRunner>>,
 }
 
-impl JXLEncoderBuilder {
+impl JxlEncoderBuilder {
     /// Set number of channels
     #[must_use]
     pub fn num_channels(mut self, num: u32) -> Self {
@@ -312,14 +313,14 @@ impl JXLEncoderBuilder {
 
     /// Set memory manager
     #[must_use]
-    pub fn memory_manager(mut self, memory_manager: Box<dyn JXLMemoryManager>) -> Self {
+    pub fn memory_manager(mut self, memory_manager: Box<dyn JxlMemoryManager>) -> Self {
         self.memory_manager = Some(memory_manager);
         self
     }
 
     /// Set parallel runner
     #[must_use]
-    pub fn parallel_runner(mut self, parallel_runner: Box<dyn JXLParallelRunner>) -> Self {
+    pub fn parallel_runner(mut self, parallel_runner: Box<dyn JxlParallelRunner>) -> Self {
         self.parallel_runner = Some(parallel_runner);
         self
     }
@@ -327,8 +328,8 @@ impl JXLEncoderBuilder {
     /// Consume the builder and get the encoder
     /// # Errors
     /// Return [`EncodeError::CannotCreateEncoder`] if it fails to create the encoder
-    pub fn build(self) -> Result<JXLEncoder, EncodeError> {
-        JXLEncoder::new(
+    pub fn build(self) -> Result<JxlEncoder, EncodeError> {
+        JxlEncoder::new(
             self.pixel_format,
             self.options,
             self.memory_manager,
@@ -337,10 +338,10 @@ impl JXLEncoderBuilder {
     }
 }
 
-/// Return a [`JXLEncoderBuilder`] with default settings
+/// Return a [`JxlEncoderBuilder`] with default settings
 #[must_use]
-pub fn encoder_builder() -> JXLEncoderBuilder {
-    JXLEncoderBuilder {
+pub fn encoder_builder() -> JxlEncoderBuilder {
+    JxlEncoderBuilder {
         pixel_format: JxlPixelFormat {
             num_channels: 4,
             data_type: u8::pixel_type(),
@@ -359,6 +360,8 @@ pub fn encoder_builder() -> JXLEncoderBuilder {
 
 #[cfg(test)]
 mod tests {
+    use crate::decoder_builder;
+
     use super::*;
 
     use image::io::Reader as ImageReader;
@@ -370,7 +373,16 @@ mod tests {
             .num_channels(3)
             .build()?;
 
-        encoder.encode(sample.as_raw(), sample.width() as _, sample.height() as _)?;
+        let result: Vec<f32> =
+            encoder.encode(sample.as_raw(), sample.width() as _, sample.height() as _)?;
+
+        let mut decoder = decoder_builder::<f32>().build()?;
+        decoder.decode(unsafe {
+            std::slice::from_raw_parts(
+                result.as_ptr() as *const u8,
+                result.len() * std::mem::size_of::<f32>(),
+            )
+        })?;
 
         Ok(())
     }
@@ -406,7 +418,7 @@ mod tests {
             .quality(3.0)
             .build()?;
 
-        encoder.encode(sample.as_raw(), sample.width() as _, sample.height() as _)?;
+        encoder.encode::<_, u8>(sample.as_raw(), sample.width() as _, sample.height() as _)?;
 
         Ok(())
     }
@@ -425,11 +437,11 @@ mod tests {
             .build()?;
 
         let parallel_buffer =
-            encoder.encode(sample.as_raw(), sample.width() as _, sample.height() as _)?;
+            encoder.encode::<_, u8>(sample.as_raw(), sample.width() as _, sample.height() as _)?;
 
         encoder = encoder_builder().speed(EncoderSpeed::Falcon).build()?;
         let single_buffer =
-            encoder.encode(sample.as_raw(), sample.width() as _, sample.height() as _)?;
+            encoder.encode::<_, u8>(sample.as_raw(), sample.width() as _, sample.height() as _)?;
 
         assert!(
             parallel_buffer == single_buffer,
@@ -451,11 +463,11 @@ mod tests {
             .memory_manager(memory_manager)
             .build()?;
         let custom_buffer =
-            encoder.encode(sample.as_raw(), sample.width() as _, sample.height() as _)?;
+            encoder.encode::<_, u8>(sample.as_raw(), sample.width() as _, sample.height() as _)?;
 
         encoder = encoder_builder().speed(EncoderSpeed::Falcon).build()?;
         let default_buffer =
-            encoder.encode(sample.as_raw(), sample.width() as _, sample.height() as _)?;
+            encoder.encode::<_, u8>(sample.as_raw(), sample.width() as _, sample.height() as _)?;
 
         assert!(
             custom_buffer == default_buffer,

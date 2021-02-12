@@ -17,6 +17,8 @@ along with jpegxl-rs.  If not, see <https://www.gnu.org/licenses/>.
 
 //! Common types used across the crate
 
+use std::convert::TryInto;
+
 use jpegxl_sys::{
     JxlDataType, JxlDataType_JXL_TYPE_FLOAT, JxlDataType_JXL_TYPE_UINT16,
     JxlDataType_JXL_TYPE_UINT32, JxlDataType_JXL_TYPE_UINT8,
@@ -28,10 +30,11 @@ pub trait PixelType: Clone + Default + 'static {
     /// Return the c const
     fn pixel_type() -> JxlDataType;
 
-    /// Set number of bits per sample and exponential bits
-    fn set_bits_per_sample(b: &mut u32, e: &mut u32) {
-        *b = std::mem::size_of::<Self>() as u32 * 8;
-        *e = 0;
+    /// Return number of bits per sample and exponential bits
+    /// Panic: Should never
+    #[must_use]
+    fn bits_per_sample() -> (u32, u32) {
+        ((std::mem::size_of::<Self>() * 8).try_into().unwrap(), 0)
     }
 }
 impl PixelType for u8 {
@@ -55,9 +58,8 @@ impl PixelType for f32 {
     }
 
     /// Float representation needs exponential bits
-    fn set_bits_per_sample(b: &mut u32, e: &mut u32) {
-        *b = 32;
-        *e = 8;
+    fn bits_per_sample() -> (u32, u32) {
+        (32, 8)
     }
 }
 

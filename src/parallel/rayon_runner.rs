@@ -85,7 +85,7 @@ impl RayonRunner {
 }
 
 #[cfg(not(feature = "without-rayon"))]
-impl JXLParallelRunner for RayonRunner {
+impl JxlParallelRunner for RayonRunner {
     fn runner(&self) -> RunnerFn {
         self.runner_func
     }

@@ -22,8 +22,8 @@ use std::ffi::c_void;
 #[allow(clippy::wildcard_imports)]
 use jpegxl_sys::*;
 
-use super::{JXLParallelRunner, RunnerFn};
-use crate::memory::JXLMemoryManager;
+use super::{JxlParallelRunner, RunnerFn};
+use crate::memory::JxlMemoryManager;
 
 #[derive(Debug)]
 /// Wrapper for default threadpool implementation with C++ standard library
@@ -34,8 +34,8 @@ pub struct ThreadsRunner {
 impl ThreadsRunner {
     /// Construct with number of threads
     #[must_use]
-    pub fn new(memory_manager: Option<&mut dyn JXLMemoryManager>, num_workers: usize) -> Self {
-        let memory_manager = memory_manager.map_or(std::ptr::null(), |s| &mut s.to_manager() as _);
+    pub fn new(memory_manager: Option<&mut dyn JxlMemoryManager>, num_workers: usize) -> Self {
+        let memory_manager = memory_manager.map_or(std::ptr::null(), |s| &mut s.as_manager() as _);
         Self {
             runner_ptr: unsafe { JxlThreadParallelRunnerCreate(memory_manager, num_workers as _) },
         }
@@ -56,7 +56,7 @@ impl Default for ThreadsRunner {
     }
 }
 
-impl JXLParallelRunner for ThreadsRunner {
+impl JxlParallelRunner for ThreadsRunner {
     fn runner(&self) -> RunnerFn {
         JxlThreadParallelRunner
     }

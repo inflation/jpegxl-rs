@@ -29,13 +29,13 @@ along with jpegxl-rs.  If not, see <https://www.gnu.org/licenses/>.
 //! ```
 //! # use jpegxl_rs::*;
 //! # || -> Result<(), Box<dyn std::error::Error>> {
-//! let mut decoder: JXLDecoder<u8> = decoder_builder().build()?;
+//! let mut decoder: JxlDecoder<u8> = decoder_builder().build()?;
 //!
 //! // Use another pixel data type
-//! let mut decoder: JXLDecoder<f32> = decoder_builder().build()?;
+//! let mut decoder: JxlDecoder<f32> = decoder_builder().build()?;
 //!
 //! // Customize pixel format
-//! let mut decoder: JXLDecoder<u8> = decoder_builder()
+//! let mut decoder: JxlDecoder<u8> = decoder_builder()
 //!                                     .num_channels(3)
 //!                                     .endian(Endianness::Big)
 //!                                     .align(8)
@@ -45,7 +45,7 @@ along with jpegxl-rs.  If not, see <https://www.gnu.org/licenses/>.
 //! use jpegxl_rs::{parallel::ThreadsRunner, memory::MallocManager};
 //! let manager = Box::new(MallocManager::default());
 //! let runner = Box::new(ThreadsRunner::default());
-//! let mut decoder: JXLDecoder<u8> = decoder_builder()
+//! let mut decoder: JxlDecoder<u8> = decoder_builder()
 //!                                     .memory_manager(manager)
 //!                                     .parallel_runner(runner)
 //!                                     .build()?;
@@ -59,7 +59,7 @@ along with jpegxl-rs.  If not, see <https://www.gnu.org/licenses/>.
 //! use image::io::Reader as ImageReader;
 //! let sample = ImageReader::open("test/sample.png")?.decode()?.to_rgba16();
 //! let mut encoder = encoder_builder().build()?;
-//! let buffer = encoder.encode(&sample, sample.width() as _, sample.height() as _)?;
+//! let buffer: Vec<f32> = encoder.encode(&sample, sample.width() as _, sample.height() as _)?;
 //! # Ok(()) };
 //! ```
 //!

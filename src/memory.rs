@@ -19,14 +19,14 @@ along with jpegxl-rs.  If not, see <https://www.gnu.org/licenses/>.
 //! # Example
 //! ```
 //! # || -> Result<(), Box<dyn std::error::Error>> {
-//! use jpegxl_rs::{decoder_builder, JXLDecoder, memory::MallocManager};
+//! use jpegxl_rs::{decoder_builder, JxlDecoder, memory::MallocManager};
 //! let mut manager = Box::new(MallocManager::default());
-//! let mut decoder: JXLDecoder<u8> = decoder_builder().memory_manager(manager).build()?;
+//! let mut decoder: JxlDecoder<u8> = decoder_builder().memory_manager(manager).build()?;
 //! # Ok(())
 //! # };
 //! ```
 
-use jpegxl_sys::{size_t, JxlMemoryManager};
+use jpegxl_sys::size_t;
 use std::{
     alloc::{GlobalAlloc as _, Layout, System},
     convert::TryInto as _,
@@ -40,15 +40,15 @@ pub type FreeFn = unsafe extern "C" fn(opaque: *mut c_void, address: *mut c_void
 
 /// General trait for a memory manager
 
-pub trait JXLMemoryManager: std::fmt::Debug {
+pub trait JxlMemoryManager: std::fmt::Debug {
     /// Return a custom allocator function. Can be None for using default one
     fn alloc(&self) -> Option<AllocFn>;
     /// Return a custom deallocator function. Can be None for using default one
     fn free(&self) -> Option<FreeFn>;
 
     /// Helper conversion function for C API
-    fn to_manager(&mut self) -> JxlMemoryManager {
-        JxlMemoryManager {
+    fn as_manager(&mut self) -> jpegxl_sys::JxlMemoryManager {
+        jpegxl_sys::JxlMemoryManager {
             opaque: self.as_opaque_ptr(),
             alloc: self.alloc(),
             free: self.free(),
@@ -61,7 +61,7 @@ pub trait JXLMemoryManager: std::fmt::Debug {
     }
 }
 
-/// Example implement of [`JXLMemoryManager`]
+/// Example implement of [`JxlMemoryManager`]
 #[derive(Debug)]
 pub struct MallocManager {
     layout: Layout,
@@ -75,7 +75,7 @@ impl Default for MallocManager {
     }
 }
 
-impl JXLMemoryManager for MallocManager {
+impl JxlMemoryManager for MallocManager {
     fn alloc(&self) -> Option<AllocFn> {
         unsafe extern "C" fn alloc(opaque: *mut c_void, size: size_t) -> *mut c_void {
             let layout = Layout::from_size_align(size.try_into().unwrap(), 8).unwrap();
