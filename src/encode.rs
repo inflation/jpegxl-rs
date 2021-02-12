@@ -142,8 +142,8 @@ impl JXLEncoder {
     fn _encode<T: PixelType>(
         &mut self,
         data: &[T],
-        x_size: u64,
-        y_size: u64,
+        x_size: u32,
+        y_size: u32,
         is_jpeg: bool,
     ) -> Result<Vec<u8>, EncodeError> {
         unsafe {
@@ -155,7 +155,28 @@ impl JXLEncoder {
                 ))?
             }
 
-            check_enc_status(JxlEncoderSetDimensions(self.enc, x_size, y_size))?;
+            let mut basic_info = JxlBasicInfo::new_uninit().assume_init();
+            basic_info.xsize = x_size;
+            basic_info.ysize = y_size;
+
+            T::set_bits_per_sample(
+                &mut basic_info.bits_per_sample,
+                &mut basic_info.exponent_bits_per_sample,
+            );
+
+            // TODO: Handle alpha channel better when upstream improves
+            if self.pixel_format.num_channels % 2 == 0 {
+                T::set_bits_per_sample(
+                    &mut basic_info.alpha_bits,
+                    &mut basic_info.alpha_exponent_bits,
+                );
+            } else {
+                basic_info.alpha_bits = 0;
+                basic_info.alpha_exponent_bits = 0;
+            }
+
+            basic_info.uses_original_profile = JXL_FALSE as i32;
+            check_enc_status(JxlEncoderSetBasicInfo(self.enc, &basic_info))?;
 
             check_enc_status(if is_jpeg {
                 JxlEncoderAddJPEGFrame(
@@ -211,8 +232,8 @@ impl JXLEncoder {
     pub fn encode_jpeg(
         &mut self,
         data: &[u8],
-        x_size: u64,
-        y_size: u64,
+        x_size: u32,
+        y_size: u32,
     ) -> Result<Vec<u8>, EncodeError> {
         self._encode(data, x_size, y_size, true)
     }
@@ -223,8 +244,8 @@ impl JXLEncoder {
     pub fn encode<T: PixelType>(
         &mut self,
         data: &[T],
-        x_size: u64,
-        y_size: u64,
+        x_size: u32,
+        y_size: u32,
     ) -> Result<Vec<u8>, EncodeError> {
         self.pixel_format.data_type = T::pixel_type();
 

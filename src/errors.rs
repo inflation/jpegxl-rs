@@ -50,6 +50,9 @@ pub enum EncodeError {
     // TODO: underlying library is working on a way to retrieve error message
     #[error("Unknown encoder error")]
     GenericError,
+    /// Not Supported
+    #[error("Encoder does not support (yet)")]
+    NotSupported,
     /// Unknown status
     #[error("Unknown status: `{0}`")]
     UnknownStatus(JxlEncoderStatus),
@@ -69,6 +72,7 @@ pub(crate) fn check_enc_status(status: JxlEncoderStatus) -> Result<(), EncodeErr
     match status {
         JxlEncoderStatus_JXL_ENC_SUCCESS => Ok(()),
         JxlEncoderStatus_JXL_ENC_ERROR => Err(EncodeError::GenericError),
+        JxlEncoderStatus_JXL_ENC_NOT_SUPPORTED => Err(EncodeError::NotSupported),
         _ => Err(EncodeError::UnknownStatus(status)),
     }
 }
