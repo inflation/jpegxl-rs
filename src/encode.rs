@@ -47,10 +47,13 @@ pub enum EncoderSpeed {
     Tortoise,
 }
 
-struct PreferredEncoderOptions {
-    lossless: Option<bool>,
-    speed: Option<EncoderSpeed>,
-    quality: Option<f32>,
+/// Encoding color profile
+#[derive(Debug)]
+pub enum ColorEncoding {
+    /// SRGB, default for uint pixel types
+    SRGB,
+    /// Linear SRGB, default for float pixel types
+    LinearSRGB,
 }
 
 /// JPEG XL Encoder
@@ -63,8 +66,12 @@ pub struct JxlEncoder {
     /// Pixel format
     pub pixel_format: JxlPixelFormat,
 
+    /// Color Encoding
+    color_encoding: Option<JxlColorEncoding>,
+
     /// Memory Manager
-    _memory_manager: Option<Box<dyn JxlMemoryManager>>,
+    #[allow(dead_code)]
+    memory_manager: Option<Box<dyn JxlMemoryManager>>,
 
     /// Parallel Runner
     pub parallel_runner: Option<Box<dyn JxlParallelRunner>>,
@@ -90,19 +97,34 @@ impl JxlEncoder {
 
         let options_ptr = unsafe { JxlEncoderOptionsCreate(enc, null()) };
 
-        let mut encoder = Self {
-            enc,
-            pixel_format,
-            options_ptr,
-            _memory_manager: memory_manager,
-            parallel_runner,
-        };
-
         let PreferredEncoderOptions {
             lossless,
             speed,
             quality,
+            color_encoding,
         } = encoder_options;
+
+        let color_encoding = color_encoding.map(|c| unsafe {
+            let mut color_encoding = JxlColorEncoding::new_uninit();
+            match c {
+                ColorEncoding::SRGB => {
+                    JxlColorEncodingSetToSRGB(color_encoding.as_mut_ptr(), false.into())
+                }
+                ColorEncoding::LinearSRGB => {
+                    JxlColorEncodingSetToLinearSRGB(color_encoding.as_mut_ptr(), false.into())
+                }
+            }
+            color_encoding.assume_init()
+        });
+
+        let mut encoder = Self {
+            enc,
+            pixel_format,
+            options_ptr,
+            color_encoding,
+            memory_manager,
+            parallel_runner,
+        };
 
         if let Some(l) = lossless {
             encoder.set_lossless(l);
@@ -153,6 +175,10 @@ impl JxlEncoder {
                     Some(runner.runner()),
                     runner.as_opaque_ptr(),
                 ))?
+            }
+
+            if let Some(c) = self.color_encoding {
+                JxlEncoderSetColorEncoding(self.enc, &c);
             }
 
             let mut basic_info = JxlBasicInfo::new_uninit().assume_init();
@@ -227,7 +253,7 @@ impl JxlEncoder {
         }
     }
 
-    /// Encode a JPEG XL image from existing raw JPEG data
+    /// Encode a JPEG XL image from existing raw JPEG data. Only support pixel type  `u8`
     /// # Errors
     /// Return [`EncodeError`] if internal encoder fails to encode
     pub fn encode_jpeg(
@@ -258,6 +284,13 @@ impl Drop for JxlEncoder {
     fn drop(&mut self) {
         unsafe { JxlEncoderDestroy(self.enc) };
     }
+}
+
+struct PreferredEncoderOptions {
+    lossless: Option<bool>,
+    speed: Option<EncoderSpeed>,
+    quality: Option<f32>,
+    color_encoding: Option<ColorEncoding>,
 }
 
 /// Builder for [`JxlEncoder`]
@@ -311,6 +344,13 @@ impl JxlEncoderBuilder {
         self
     }
 
+    /// Set color encoding
+    #[must_use]
+    pub fn color_encoding(mut self, encoding: ColorEncoding) -> Self {
+        self.options.color_encoding = Some(encoding);
+        self
+    }
+
     /// Set memory manager
     #[must_use]
     pub fn memory_manager(mut self, memory_manager: Box<dyn JxlMemoryManager>) -> Self {
@@ -352,6 +392,7 @@ pub fn encoder_builder() -> JxlEncoderBuilder {
             lossless: None,
             speed: None,
             quality: None,
+            color_encoding: None,
         },
         memory_manager: None,
         parallel_runner: choose_runner(),
@@ -373,8 +414,7 @@ mod tests {
             .num_channels(3)
             .build()?;
 
-        let result: Vec<f32> =
-            encoder.encode(sample.as_raw(), sample.width() as _, sample.height() as _)?;
+        let result: Vec<f32> = encoder.encode(sample.as_raw(), sample.width(), sample.height())?;
 
         let mut decoder = decoder_builder::<f32>().build()?;
         decoder.decode(unsafe {
@@ -399,26 +439,23 @@ mod tests {
             .num_channels(3)
             .build()?;
 
-        encoder.encode_jpeg(
-            &sample,
-            sample_image.width() as _,
-            sample_image.height() as _,
-        )?;
+        encoder.encode_jpeg(&sample, sample_image.width(), sample_image.height())?;
 
         Ok(())
     }
 
     #[test]
-    fn test_encode_builder() -> Result<(), image::ImageError> {
+    fn test_encoder_builder() -> Result<(), image::ImageError> {
         let sample = ImageReader::open("test/sample.png")?.decode()?.to_rgb8();
         let mut encoder = encoder_builder()
             .num_channels(3)
             .lossless(false)
             .speed(EncoderSpeed::Falcon)
             .quality(3.0)
+            .color_encoding(ColorEncoding::LinearSRGB)
             .build()?;
 
-        encoder.encode::<_, u8>(sample.as_raw(), sample.width() as _, sample.height() as _)?;
+        encoder.encode::<_, u8>(sample.as_raw(), sample.width(), sample.height())?;
 
         Ok(())
     }
@@ -436,12 +473,12 @@ mod tests {
             .parallel_runner(parallel_runner)
             .build()?;
 
-        let parallel_buffer =
-            encoder.encode::<_, u8>(sample.as_raw(), sample.width() as _, sample.height() as _)?;
+        let parallel_buffer: Vec<u8> =
+            encoder.encode(sample.as_raw(), sample.width(), sample.height())?;
 
         encoder = encoder_builder().speed(EncoderSpeed::Falcon).build()?;
-        let single_buffer =
-            encoder.encode::<_, u8>(sample.as_raw(), sample.width() as _, sample.height() as _)?;
+        let single_buffer: Vec<u8> =
+            encoder.encode(sample.as_raw(), sample.width(), sample.height())?;
 
         assert!(
             parallel_buffer == single_buffer,
@@ -462,12 +499,12 @@ mod tests {
             .speed(EncoderSpeed::Falcon)
             .memory_manager(memory_manager)
             .build()?;
-        let custom_buffer =
-            encoder.encode::<_, u8>(sample.as_raw(), sample.width() as _, sample.height() as _)?;
+        let custom_buffer: Vec<u8> =
+            encoder.encode(sample.as_raw(), sample.width(), sample.height())?;
 
-        encoder = encoder_builder().speed(EncoderSpeed::Falcon).build()?;
-        let default_buffer =
-            encoder.encode::<_, u8>(sample.as_raw(), sample.width() as _, sample.height() as _)?;
+        let mut encoder = encoder_builder().speed(EncoderSpeed::Falcon).build()?;
+        let default_buffer: Vec<u8> =
+            encoder.encode(sample.as_raw(), sample.width(), sample.height())?;
 
         assert!(
             custom_buffer == default_buffer,
