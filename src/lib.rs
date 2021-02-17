@@ -29,26 +29,28 @@ along with jpegxl-rs.  If not, see <https://www.gnu.org/licenses/>.
 //! ```
 //! # use jpegxl_rs::*;
 //! # || -> Result<(), Box<dyn std::error::Error>> {
-//! let mut decoder: JxlDecoder<u8> = decoder_builder().build()?;
+//! let mut decoder = decoder_builder().build()?;
 //!
-//! // Use another pixel data type
-//! let mut decoder: JxlDecoder<f32> = decoder_builder().build()?;
+//! // Use multithread runner
+//! use jpegxl_rs::ThreadsRunner;
+//! let runner = ThreadsRunner::default();
+//! let mut decoder = decoder_builder()
+//!                       .parallel_runner(&runner)
+//!                       .build()?;
 //!
 //! // Customize pixel format
-//! let mut decoder: JxlDecoder<u8> = decoder_builder()
-//!                                     .num_channels(3)
-//!                                     .endian(Endianness::Big)
-//!                                     .align(8)
-//!                                     .build()?;
+//! let mut decoder = decoder_builder()
+//!                       .num_channels(3)
+//!                       .endian(Endianness::Big)
+//!                       .align(8)
+//!                       .build()?;
 //!
-//! // Set custom parallel runner and memory manager
-//! use jpegxl_rs::{parallel::ThreadsRunner, memory::MallocManager};
+//! // Set custom memory manager
+//! use jpegxl_rs::memory::MallocManager;
 //! let manager = MallocManager::default();
-//! let runner = ThreadsRunner::default();
-//! let mut decoder: JxlDecoder<u8> = decoder_builder()
-//!                                     .memory_manager(&manager)
-//!                                     .parallel_runner(&runner)
-//!                                     .build()?;
+//! let mut decoder = decoder_builder()
+//!                       .memory_manager(&manager)
+//!                       .build()?;
 //! # Ok(()) };
 //! ```
 
@@ -91,3 +93,4 @@ pub use common::*;
 pub use decode::*;
 pub use encode::*;
 pub use errors::*;
+pub use parallel::ThreadsRunner;

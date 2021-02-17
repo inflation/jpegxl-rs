@@ -21,7 +21,7 @@ along with jpegxl-rs.  If not, see <https://www.gnu.org/licenses/>.
 //! # || -> Result<(), Box<dyn std::error::Error>> {
 //! use jpegxl_rs::{decoder_builder, JxlDecoder, memory::MallocManager};
 //! let mut manager = MallocManager::default();
-//! let mut decoder: JxlDecoder<u8> = decoder_builder().memory_manager(&manager).build()?;
+//! let mut decoder = decoder_builder().memory_manager(&manager).build()?;
 //! # Ok(())
 //! # };
 //! ```

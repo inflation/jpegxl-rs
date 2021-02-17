@@ -189,6 +189,7 @@ pub struct JxlDecoderBuilder<'a> {
     parallel_runner: Option<&'a dyn JxlParallelRunner>,
 }
 
+#[derive(Clone)]
 struct DecoderOptions {
     num_channels: Option<u32>,
     endianness: Option<Endianness>,
@@ -198,35 +199,35 @@ struct DecoderOptions {
 impl<'a> JxlDecoderBuilder<'a> {
     /// Set number of channels for returned result
     #[must_use]
-    pub fn num_channels(mut self, num: u32) -> Self {
+    pub fn num_channels(&mut self, num: u32) -> &mut Self {
         self.decoder_options.num_channels = Some(num);
         self
     }
 
     /// Set endianness for returned result
     #[must_use]
-    pub fn endian(mut self, endian: Endianness) -> Self {
+    pub fn endian(&mut self, endian: Endianness) -> &mut Self {
         self.decoder_options.endianness = Some(endian);
         self
     }
 
     /// Set align for returned result
     #[must_use]
-    pub fn align(mut self, align: u64) -> Self {
+    pub fn align(&mut self, align: u64) -> &mut Self {
         self.decoder_options.align = Some(align);
         self
     }
 
     /// Set memory manager
     #[must_use]
-    pub fn memory_manager(mut self, memory_manager: &'a dyn JxlMemoryManager) -> Self {
+    pub fn memory_manager(&mut self, memory_manager: &'a dyn JxlMemoryManager) -> &mut Self {
         self.memory_manager = Some(memory_manager);
         self
     }
 
     /// Set parallel runner
     #[must_use]
-    pub fn parallel_runner(mut self, parallel_runner: &'a dyn JxlParallelRunner) -> Self {
+    pub fn parallel_runner(&mut self, parallel_runner: &'a dyn JxlParallelRunner) -> &mut Self {
         self.parallel_runner = Some(parallel_runner);
         self
     }
@@ -234,9 +235,9 @@ impl<'a> JxlDecoderBuilder<'a> {
     /// Consume the builder and get the decoder
     /// # Errors
     /// Return [`DecodeError::CannotCreateDecoder`] if it fails to create the decoder.
-    pub fn build(self) -> Result<JxlDecoder<'a>, DecodeError> {
+    pub fn build(&mut self) -> Result<JxlDecoder<'a>, DecodeError> {
         JxlDecoder::new(
-            self.decoder_options,
+            self.decoder_options.clone(),
             self.memory_manager.map(|m| m.to_manager()),
             self.parallel_runner,
         )
@@ -259,9 +260,10 @@ pub fn decoder_builder<'a>() -> JxlDecoderBuilder<'a> {
 
 #[cfg(test)]
 mod tests {
-
     use super::*;
+    use crate::ThreadsRunner;
     use ::image::ImageError;
+
     #[test]
     fn test_decode() -> Result<(), ImageError> {
         let sample = std::fs::read("test/sample.jxl")?;
@@ -280,9 +282,11 @@ mod tests {
     #[test]
     fn test_decoder_builder() -> Result<(), ImageError> {
         let sample = std::fs::read("test/sample.jxl")?;
+        let parallel_runner = ThreadsRunner::default();
         let mut decoder = decoder_builder()
             .num_channels(3)
             .endian(Endianness::Big)
+            .parallel_runner(&parallel_runner)
             .build()?;
 
         let (basic_info, buffer) = decoder.decode::<u8>(&sample)?;

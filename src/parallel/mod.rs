@@ -22,7 +22,7 @@ along with jpegxl-rs.  If not, see <https://www.gnu.org/licenses/>.
 //! use jpegxl_rs::{JxlDecoder, decoder_builder, parallel::*};
 //! // Use the default C++ Threadpool runner:
 //! let mut parallel_runner = ThreadsRunner::default();
-//! let mut decoder: JxlDecoder<u8> = decoder_builder().parallel_runner(&parallel_runner).build()?;
+//! let mut decoder = decoder_builder().parallel_runner(&parallel_runner).build()?;
 //! # Ok(())
 //! # };
 //! ```

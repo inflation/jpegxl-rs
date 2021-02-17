@@ -37,3 +37,7 @@ bench = false
 [[bench]]
 harness = false
 name = "decode"
+
+[[bench]]
+harness = false
+name = "encode"
