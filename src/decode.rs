@@ -20,7 +20,7 @@ along with jpegxl-rs.  If not, see <https://www.gnu.org/licenses/>.
 
 #[allow(clippy::wildcard_imports)]
 use jpegxl_sys::*;
-use std::{convert::TryInto as _, ptr::null};
+use std::ptr::null;
 
 use crate::{
     common::{Endianness, PixelType},
@@ -33,19 +33,18 @@ use crate::{
 pub type BasicInfo = JxlBasicInfo;
 
 /// JPEG XL Decoder
-pub struct JxlDecoder<'a, T: PixelType> {
+pub struct JxlDecoder<'a> {
     /// Opaque pointer to the underlying decoder
     dec: *mut jpegxl_sys::JxlDecoder,
 
     /// Pixel format
     pixel_format: DecoderOptions,
-    _pixel_type: std::marker::PhantomData<T>,
 
     /// Parallel Runner
     parallel_runner: Option<&'a dyn JxlParallelRunner>,
 }
 
-impl<'a, T: PixelType> JxlDecoder<'a, T> {
+impl<'a> JxlDecoder<'a> {
     fn new(
         pixel_format: DecoderOptions,
         memory_manager: Option<jpegxl_sys::JxlMemoryManager>,
@@ -65,7 +64,6 @@ impl<'a, T: PixelType> JxlDecoder<'a, T> {
         Ok(Self {
             dec,
             pixel_format,
-            _pixel_type: std::marker::PhantomData,
             parallel_runner,
         })
     }
@@ -74,7 +72,10 @@ impl<'a, T: PixelType> JxlDecoder<'a, T> {
     /// Currently only support RGB(A)8/16/32 encoded static image. Color info and transformation info are discarded.
     /// # Errors
     /// Return a [`DecodeError`] when internal decoder fails
-    pub fn decode(&mut self, data: &[u8]) -> Result<(BasicInfo, Vec<T>), DecodeError> {
+    pub fn decode<T: PixelType>(
+        &mut self,
+        data: &[u8],
+    ) -> Result<(BasicInfo, Vec<T>), DecodeError> {
         unsafe {
             if let Some(runner) = self.parallel_runner {
                 check_dec_status(JxlDecoderSetParallelRunner(
@@ -143,14 +144,14 @@ impl<'a, T: PixelType> JxlDecoder<'a, T> {
 
                     // Get the output buffer
                     JxlDecoderStatus_JXL_DEC_NEED_IMAGE_OUT_BUFFER => {
-                        let mut size: size_t = 0;
+                        let mut size = 0;
                         if let Some(format) = pixel_format {
                             check_dec_status(JxlDecoderImageOutBufferSize(
                                 self.dec, &format, &mut size,
                             ))?;
 
-                            buffer = Vec::with_capacity(size.try_into().unwrap());
-                            buffer.set_len(size.try_into().unwrap());
+                            buffer = Vec::with_capacity(size as usize);
+                            buffer.set_len(size as usize);
                             check_dec_status(JxlDecoderSetImageOutBuffer(
                                 self.dec,
                                 &format,
@@ -175,16 +176,15 @@ impl<'a, T: PixelType> JxlDecoder<'a, T> {
     }
 }
 
-impl<'a, T: PixelType> Drop for JxlDecoder<'a, T> {
+impl<'a> Drop for JxlDecoder<'a> {
     fn drop(&mut self) {
         unsafe { JxlDecoderDestroy(self.dec) };
     }
 }
 
 /// Builder for [`JxlDecoder`]
-pub struct JxlDecoderBuilder<'a, T: PixelType> {
+pub struct JxlDecoderBuilder<'a> {
     decoder_options: DecoderOptions,
-    _pixel_type: std::marker::PhantomData<T>,
     memory_manager: Option<&'a dyn JxlMemoryManager>,
     parallel_runner: Option<&'a dyn JxlParallelRunner>,
 }
@@ -195,7 +195,7 @@ struct DecoderOptions {
     align: Option<u64>,
 }
 
-impl<'a, T: PixelType> JxlDecoderBuilder<'a, T> {
+impl<'a> JxlDecoderBuilder<'a> {
     /// Set number of channels for returned result
     #[must_use]
     pub fn num_channels(mut self, num: u32) -> Self {
@@ -234,7 +234,7 @@ impl<'a, T: PixelType> JxlDecoderBuilder<'a, T> {
     /// Consume the builder and get the decoder
     /// # Errors
     /// Return [`DecodeError::CannotCreateDecoder`] if it fails to create the decoder.
-    pub fn build(self) -> Result<JxlDecoder<'a, T>, DecodeError> {
+    pub fn build(self) -> Result<JxlDecoder<'a>, DecodeError> {
         JxlDecoder::new(
             self.decoder_options,
             self.memory_manager.map(|m| m.to_manager()),
@@ -245,14 +245,13 @@ impl<'a, T: PixelType> JxlDecoderBuilder<'a, T> {
 
 /// Return a [`JxlDecoderBuilder`] with default settings
 #[must_use]
-pub fn decoder_builder<'a, T: PixelType>() -> JxlDecoderBuilder<'a, T> {
+pub fn decoder_builder<'a>() -> JxlDecoderBuilder<'a> {
     JxlDecoderBuilder {
         decoder_options: DecoderOptions {
             num_channels: None,
             endianness: None,
             align: None,
         },
-        _pixel_type: std::marker::PhantomData,
         memory_manager: None,
         parallel_runner: None,
     }
@@ -266,9 +265,9 @@ mod tests {
     #[test]
     fn test_decode() -> Result<(), ImageError> {
         let sample = std::fs::read("test/sample.jxl")?;
-        let mut decoder: JxlDecoder<u8> = decoder_builder().build()?;
+        let mut decoder = decoder_builder().build()?;
 
-        let (basic_info, buffer) = decoder.decode(&sample)?;
+        let (basic_info, buffer) = decoder.decode::<u8>(&sample)?;
 
         assert_eq!(
             buffer.len(),
@@ -281,12 +280,12 @@ mod tests {
     #[test]
     fn test_decoder_builder() -> Result<(), ImageError> {
         let sample = std::fs::read("test/sample.jxl")?;
-        let mut decoder: JxlDecoder<u8> = decoder_builder()
+        let mut decoder = decoder_builder()
             .num_channels(3)
             .endian(Endianness::Big)
             .build()?;
 
-        let (basic_info, buffer) = decoder.decode(&sample)?;
+        let (basic_info, buffer) = decoder.decode::<u8>(&sample)?;
 
         assert_eq!(
             buffer.len(),
@@ -303,12 +302,11 @@ mod tests {
         let sample = std::fs::read("test/sample.jxl")?;
         let memory_manager = MallocManager::default();
 
-        let mut decoder: JxlDecoder<u8> =
-            decoder_builder().memory_manager(&memory_manager).build()?;
-        let custom_buffer = decoder.decode(&sample)?;
+        let mut decoder = decoder_builder().memory_manager(&memory_manager).build()?;
+        let custom_buffer = decoder.decode::<u8>(&sample)?;
 
         decoder = decoder_builder().build()?;
-        let default_buffer = decoder.decode(&sample)?;
+        let default_buffer = decoder.decode::<u8>(&sample)?;
 
         assert!(
             custom_buffer.1 == default_buffer.1,

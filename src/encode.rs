@@ -19,7 +19,7 @@ along with jpegxl-rs.  If not, see <https://www.gnu.org/licenses/>.
 
 #[allow(clippy::wildcard_imports)]
 use jpegxl_sys::*;
-use std::{convert::TryInto as _, ptr::null};
+use std::ptr::null;
 
 use crate::{
     common::{Endianness, PixelType},
@@ -228,20 +228,12 @@ impl<'a> JxlEncoder<'a> {
                     break;
                 }
 
-                let offset = next_out
-                    .offset_from(buffer.as_ptr() as *const u8)
-                    .try_into()
-                    .unwrap();
+                let offset = next_out.offset_from(buffer.as_ptr() as *const u8);
                 buffer.resize(buffer.len() * 2, U::default());
-                next_out = (buffer.as_mut_ptr() as *mut u8).add(offset);
-                avail_out = buffer.len() - offset;
+                next_out = (buffer.as_mut_ptr() as *mut u8).offset(offset);
+                avail_out = buffer.len() - offset as usize;
             }
-            buffer.truncate(
-                next_out
-                    .offset_from(buffer.as_ptr() as *const u8)
-                    .try_into()
-                    .unwrap(),
-            );
+            buffer.truncate(next_out.offset_from(buffer.as_ptr() as *const u8) as usize);
             check_enc_status(status)?;
 
             Ok(buffer)
@@ -411,8 +403,8 @@ mod tests {
 
         let result: Vec<f32> = encoder.encode(sample.as_raw(), sample.width(), sample.height())?;
 
-        let mut decoder = decoder_builder::<f32>().build()?;
-        decoder.decode(unsafe {
+        let mut decoder = decoder_builder().build()?;
+        decoder.decode::<f32>(unsafe {
             std::slice::from_raw_parts(
                 result.as_ptr() as *const u8,
                 result.len() * std::mem::size_of::<f32>(),

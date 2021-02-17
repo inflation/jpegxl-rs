@@ -26,7 +26,7 @@ use crate::{
     common::PixelType,
     decoder_builder,
     errors::{DecodeError, EncodeError},
-    BasicInfo, JxlDecoder,
+    BasicInfo,
 };
 
 // Error conversion
@@ -70,9 +70,9 @@ impl<T: PixelType> JxlImageDecoder<T> {
     /// # Errors
     /// Return an [`image::ImageError`] with wrapped [`DecodeError`]
     pub fn new(input: &[u8]) -> ImageResult<JxlImageDecoder<T>> {
-        let mut dec: JxlDecoder<T> = decoder_builder().build()?;
+        let mut dec = decoder_builder().build()?;
         // TODO: Stream decoding
-        let (info, buffer) = dec.decode(input)?;
+        let (info, buffer) = dec.decode::<T>(input)?;
 
         let decoder = JxlImageDecoder { info, buffer };
         Ok(decoder)
