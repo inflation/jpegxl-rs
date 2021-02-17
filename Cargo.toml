@@ -14,7 +14,6 @@ version = "0.3.3-alpha.0"
 [features]
 default = ["image"]
 docsrs = ["jpegxl-sys/docsrs"]
-with-rayon = ["rayon"]
 without-build = ["jpegxl-sys/without-build"]
 without-image = []
 without-threads = ["jpegxl-sys/without-threads"]
@@ -22,7 +21,6 @@ without-threads = ["jpegxl-sys/without-threads"]
 [dependencies]
 image = {version = "0.23.12", optional = true, default-features = false}
 jpegxl-sys = "0.3.2"
-rayon = {version = "1.5.0", optional = true}
 thiserror = "1.0.23"
 
 [dev-dependencies]

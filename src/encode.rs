@@ -461,34 +461,6 @@ mod tests {
     }
 
     #[test]
-    #[cfg(feature = "with-rayon")]
-    fn test_rust_runner_encode() -> Result<(), Box<dyn std::error::Error>> {
-        use crate::parallel::RayonRunner;
-
-        let sample = ImageReader::open("test/sample.png")?.decode()?.to_rgba16();
-        let parallel_runner = Box::new(RayonRunner::default());
-
-        let mut encoder = encoder_builder()
-            .speed(EncoderSpeed::Falcon)
-            .parallel_runner(parallel_runner)
-            .build()?;
-
-        let parallel_buffer: Vec<u8> =
-            encoder.encode(sample.as_raw(), sample.width(), sample.height())?;
-
-        encoder = encoder_builder().speed(EncoderSpeed::Falcon).build()?;
-        let single_buffer: Vec<u8> =
-            encoder.encode(sample.as_raw(), sample.width(), sample.height())?;
-
-        assert!(
-            parallel_buffer == single_buffer,
-            "Rust runner should be the same as C++ one"
-        );
-
-        Ok(())
-    }
-
-    #[test]
     fn test_memory_manager() -> Result<(), Box<dyn std::error::Error>> {
         use crate::memory::*;
 

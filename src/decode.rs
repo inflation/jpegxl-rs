@@ -297,30 +297,6 @@ mod tests {
     }
 
     #[test]
-    #[cfg(feature = "with-rayon")]
-    fn test_rust_runner_decode() -> Result<(), ImageError> {
-        use crate::parallel::RayonRunner;
-
-        let sample = std::fs::read("test/sample.jxl")?;
-        let parallel_runner = Box::new(RayonRunner::default());
-
-        let mut decoder: JxlDecoder<u8> =
-            decoder_builder().parallel_runner(parallel_runner).build()?;
-
-        let parallel_buffer = decoder.decode(&sample)?;
-
-        decoder = decoder_builder().build()?;
-        let single_buffer = decoder.decode(&sample)?;
-
-        assert!(
-            parallel_buffer.1 == single_buffer.1,
-            "Rust runner should be the same as C++ one"
-        );
-
-        Ok(())
-    }
-
-    #[test]
     fn test_memory_manager() -> Result<(), Box<dyn std::error::Error>> {
         use crate::memory::*;
 
