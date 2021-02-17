@@ -25,7 +25,7 @@ use crate::{
     common::{Endianness, PixelType},
     errors::{check_enc_status, EncodeError},
     memory::JxlMemoryManager,
-    parallel::{choose_runner, JxlParallelRunner},
+    parallel::JxlParallelRunner,
 };
 
 /// Encoding speed, default at Squirrel(7)
@@ -57,7 +57,7 @@ pub enum ColorEncoding {
 }
 
 /// JPEG XL Encoder
-pub struct JxlEncoder {
+pub struct JxlEncoder<'a> {
     /// Opaque pointer to the underlying encoder
     enc: *mut jpegxl_sys::JxlEncoder,
     /// Opaque pointer to the encoder options
@@ -69,25 +69,21 @@ pub struct JxlEncoder {
     /// Color Encoding
     color_encoding: Option<JxlColorEncoding>,
 
-    /// Memory Manager
-    #[allow(dead_code)]
-    memory_manager: Option<Box<dyn JxlMemoryManager>>,
-
     /// Parallel Runner
-    pub parallel_runner: Option<Box<dyn JxlParallelRunner>>,
+    parallel_runner: Option<&'a dyn JxlParallelRunner>,
 }
 
-impl JxlEncoder {
+impl<'a> JxlEncoder<'a> {
     fn new(
         pixel_format: JxlPixelFormat,
-        encoder_options: PreferredEncoderOptions,
-        mut memory_manager: Option<Box<dyn JxlMemoryManager>>,
-        parallel_runner: Option<Box<dyn JxlParallelRunner>>,
+        encoder_options: EncoderOptions,
+        memory_manager: Option<jpegxl_sys::JxlMemoryManager>,
+        parallel_runner: Option<&'a dyn JxlParallelRunner>,
     ) -> Result<Self, EncodeError> {
         let enc = unsafe {
-            memory_manager.as_mut().map_or_else(
+            memory_manager.map_or_else(
                 || JxlEncoderCreate(null()),
-                |memory_manager| JxlEncoderCreate(&memory_manager.as_manager()),
+                |memory_manager| JxlEncoderCreate(&memory_manager),
             )
         };
 
@@ -97,7 +93,7 @@ impl JxlEncoder {
 
         let options_ptr = unsafe { JxlEncoderOptionsCreate(enc, null()) };
 
-        let PreferredEncoderOptions {
+        let EncoderOptions {
             lossless,
             speed,
             quality,
@@ -122,7 +118,6 @@ impl JxlEncoder {
             pixel_format,
             options_ptr,
             color_encoding,
-            memory_manager,
             parallel_runner,
         };
 
@@ -280,13 +275,13 @@ impl JxlEncoder {
     }
 }
 
-impl Drop for JxlEncoder {
+impl<'a> Drop for JxlEncoder<'a> {
     fn drop(&mut self) {
         unsafe { JxlEncoderDestroy(self.enc) };
     }
 }
 
-struct PreferredEncoderOptions {
+struct EncoderOptions {
     lossless: Option<bool>,
     speed: Option<EncoderSpeed>,
     quality: Option<f32>,
@@ -294,14 +289,14 @@ struct PreferredEncoderOptions {
 }
 
 /// Builder for [`JxlEncoder`]
-pub struct JxlEncoderBuilder {
+pub struct JxlEncoderBuilder<'a> {
     pixel_format: JxlPixelFormat,
-    options: PreferredEncoderOptions,
-    memory_manager: Option<Box<dyn JxlMemoryManager>>,
-    parallel_runner: Option<Box<dyn JxlParallelRunner>>,
+    options: EncoderOptions,
+    memory_manager: Option<&'a dyn JxlMemoryManager>,
+    parallel_runner: Option<&'a dyn JxlParallelRunner>,
 }
 
-impl JxlEncoderBuilder {
+impl<'a> JxlEncoderBuilder<'a> {
     /// Set number of channels
     #[must_use]
     pub fn num_channels(mut self, num: u32) -> Self {
@@ -353,14 +348,14 @@ impl JxlEncoderBuilder {
 
     /// Set memory manager
     #[must_use]
-    pub fn memory_manager(mut self, memory_manager: Box<dyn JxlMemoryManager>) -> Self {
+    pub fn memory_manager(mut self, memory_manager: &'a dyn JxlMemoryManager) -> Self {
         self.memory_manager = Some(memory_manager);
         self
     }
 
     /// Set parallel runner
     #[must_use]
-    pub fn parallel_runner(mut self, parallel_runner: Box<dyn JxlParallelRunner>) -> Self {
+    pub fn parallel_runner(mut self, parallel_runner: &'a dyn JxlParallelRunner) -> Self {
         self.parallel_runner = Some(parallel_runner);
         self
     }
@@ -368,11 +363,11 @@ impl JxlEncoderBuilder {
     /// Consume the builder and get the encoder
     /// # Errors
     /// Return [`EncodeError::CannotCreateEncoder`] if it fails to create the encoder
-    pub fn build(self) -> Result<JxlEncoder, EncodeError> {
+    pub fn build(self) -> Result<JxlEncoder<'a>, EncodeError> {
         JxlEncoder::new(
             self.pixel_format,
             self.options,
-            self.memory_manager,
+            self.memory_manager.map(|m| m.to_manager()),
             self.parallel_runner,
         )
     }
@@ -380,7 +375,7 @@ impl JxlEncoderBuilder {
 
 /// Return a [`JxlEncoderBuilder`] with default settings
 #[must_use]
-pub fn encoder_builder() -> JxlEncoderBuilder {
+pub fn encoder_builder<'a>() -> JxlEncoderBuilder<'a> {
     JxlEncoderBuilder {
         pixel_format: JxlPixelFormat {
             num_channels: 4,
@@ -388,14 +383,14 @@ pub fn encoder_builder() -> JxlEncoderBuilder {
             endianness: Endianness::Native.into(),
             align: 0,
         },
-        options: PreferredEncoderOptions {
+        options: EncoderOptions {
             lossless: None,
             speed: None,
             quality: None,
             color_encoding: None,
         },
         memory_manager: None,
-        parallel_runner: choose_runner(),
+        parallel_runner: None,
     }
 }
 
@@ -465,11 +460,11 @@ mod tests {
         use crate::memory::*;
 
         let sample = ImageReader::open("test/sample.png")?.decode()?.to_rgba16();
-        let memory_manager = Box::new(MallocManager::default());
+        let memory_manager = MallocManager::default();
 
         let mut encoder = encoder_builder()
             .speed(EncoderSpeed::Falcon)
-            .memory_manager(memory_manager)
+            .memory_manager(&memory_manager)
             .build()?;
         let custom_buffer: Vec<u8> =
             encoder.encode(sample.as_raw(), sample.width(), sample.height())?;

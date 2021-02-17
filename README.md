@@ -50,8 +50,8 @@ let sample = ImageReader::open("test/sample.png")?.decode()?.to_rgba16();
 let mut encoder = encoder_builder().build()?;
 let buffer: Vec<u8> = encoder.encode(
                         &sample, 
-                        sample.width() as _, 
-                        sample.height() as _
+                        sample.width(), 
+                        sample.height()
                       )?;
 ```
 

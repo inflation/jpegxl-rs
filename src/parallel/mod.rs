@@ -21,22 +21,17 @@ along with jpegxl-rs.  If not, see <https://www.gnu.org/licenses/>.
 //! # || -> Result<(), Box<dyn std::error::Error>> {
 //! use jpegxl_rs::{JxlDecoder, decoder_builder, parallel::*};
 //! // Use the default C++ Threadpool runner:
-//! let mut parallel_runner = Box::new(ThreadsRunner::default());
-//! let mut decoder: JxlDecoder<u8> = decoder_builder().parallel_runner(parallel_runner).build()?;
+//! let mut parallel_runner = ThreadsRunner::default();
+//! let mut decoder: JxlDecoder<u8> = decoder_builder().parallel_runner(&parallel_runner).build()?;
 //! # Ok(())
 //! # };
 //! ```
 
 use std::ffi::c_void;
 
-#[cfg(feature = "with-rayon")]
-#[cfg_attr(docsrs, doc(cfg(feature = "with-rayon")))]
-pub mod rayon_runner;
 #[cfg(not(feature = "without-threads"))]
 pub mod threads_runner;
 
-#[cfg(feature = "with-rayon")]
-pub use rayon_runner::*;
 #[cfg(not(feature = "without-threads"))]
 pub use threads_runner::*;
 
@@ -58,24 +53,14 @@ pub type RunnerFn = unsafe extern "C" fn(
 ) -> JxlParallelRetCode;
 
 /// JPEG XL Parallel Runner
-pub trait JxlParallelRunner: std::fmt::Debug {
+pub trait JxlParallelRunner {
     /// FFI runner function.
     /// Check `jpeg-xl` header files for more explanations.
     fn runner(&self) -> RunnerFn;
 
     /// Helper function to get an opaque pointer
-    fn as_opaque_ptr(&mut self) -> *mut c_void {
-        self as *mut Self as _
+    /// Safety: Returned pointer can change immutable variable. Only use when passing to C FFI.
+    fn as_opaque_ptr(&self) -> *mut c_void {
+        unsafe { std::mem::transmute::<&Self, *mut Self>(self) as _ }
     }
-}
-
-#[allow(unreachable_code)]
-pub(crate) fn choose_runner() -> Option<Box<dyn JxlParallelRunner>> {
-    #[cfg(not(feature = "without-threads"))]
-    return Some(Box::new(ThreadsRunner::default()));
-
-    #[cfg(feature = "with-rayon")]
-    return Some(Box::new(RayonRunner::default()));
-
-    None
 }

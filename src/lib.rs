@@ -43,11 +43,11 @@ along with jpegxl-rs.  If not, see <https://www.gnu.org/licenses/>.
 //!
 //! // Set custom parallel runner and memory manager
 //! use jpegxl_rs::{parallel::ThreadsRunner, memory::MallocManager};
-//! let manager = Box::new(MallocManager::default());
-//! let runner = Box::new(ThreadsRunner::default());
+//! let manager = MallocManager::default();
+//! let runner = ThreadsRunner::default();
 //! let mut decoder: JxlDecoder<u8> = decoder_builder()
-//!                                     .memory_manager(manager)
-//!                                     .parallel_runner(runner)
+//!                                     .memory_manager(&manager)
+//!                                     .parallel_runner(&runner)
 //!                                     .build()?;
 //! # Ok(()) };
 //! ```

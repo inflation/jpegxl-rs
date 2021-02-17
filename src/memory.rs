@@ -20,8 +20,8 @@ along with jpegxl-rs.  If not, see <https://www.gnu.org/licenses/>.
 //! ```
 //! # || -> Result<(), Box<dyn std::error::Error>> {
 //! use jpegxl_rs::{decoder_builder, JxlDecoder, memory::MallocManager};
-//! let mut manager = Box::new(MallocManager::default());
-//! let mut decoder: JxlDecoder<u8> = decoder_builder().memory_manager(manager).build()?;
+//! let mut manager = MallocManager::default();
+//! let mut decoder: JxlDecoder<u8> = decoder_builder().memory_manager(&manager).build()?;
 //! # Ok(())
 //! # };
 //! ```
@@ -40,24 +40,22 @@ pub type FreeFn = unsafe extern "C" fn(opaque: *mut c_void, address: *mut c_void
 
 /// General trait for a memory manager
 
-pub trait JxlMemoryManager: std::fmt::Debug {
+pub trait JxlMemoryManager {
     /// Return a custom allocator function. Can be None for using default one
     fn alloc(&self) -> Option<AllocFn>;
     /// Return a custom deallocator function. Can be None for using default one
     fn free(&self) -> Option<FreeFn>;
 
     /// Helper conversion function for C API
-    fn as_manager(&mut self) -> jpegxl_sys::JxlMemoryManager {
-        jpegxl_sys::JxlMemoryManager {
-            opaque: self.as_opaque_ptr(),
-            alloc: self.alloc(),
-            free: self.free(),
+    /// Safety: Only use when passing to C FFI
+    fn to_manager(&self) -> jpegxl_sys::JxlMemoryManager {
+        unsafe {
+            jpegxl_sys::JxlMemoryManager {
+                opaque: std::mem::transmute::<&Self, *mut Self>(self) as _,
+                alloc: self.alloc(),
+                free: self.free(),
+            }
         }
-    }
-
-    /// Helper function to get an opaque pointer
-    fn as_opaque_ptr(&mut self) -> *mut c_void {
-        self as *mut Self as _
     }
 }
 
