@@ -14,7 +14,6 @@ The library build `jpeg-xl` and link to `libc++` by default. Optionally, you can
 set the include path and lib path with `DEP_JXL_INCLUDE` and `DEP_JXL_LIB` respectively.
 
 If you don't want to depend on C++ standard library, use `--features without-threads` to disable default threadpool.
-Instead, you can enable `with-rayon` feature to use its threadpool.
 
 You need to have a working `llvm` environment.
 
@@ -23,21 +22,21 @@ You need to have a working `llvm` environment.
 ### Decoding
 
 ```rust
-use jpegxl_rs::*;
+use jpegxl_rs::decoder_builder;
 let sample = std::fs::read("test/sample.jxl")?;
-let mut decoder: JxlDecoder<u8> = decoder_builder().build()?;
-let (info, buffer) = decoder.decode(&sample)?;
+let mut runner = ThreadsRunner::default();
+let mut decoder = decoder_builder().parallel_runner(&runner).build()?;
+let (info, buffer) = decoder.decode::<u8>(&sample)?;
 ```
 
 Set output pixel parameters
 
 ```rust
-// Pixel type is set by type parameter
-let mut decoder: JxlDecoder<u16> = decoder_builder()
-                                    .num_channel(3)
-                                    .endianness(Endianness::Big)
-                                    .align(8)
-                                    .build()?;
+let mut decoder = decoder_builder()
+                      .num_channel(3)
+                      .endianness(Endianness::Big)
+                      .align(8)
+                      .build()?;
 ```
 
 ### Encoding
@@ -47,11 +46,12 @@ use jpegxl_rs::*;
 use image::io::Reader as ImageReader;
 
 let sample = ImageReader::open("test/sample.png")?.decode()?.to_rgba16();
-let mut encoder = encoder_builder().build()?;
+let mut runner = ThreadsRunner::default();
+let mut encoder = encoder_builder().parallel_runner(&runner).build()?;
 let buffer: Vec<u8> = encoder.encode(
-                        &sample, 
-                        sample.width(), 
-                        sample.height()
+                          &sample, 
+                          sample.width(), 
+                          sample.height()
                       )?;
 ```
 

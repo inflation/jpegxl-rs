@@ -31,7 +31,7 @@ along with jpegxl-rs.  If not, see <https://www.gnu.org/licenses/>.
 //! # || -> Result<(), Box<dyn std::error::Error>> {
 //! let mut decoder = decoder_builder().build()?;
 //!
-//! // Use multithread runner
+//! // Use multithread
 //! use jpegxl_rs::ThreadsRunner;
 //! let runner = ThreadsRunner::default();
 //! let mut decoder = decoder_builder()
@@ -61,7 +61,7 @@ along with jpegxl-rs.  If not, see <https://www.gnu.org/licenses/>.
 //! use image::io::Reader as ImageReader;
 //! let sample = ImageReader::open("test/sample.png")?.decode()?.to_rgba16();
 //! let mut encoder = encoder_builder().build()?;
-//! let buffer: Vec<f32> = encoder.encode(&sample, sample.width() as _, sample.height() as _)?;
+//! let buffer: Vec<f32> = encoder.encode(&sample, sample.width(), sample.height())?;
 //! # Ok(()) };
 //! ```
 //!
