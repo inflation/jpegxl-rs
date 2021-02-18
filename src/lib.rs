@@ -89,6 +89,32 @@ pub mod parallel;
 #[cfg(not(feature = "without-image"))]
 pub mod image;
 
+mod masking {
+    use jpegxl_sys::{JxlDecoder, JxlDecoderStatus, JxlEncoder, JxlEncoderStatus, JxlPixelFormat};
+    use std::os::raw::c_void;
+
+    extern "C" {
+        pub(crate) fn JxlDecoderImageOutBufferSize(
+            dec: *const JxlDecoder,
+            format: *const JxlPixelFormat,
+            size: *mut usize,
+        ) -> JxlDecoderStatus;
+
+        pub(crate) fn JxlDecoderSetImageOutBuffer(
+            dec: *mut JxlDecoder,
+            format: *const JxlPixelFormat,
+            buffer: *mut c_void,
+            size: usize,
+        ) -> JxlDecoderStatus;
+
+        pub(crate) fn JxlEncoderProcessOutput(
+            enc: *mut JxlEncoder,
+            next_out: *mut *mut u8,
+            avail_out: *mut usize,
+        ) -> JxlEncoderStatus;
+    }
+}
+
 pub use common::*;
 pub use decode::*;
 pub use encode::*;

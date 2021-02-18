@@ -146,13 +146,13 @@ impl<'a> JxlDecoder<'a> {
                     JxlDecoderStatus_JXL_DEC_NEED_IMAGE_OUT_BUFFER => {
                         let mut size = 0;
                         if let Some(format) = pixel_format {
-                            check_dec_status(JxlDecoderImageOutBufferSize(
+                            check_dec_status(crate::masking::JxlDecoderImageOutBufferSize(
                                 self.dec, &format, &mut size,
                             ))?;
 
-                            buffer = Vec::with_capacity(size as usize);
-                            buffer.set_len(size as usize);
-                            check_dec_status(JxlDecoderSetImageOutBuffer(
+                            buffer = Vec::with_capacity(size);
+                            buffer.set_len(size);
+                            check_dec_status(crate::masking::JxlDecoderSetImageOutBuffer(
                                 self.dec,
                                 &format,
                                 buffer.as_mut_ptr() as _,
