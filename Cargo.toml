@@ -26,6 +26,7 @@ thiserror = "1.0.23"
 [dev-dependencies]
 criterion = "0.3.4"
 image = "0.23.13"
+qcms = "0.2.0"
 
 [package.metadata.docs.rs]
 features = ["docsrs", "with-rayon"]

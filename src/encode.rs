@@ -51,9 +51,9 @@ pub enum EncoderSpeed {
 #[derive(Debug, Clone, Copy)]
 pub enum ColorEncoding {
     /// SRGB, default for uint pixel types
-    SRGB,
+    SRgb,
     /// Linear SRGB, default for float pixel types
-    LinearSRGB,
+    LinearSRgb,
 }
 
 /// JPEG XL Encoder
@@ -112,10 +112,10 @@ impl<'a> JxlEncoder<'a> {
         let color_encoding = color_encoding.map(|c| unsafe {
             let mut color_encoding = JxlColorEncoding::new_uninit();
             match c {
-                ColorEncoding::SRGB => {
+                ColorEncoding::SRgb => {
                     JxlColorEncodingSetToSRGB(color_encoding.as_mut_ptr(), false.into())
                 }
-                ColorEncoding::LinearSRGB => {
+                ColorEncoding::LinearSRgb => {
                     JxlColorEncodingSetToLinearSRGB(color_encoding.as_mut_ptr(), false.into())
                 }
             }
@@ -199,17 +199,17 @@ impl<'a> JxlEncoder<'a> {
             check_enc_status(JxlEncoderSetBasicInfo(self.enc, &basic_info))?;
 
             check_enc_status(if is_jpeg {
-                JxlEncoderAddJPEGFrame(
+                crate::masking::JxlEncoderAddJPEGFrame(
                     self.options_ptr,
-                    data.as_ptr() as _,
-                    std::mem::size_of_val(data) as _,
+                    data.as_ptr().cast(),
+                    std::mem::size_of_val(data),
                 )
             } else {
-                JxlEncoderAddImageFrame(
+                crate::masking::JxlEncoderAddImageFrame(
                     self.options_ptr,
                     &self.pixel_format,
-                    data.as_ptr() as _,
-                    std::mem::size_of_val(data) as _,
+                    data.as_ptr().cast(),
+                    std::mem::size_of_val(data),
                 )
             })?;
 
@@ -219,7 +219,7 @@ impl<'a> JxlEncoder<'a> {
                 buffer.set_len(chunk_size);
                 buffer
             };
-            let mut next_out = buffer.as_mut_ptr() as *mut u8;
+            let mut next_out = buffer.as_mut_ptr().cast();
             let mut avail_out = chunk_size;
 
             let mut status;
@@ -234,12 +234,12 @@ impl<'a> JxlEncoder<'a> {
                     break;
                 }
 
-                let offset = next_out.offset_from(buffer.as_ptr() as *const u8);
+                let offset = next_out.offset_from(buffer.as_ptr().cast());
                 buffer.resize(buffer.len() * 2, U::default());
-                next_out = (buffer.as_mut_ptr() as *mut u8).offset(offset);
+                next_out = (buffer.as_mut_ptr().cast::<u8>()).offset(offset);
                 avail_out = buffer.len() - offset as usize;
             }
-            buffer.truncate(next_out.offset_from(buffer.as_ptr() as *const u8) as usize);
+            buffer.truncate(next_out.offset_from(buffer.as_ptr().cast()) as usize);
             check_enc_status(status)?;
 
             Ok(buffer)
@@ -444,7 +444,7 @@ mod tests {
             .lossless(false)
             .speed(EncoderSpeed::Falcon)
             .quality(3.0)
-            .color_encoding(ColorEncoding::LinearSRGB)
+            .color_encoding(ColorEncoding::LinearSRgb)
             .parallel_runner(&parallel_runner)
             .build()?;
 

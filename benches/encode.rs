@@ -6,7 +6,7 @@ use parallel::ThreadsRunner;
 pub fn criterion_benchmark(c: &mut Criterion) {
     let mut group = c.benchmark_group("Encoder");
     group.sample_size(10);
-    // group.measurement_time(std::time::Duration::new(15, 0));
+    group.measurement_time(std::time::Duration::new(15, 0));
 
     let sample = ImageReader::open("test/sample.png")
         .unwrap()

@@ -27,10 +27,12 @@ along with jpegxl-rs.  If not, see <https://www.gnu.org/licenses/>.
 //! # };
 //! ```
 
-use std::ffi::c_void;
-
 #[cfg(not(feature = "without-threads"))]
 pub mod threads_runner;
+
+use std::ffi::c_void;
+
+use jpegxl_sys::size_t;
 
 #[cfg(not(feature = "without-threads"))]
 pub use threads_runner::*;
@@ -38,9 +40,9 @@ pub use threads_runner::*;
 /// Parallel runner return code
 pub use jpegxl_sys::JxlParallelRetCode;
 /// Parallel runner initialization callback type
-pub type InitFn = unsafe extern "C" fn(*mut c_void, u64) -> i32;
+pub type InitFn = unsafe extern "C" fn(*mut c_void, size_t) -> i32;
 /// Parallel runner data processing callback type
-pub type RunFn = unsafe extern "C" fn(*mut c_void, u32, u64);
+pub type RunFn = unsafe extern "C" fn(*mut c_void, u32, size_t);
 
 /// [`JxlParallelRunner`] function type
 pub type RunnerFn = unsafe extern "C" fn(
@@ -59,8 +61,7 @@ pub trait JxlParallelRunner {
     fn runner(&self) -> RunnerFn;
 
     /// Helper function to get an opaque pointer
-    /// Safety: Returned pointer can change immutable variable. Only use when passing to C FFI.
     fn as_opaque_ptr(&self) -> *mut c_void {
-        unsafe { std::mem::transmute::<&Self, *mut Self>(self) as _ }
+        (self as *const _ as *mut Self).cast()
     }
 }

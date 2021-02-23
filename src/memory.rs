@@ -34,7 +34,7 @@ use std::{
 };
 
 /// Allocator function type
-pub type AllocFn = unsafe extern "C" fn(opaque: *mut c_void, size: u64) -> *mut c_void;
+pub type AllocFn = unsafe extern "C" fn(opaque: *mut c_void, size: size_t) -> *mut c_void;
 /// Deallocator function type
 pub type FreeFn = unsafe extern "C" fn(opaque: *mut c_void, address: *mut c_void);
 
@@ -47,14 +47,11 @@ pub trait JxlMemoryManager {
     fn free(&self) -> Option<FreeFn>;
 
     /// Helper conversion function for C API
-    /// Safety: Only use when passing to C FFI
     fn to_manager(&self) -> jpegxl_sys::JxlMemoryManager {
-        unsafe {
-            jpegxl_sys::JxlMemoryManager {
-                opaque: std::mem::transmute::<&Self, *mut Self>(self) as _,
-                alloc: self.alloc(),
-                free: self.free(),
-            }
+        jpegxl_sys::JxlMemoryManager {
+            opaque: (self as *const _ as *mut Self).cast(),
+            alloc: self.alloc(),
+            free: self.free(),
         }
     }
 }
@@ -79,10 +76,10 @@ impl JxlMemoryManager for MallocManager {
             let layout = Layout::from_size_align(size.try_into().unwrap(), 8).unwrap();
             let address = System.alloc(layout);
 
-            let manager = (opaque as *mut MallocManager).as_mut().unwrap();
+            let manager = opaque.cast::<MallocManager>().as_mut().unwrap();
             manager.layout = layout;
 
-            address as _
+            address.cast()
         }
 
         Some(alloc)
@@ -90,8 +87,8 @@ impl JxlMemoryManager for MallocManager {
 
     fn free(&self) -> Option<FreeFn> {
         unsafe extern "C" fn free(opaque: *mut c_void, address: *mut c_void) {
-            let layout = (opaque as *mut MallocManager).as_mut().unwrap().layout;
-            System.dealloc(address as _, layout);
+            let layout = opaque.cast::<MallocManager>().as_mut().unwrap().layout;
+            System.dealloc(address.cast(), layout);
         }
 
         Some(free)
