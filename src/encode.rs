@@ -181,6 +181,7 @@ impl<'a> JxlEncoder<'a> {
             let mut basic_info = JxlBasicInfo::new_uninit().assume_init();
             basic_info.xsize = x_size;
             basic_info.ysize = y_size;
+            basic_info.uses_original_profile = true as _;
 
             let (bits, exp) = U::bits_per_sample();
 
