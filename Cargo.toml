@@ -20,7 +20,7 @@ without-threads = ["jpegxl-sys/without-threads"]
 
 [dependencies]
 image = {version = "0.23.12", optional = true, default-features = false}
-jpegxl-sys = "0.3.2"
+jpegxl-sys = "0.3.4-alpha.0"
 thiserror = "1.0.23"
 
 [dev-dependencies]

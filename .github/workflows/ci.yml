@@ -1,10 +1,10 @@
-on: [push, pull_request]
+on: push
 
 name: CI
 
 jobs:
   test:
-    name: Test Suite
+    name: Test Suite (with Clippy)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
@@ -24,10 +24,16 @@ jobs:
             ~/.cargo/git
             target
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-      - uses: actions-rs/cargo@v1
+      - name: Build
+        uses: actions-rs/cargo@v1
+        with:
+          command: build
+      - name: Test
+        uses: actions-rs/cargo@v1
         with:
           command: test
-      - uses: actions-rs/cargo@v1
+      - name: Clippy
+        uses: actions-rs/cargo@v1
         with:
           command: clippy
           args: -- -D warnings

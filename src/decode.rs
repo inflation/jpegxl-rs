@@ -96,7 +96,6 @@ impl<'a> JxlDecoder<'a> {
             }
 
             // Stop after getting the basic info and decoding the image
-            #[allow(clippy::cast_possible_wrap)]
             check_dec_status(crate::masking::JxlDecoderSubscribeEvents(
                 self.dec,
                 JxlDecoderStatus_JXL_DEC_BASIC_INFO
