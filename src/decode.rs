@@ -25,6 +25,10 @@ use std::ptr::null;
 use crate::{
     common::{Endianness, PixelType},
     errors::{check_dec_status, DecodeError},
+    masking::{
+        JxlDecoderGetColorAsICCProfile, JxlDecoderGetICCProfileSize, JxlDecoderImageOutBufferSize,
+        JxlDecoderSetImageOutBuffer,
+    },
     memory::JxlMemoryManager,
     parallel::JxlParallelRunner,
 };
@@ -141,13 +145,13 @@ impl<'a> JxlDecoder<'a> {
                     JxlDecoderStatus_JXL_DEC_NEED_IMAGE_OUT_BUFFER => {
                         let mut size = 0;
                         if let Some(format) = pixel_format {
-                            check_dec_status(crate::masking::JxlDecoderImageOutBufferSize(
+                            check_dec_status(JxlDecoderImageOutBufferSize(
                                 self.dec, &format, &mut size,
                             ))?;
 
                             buffer = Vec::with_capacity(size);
                             buffer.set_len(size);
-                            check_dec_status(crate::masking::JxlDecoderSetImageOutBuffer(
+                            check_dec_status(JxlDecoderSetImageOutBuffer(
                                 self.dec,
                                 &format,
                                 buffer.as_mut_ptr().cast(),
@@ -216,7 +220,7 @@ impl<'a> JxlDecoder<'a> {
     ) -> Result<(), DecodeError> {
         let mut icc_size = 0;
 
-        check_dec_status(crate::masking::JxlDecoderGetICCProfileSize(
+        check_dec_status(JxlDecoderGetICCProfileSize(
             self.dec,
             &format,
             JxlColorProfileTarget_JXL_COLOR_PROFILE_TARGET_DATA,
@@ -225,7 +229,7 @@ impl<'a> JxlDecoder<'a> {
 
         icc_profile.resize(icc_size, 0);
 
-        check_dec_status(crate::masking::JxlDecoderGetColorAsICCProfile(
+        check_dec_status(JxlDecoderGetColorAsICCProfile(
             self.dec,
             &format,
             JxlColorProfileTarget_JXL_COLOR_PROFILE_TARGET_DATA,

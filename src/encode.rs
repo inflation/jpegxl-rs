@@ -24,6 +24,7 @@ use std::ptr::null;
 use crate::{
     common::{Endianness, PixelType},
     errors::{check_enc_status, EncodeError},
+    masking::{JxlEncoderAddImageFrame, JxlEncoderAddJPEGFrame, JxlEncoderProcessOutput},
     memory::JxlMemoryManager,
     parallel::JxlParallelRunner,
 };
@@ -200,13 +201,13 @@ impl<'a> JxlEncoder<'a> {
             check_enc_status(JxlEncoderSetBasicInfo(self.enc, &basic_info))?;
 
             check_enc_status(if is_jpeg {
-                crate::masking::JxlEncoderAddJPEGFrame(
+                JxlEncoderAddJPEGFrame(
                     self.options_ptr,
                     data.as_ptr().cast(),
                     std::mem::size_of_val(data),
                 )
             } else {
-                crate::masking::JxlEncoderAddImageFrame(
+                JxlEncoderAddImageFrame(
                     self.options_ptr,
                     &self.pixel_format,
                     data.as_ptr().cast(),
@@ -225,11 +226,7 @@ impl<'a> JxlEncoder<'a> {
 
             let mut status;
             loop {
-                status = crate::masking::JxlEncoderProcessOutput(
-                    self.enc,
-                    &mut next_out,
-                    &mut avail_out,
-                );
+                status = JxlEncoderProcessOutput(self.enc, &mut next_out, &mut avail_out);
 
                 if status != JxlEncoderStatus_JXL_ENC_NEED_MORE_OUTPUT {
                     break;

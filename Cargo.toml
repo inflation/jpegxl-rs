@@ -14,13 +14,13 @@ version = "0.3.3-alpha.0"
 [features]
 default = ["image"]
 docsrs = ["jpegxl-sys/docsrs"]
-without-build = ["jpegxl-sys/without-build"]
+system-jpegxl = ["jpegxl-sys/system-jpegxl"]
 without-image = []
 without-threads = ["jpegxl-sys/without-threads"]
 
 [dependencies]
 image = {version = "0.23.12", optional = true, default-features = false}
-jpegxl-sys = "0.3.4-alpha.0"
+jpegxl-sys = "0.3.4-alpha.1"
 thiserror = "1.0.23"
 
 [dev-dependencies]
