@@ -39,6 +39,15 @@ extern "C" {
         size: usize,
     ) -> JxlDecoderStatus;
 
+    #[allow(dead_code)] // TODO: Upstream not implemented
+    pub(crate) fn JxlDecoderSetJPEGBuffer(
+        dec: *mut JxlDecoder,
+        data: *mut u8,
+        size: usize,
+    ) -> JxlDecoderStatus;
+
+    // Encoder
+
     pub(crate) fn JxlEncoderProcessOutput(
         enc: *mut JxlEncoder,
         next_out: *mut *mut u8,
@@ -57,4 +66,5 @@ extern "C" {
         buffer: *const u8,
         size: usize,
     ) -> JxlEncoderStatus;
+
 }

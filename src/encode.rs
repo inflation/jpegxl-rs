@@ -67,6 +67,9 @@ pub struct JxlEncoder<'a> {
     /// Pixel format
     pub pixel_format: JxlPixelFormat,
 
+    /// Use container format or not
+    use_container: bool,
+
     /// Color Encoding
     color_encoding: Option<JxlColorEncoding>,
 
@@ -108,7 +111,8 @@ impl<'a> JxlEncoder<'a> {
             speed,
             quality,
             color_encoding,
-        } = encoder_options;
+            use_container,
+        } = *encoder_options;
 
         let color_encoding = color_encoding.map(|c| unsafe {
             let mut color_encoding = JxlColorEncoding::new_uninit();
@@ -127,42 +131,61 @@ impl<'a> JxlEncoder<'a> {
             enc,
             pixel_format,
             options_ptr,
+            use_container,
             color_encoding,
             parallel_runner_lifetime: std::marker::PhantomData,
         };
 
         if let Some(l) = lossless {
-            encoder.set_lossless(*l);
+            encoder.set_lossless(l)?;
         }
         if let Some(s) = speed {
-            encoder.set_speed(*s);
+            encoder.set_speed(s)?;
         }
         if let Some(q) = quality {
-            encoder.set_quality(*q);
+            encoder.set_quality(q)?;
         }
+
+        encoder.use_container(use_container)?;
+
         Ok(encoder)
     }
 
-    /// Set lossless mode. Default is lossy.
-    pub fn set_lossless(&mut self, lossless: bool) {
-        unsafe { JxlEncoderOptionsSetLossless(self.options_ptr, lossless.into()) };
+    /// Set lossless mode. Default is lossy
+    /// # Errors
+    /// Return [`EncodeError`] if the internal encoder fails to set lossless mode
+    pub fn set_lossless(&mut self, lossless: bool) -> Result<(), EncodeError> {
+        check_enc_status(unsafe { JxlEncoderOptionsSetLossless(self.options_ptr, lossless.into()) })
     }
 
-    /// Set speed.
+    /// Set speed
     /// Default: `[EncodeSpeed::Squirrel] (7)`.
-    pub fn set_speed(&mut self, speed: EncoderSpeed) {
-        unsafe { JxlEncoderOptionsSetEffort(self.options_ptr, speed as i32) };
+    /// # Errors
+    /// Return [`EncodeError`] if the internal encoder fails to set speed
+    pub fn set_speed(&mut self, speed: EncoderSpeed) -> Result<(), EncodeError> {
+        check_enc_status(unsafe { JxlEncoderOptionsSetEffort(self.options_ptr, speed as i32) })
     }
 
-    /// Set quality for lossy compression: target max butteraugli distance, lower = higher quality.
+    /// Set quality for lossy compression: target max butteraugli distance, lower = higher quality
     ///  Range: 0 .. 15.<br />
     ///    0.0 = mathematically lossless (however, use `set_lossless` to use true lossless). <br />
     ///    1.0 = visually lossless. <br />
     ///    Recommended range: 0.5 .. 3.0. <br />
     ///    Default value: 1.0. <br />
     ///    If `set_lossless` is used, this value is unused and implied to be 0.
-    pub fn set_quality(&mut self, quality: f32) {
-        unsafe { JxlEncoderOptionsSetDistance(self.options_ptr, quality) };
+    /// # Errors
+    /// Return [`EncodeError`] if the internal encoder fails to set quality
+    pub fn set_quality(&mut self, quality: f32) -> Result<(), EncodeError> {
+        check_enc_status(unsafe { JxlEncoderOptionsSetDistance(self.options_ptr, quality) })
+    }
+
+    /// Configure the encoder to use the JPEG XL container format
+    /// Using the JPEG XL container format allows to store metadata such as JPEG reconstruction;
+    ///   but it adds a few bytes to the encoded file for container headers even if there is no extra metadata.
+    /// # Errors
+    /// Return [`EncodeError`] if the internal encoder fails to use JPEG XL container format
+    pub fn use_container(&mut self, use_container: bool) -> Result<(), EncodeError> {
+        check_enc_status(unsafe { JxlEncoderUseContainer(self.enc, use_container as i32) })
     }
 
     // Internal encoder setup
@@ -215,6 +238,8 @@ impl<'a> JxlEncoder<'a> {
                 )
             })?;
 
+            JxlEncoderCloseInput(self.enc);
+
             let chunk_size = 1024 * 512; // 512 KB is a good initial value
             let mut buffer: Vec<U> = {
                 let mut buffer = Vec::with_capacity(chunk_size);
@@ -240,6 +265,8 @@ impl<'a> JxlEncoder<'a> {
             buffer.truncate(next_out.offset_from(buffer.as_ptr().cast()) as usize);
             check_enc_status(status)?;
 
+            JxlEncoderReset(self.enc);
+
             Ok(buffer)
         }
     }
@@ -253,6 +280,10 @@ impl<'a> JxlEncoder<'a> {
         x_size: u32,
         y_size: u32,
     ) -> Result<Vec<u8>, EncodeError> {
+        // If using container format, store JPEG reconstruction metadata
+        check_enc_status(unsafe {
+            JxlEncoderStoreJPEGMetadata(self.enc, self.use_container as i32)
+        })?;
         self._encode::<u8, u8>(data, x_size, y_size, true)
     }
 
@@ -283,6 +314,7 @@ struct EncoderOptions {
     speed: Option<EncoderSpeed>,
     quality: Option<f32>,
     color_encoding: Option<ColorEncoding>,
+    use_container: bool,
 }
 
 /// Builder for [`JxlEncoder`]
@@ -343,6 +375,12 @@ impl<'a> JxlEncoderBuilder<'a> {
         self
     }
 
+    /// Use container or not
+    pub fn use_container(&mut self, use_container: bool) -> &mut Self {
+        self.options.use_container = use_container;
+        self
+    }
+
     /// Set memory manager
     #[must_use]
     pub fn memory_manager(&mut self, memory_manager: &'a dyn JxlMemoryManager) -> &mut Self {
@@ -385,6 +423,7 @@ pub fn encoder_builder<'a>() -> JxlEncoderBuilder<'a> {
             speed: None,
             quality: None,
             color_encoding: None,
+            use_container: false,
         },
         memory_manager: None,
         parallel_runner: None,
@@ -426,7 +465,10 @@ mod tests {
             .with_guessed_format()?
             .decode()?
             .to_rgb8();
-        let mut encoder = encoder_builder().speed(EncoderSpeed::Falcon).build()?;
+        let mut encoder = encoder_builder()
+            .speed(EncoderSpeed::Falcon)
+            .use_container(true)
+            .build()?;
 
         encoder.encode_jpeg(&sample, sample_image.width(), sample_image.height())?;
 

@@ -51,8 +51,8 @@ pub struct JxlDecoder<'a> {
     /// Opaque pointer to the underlying decoder
     dec: *mut jpegxl_sys::JxlDecoder,
 
-    /// Pixel format
-    pixel_format: DecoderOptions,
+    /// Decoder options
+    options: DecoderOptions,
 
     /// Parallel Runner
     parallel_runner: Option<&'a dyn JxlParallelRunner>,
@@ -60,7 +60,7 @@ pub struct JxlDecoder<'a> {
 
 impl<'a> JxlDecoder<'a> {
     fn new(
-        pixel_format: DecoderOptions,
+        options: DecoderOptions,
         memory_manager: Option<jpegxl_sys::JxlMemoryManager>,
         parallel_runner: Option<&'a dyn JxlParallelRunner>,
     ) -> Result<Self, DecodeError> {
@@ -77,7 +77,7 @@ impl<'a> JxlDecoder<'a> {
 
         Ok(Self {
             dec,
-            pixel_format,
+            options,
             parallel_runner,
         })
     }
@@ -99,13 +99,16 @@ impl<'a> JxlDecoder<'a> {
                 ))?
             }
 
+            let events = JxlDecoderStatus_JXL_DEC_BASIC_INFO
+                | JxlDecoderStatus_JXL_DEC_COLOR_ENCODING
+                | if self.options.jpeg_reconstruction {
+                    JxlDecoderStatus_JXL_DEC_JPEG_RECONSTRUCTION
+                } else {
+                    JxlDecoderStatus_JXL_DEC_FULL_IMAGE
+                };
+
             // Stop after getting the basic info and decoding the image
-            check_dec_status(crate::masking::JxlDecoderSubscribeEvents(
-                self.dec,
-                JxlDecoderStatus_JXL_DEC_BASIC_INFO
-                    | JxlDecoderStatus_JXL_DEC_COLOR_ENCODING
-                    | JxlDecoderStatus_JXL_DEC_FULL_IMAGE,
-            ))?;
+            check_dec_status(crate::masking::JxlDecoderSubscribeEvents(self.dec, events))?;
 
             let next_in = data.as_ptr();
             let avail_in = std::mem::size_of_val(data) as _;
@@ -140,6 +143,26 @@ impl<'a> JxlDecoder<'a> {
                             return Err(DecodeError::GenericError);
                         }
                     }
+
+                    // Get JPEG reconstruction buffer
+                    // TODO: Upstream not implemented
+                    // JxlDecoderStatus_JXL_DEC_JPEG_RECONSTRUCTION => {
+                    //     check_dec_status(JxlDecoderSetJPEGBuffer(
+                    //         self.dec,
+                    //         buffer.as_mut_ptr() as _,
+                    //         buffer.len() as _,
+                    //     ))?;
+                    // }
+
+                    // // Need more output buffer
+                    // JxlDecoderStatus_JXL_DEC_JPEG_NEED_MORE_OUTPUT => {
+                    //     buffer.resize(buffer.len() * 2, T::default());
+                    //     check_dec_status(JxlDecoderSetJPEGBuffer(
+                    //         self.dec,
+                    //         buffer.as_mut_ptr() as _,
+                    //         buffer.len() as _,
+                    //     ))?;
+                    // }
 
                     // Get the output buffer
                     JxlDecoderStatus_JXL_DEC_NEED_IMAGE_OUT_BUFFER => {
@@ -193,15 +216,12 @@ impl<'a> JxlDecoder<'a> {
         check_dec_status(JxlDecoderDefaultPixelFormat(self.dec, format.as_mut_ptr()))?;
         let format = format.assume_init();
 
-        let num_channels = self
-            .pixel_format
-            .num_channels
-            .unwrap_or(format.num_channels);
+        let num_channels = self.options.num_channels.unwrap_or(format.num_channels);
         let endianness = self
-            .pixel_format
+            .options
             .endianness
             .map_or(format.endianness, Endianness::into);
-        let align = self.pixel_format.align.unwrap_or(format.align);
+        let align = self.options.align.unwrap_or(format.align);
 
         *pixel_format = Some(JxlPixelFormat {
             num_channels,
@@ -249,7 +269,7 @@ impl<'a> Drop for JxlDecoder<'a> {
 
 /// Builder for [`JxlDecoder`]
 pub struct JxlDecoderBuilder<'a> {
-    decoder_options: DecoderOptions,
+    options: DecoderOptions,
     memory_manager: Option<&'a dyn JxlMemoryManager>,
     parallel_runner: Option<&'a dyn JxlParallelRunner>,
 }
@@ -259,27 +279,28 @@ struct DecoderOptions {
     num_channels: Option<u32>,
     endianness: Option<Endianness>,
     align: Option<u64>,
+    jpeg_reconstruction: bool,
 }
 
 impl<'a> JxlDecoderBuilder<'a> {
     /// Set number of channels for returned result
     #[must_use]
     pub fn num_channels(&mut self, num: u32) -> &mut Self {
-        self.decoder_options.num_channels = Some(num);
+        self.options.num_channels = Some(num);
         self
     }
 
     /// Set endianness for returned result
     #[must_use]
     pub fn endian(&mut self, endian: Endianness) -> &mut Self {
-        self.decoder_options.endianness = Some(endian);
+        self.options.endianness = Some(endian);
         self
     }
 
     /// Set align for returned result
     #[must_use]
     pub fn align(&mut self, align: u64) -> &mut Self {
-        self.decoder_options.align = Some(align);
+        self.options.align = Some(align);
         self
     }
 
@@ -302,7 +323,7 @@ impl<'a> JxlDecoderBuilder<'a> {
     /// Return [`DecodeError::CannotCreateDecoder`] if it fails to create the decoder.
     pub fn build(&mut self) -> Result<JxlDecoder<'a>, DecodeError> {
         JxlDecoder::new(
-            self.decoder_options.clone(),
+            self.options.clone(),
             self.memory_manager.map(|m| m.to_manager()),
             self.parallel_runner,
         )
@@ -313,10 +334,11 @@ impl<'a> JxlDecoderBuilder<'a> {
 #[must_use]
 pub fn decoder_builder<'a>() -> JxlDecoderBuilder<'a> {
     JxlDecoderBuilder {
-        decoder_options: DecoderOptions {
+        options: DecoderOptions {
             num_channels: None,
             endianness: None,
             align: None,
+            jpeg_reconstruction: false,
         },
         memory_manager: None,
         parallel_runner: None,
@@ -346,6 +368,12 @@ mod tests {
         qcms::Profile::new_from_slice(&icc_profile).unwrap();
 
         Ok(())
+    }
+
+    #[test]
+    #[ignore = "Upstream not implemented"]
+    fn test_decode_container() -> Result<(), ImageError> {
+        todo!()
     }
 
     #[test]
