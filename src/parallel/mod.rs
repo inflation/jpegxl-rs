@@ -32,17 +32,15 @@ pub mod threads_runner;
 
 use std::ffi::c_void;
 
-use jpegxl_sys::size_t;
-
 #[cfg(not(feature = "without-threads"))]
 pub use threads_runner::*;
 
 /// Parallel runner return code
 pub use jpegxl_sys::JxlParallelRetCode;
 /// Parallel runner initialization callback type
-pub type InitFn = unsafe extern "C" fn(*mut c_void, size_t) -> i32;
+pub type InitFn = unsafe extern "C" fn(*mut c_void, usize) -> i32;
 /// Parallel runner data processing callback type
-pub type RunFn = unsafe extern "C" fn(*mut c_void, u32, size_t);
+pub type RunFn = unsafe extern "C" fn(*mut c_void, u32, usize);
 
 /// [`JxlParallelRunner`] function type
 pub type RunnerFn = unsafe extern "C" fn(

@@ -26,15 +26,13 @@ along with jpegxl-rs.  If not, see <https://www.gnu.org/licenses/>.
 //! # };
 //! ```
 
-use jpegxl_sys::size_t;
 use std::{
     alloc::{GlobalAlloc as _, Layout, System},
-    convert::TryInto as _,
     ffi::c_void,
 };
 
 /// Allocator function type
-pub type AllocFn = unsafe extern "C" fn(opaque: *mut c_void, size: size_t) -> *mut c_void;
+pub type AllocFn = unsafe extern "C" fn(opaque: *mut c_void, size: usize) -> *mut c_void;
 /// Deallocator function type
 pub type FreeFn = unsafe extern "C" fn(opaque: *mut c_void, address: *mut c_void);
 
@@ -72,8 +70,8 @@ impl Default for MallocManager {
 
 impl JxlMemoryManager for MallocManager {
     fn alloc(&self) -> Option<AllocFn> {
-        unsafe extern "C" fn alloc(opaque: *mut c_void, size: size_t) -> *mut c_void {
-            let layout = Layout::from_size_align(size.try_into().unwrap(), 8).unwrap();
+        unsafe extern "C" fn alloc(opaque: *mut c_void, size: usize) -> *mut c_void {
+            let layout = Layout::from_size_align(size, 8).unwrap();
             let address = System.alloc(layout);
 
             let manager = opaque.cast::<MallocManager>().as_mut().unwrap();

@@ -5,7 +5,7 @@
 [![CI](https://github.com/inflation/jpegxl-rs/workflows/CI/badge.svg)](https://github.com/inflation/jpegxl-rs/actions?query=workflow%3ACI)
 [![License: GPL-3.0-or-later](https://img.shields.io/crates/l/jpegxl-rs)](LICENSE)
 
-`jpegxl-rs` is a safe wrapper over `jpeg-xl` library. Check out the original [library](https://gitlab.com/wg1/jpeg-xl)
+A safe JPEGXL wrapper over `jpeg-xl` library. Check out the original [library](https://gitlab.com/wg1/jpeg-xl)
 and the [bindings](https://github.com/inflation/jpegxl-sys).
 
 ## Building
@@ -15,44 +15,54 @@ set the include path and lib path with `DEP_JXL_INCLUDE` and `DEP_JXL_LIB` respe
 
 If you don't want to depend on C++ standard library, use `--features without-threads` to disable default threadpool.
 
-You need to have a working `llvm` environment.
-
 ## Usage
 
 ### Decoding
 
 ```rust
-use jpegxl_rs::decoder_builder;
-let sample = std::fs::read("test/sample.jxl")?;
-let mut runner = ThreadsRunner::default();
-let mut decoder = decoder_builder().parallel_runner(&runner).build()?;
-let (info, buffer) = decoder.decode::<u8>(&sample)?;
-```
+let mut decoder = decoder_builder().build()?;
 
-Set output pixel parameters
-
-```rust
+// Use multithread
+use jpegxl_rs::ThreadsRunner;
+let runner = ThreadsRunner::default();
 let mut decoder = decoder_builder()
-                      .num_channel(3)
-                      .endianness(Endianness::Big)
+                      .parallel_runner(&runner)
+                      .build()?;
+
+// Customize pixel format
+let mut decoder = decoder_builder()
+                      .num_channels(3)
+                      .endian(JxlEndianness::Big)
                       .align(8)
+                      .build()?;
+
+// Set custom memory manager
+use jpegxl_rs::memory::MallocManager;
+let manager = MallocManager::default();
+let mut decoder = decoder_builder()
+                      .memory_manager(&manager)
                       .build()?;
 ```
 
 ### Encoding
 
 ```rust
-use jpegxl_rs::*;
 use image::io::Reader as ImageReader;
-
 let sample = ImageReader::open("test/sample.png")?.decode()?.to_rgba16();
-let mut runner = ThreadsRunner::default();
-let mut encoder = encoder_builder().parallel_runner(&runner).build()?;
-let buffer: Vec<u8> = encoder.encode(
-                          &sample, 
-                          sample.width(), 
-                          sample.height()
-                      )?;
+let mut encoder = encoder_builder().build()?;
+let buffer: Vec<f32> = encoder.encode(&sample, sample.width(), sample.height())?;
+```
+
+Set encoder options
+
+```rust
+let mut encoder = encoder_builder()
+                    .lossless(true)
+                    .speed(EncoderSpeed::Falcon)
+                    .build()?;
+// You can change the settings after initialization
+encoder.set_lossless(false);
+encoder.set_quality(3.0);
 ```
 
 ### [`image`](https://crates.io/crates/image) crate integration
@@ -65,5 +75,7 @@ use image::DynamicImage;
 
 let sample = std::fs::read("test/sample.jxl")?;
 let decoder: JxlImageDecoder<u16> = JxlImageDecoder::new(&sample)?;
-let img = DynamicImage::from_decoder(decoder)?;       
+let img = DynamicImage::from_decoder(decoder)?;
 ```
+
+License: GPL-3.0-or-later

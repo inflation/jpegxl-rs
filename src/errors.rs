@@ -14,7 +14,6 @@ GNU General Public License for more details.
 You should have received a copy of the GNU General Public License
 along with jpegxl-rs.  If not, see <https://www.gnu.org/licenses/>.
 */
-#![allow(non_upper_case_globals)]
 
 //! Decoder and encoder errors
 
@@ -36,7 +35,7 @@ pub enum DecodeError {
     #[error("Doesn't need more input")]
     NeedMoreInput,
     /// Unknown status
-    #[error("Unknown status: `{0}`")]
+    #[error("Unknown status: `{0:?}`")]
     UnknownStatus(JxlDecoderStatus),
 }
 
@@ -54,15 +53,15 @@ pub enum EncodeError {
     #[error("Encoder does not support (yet)")]
     NotSupported,
     /// Unknown status
-    #[error("Unknown status: `{0}`")]
+    #[error("Unknown status: `{0:?}`")]
     UnknownStatus(JxlEncoderStatus),
 }
 
 /// Error mapping from underlying C const to `JxlDecoderStatus` enum
 pub(crate) fn check_dec_status(status: JxlDecoderStatus) -> Result<(), DecodeError> {
     match status {
-        JxlDecoderStatus_JXL_DEC_SUCCESS => Ok(()),
-        JxlDecoderStatus_JXL_DEC_ERROR => Err(DecodeError::GenericError),
+        JxlDecoderStatus::Success => Ok(()),
+        JxlDecoderStatus::Error => Err(DecodeError::GenericError),
         _ => Err(DecodeError::UnknownStatus(status)),
     }
 }
@@ -70,9 +69,9 @@ pub(crate) fn check_dec_status(status: JxlDecoderStatus) -> Result<(), DecodeErr
 /// Error mapping from underlying C const to `JxlEncoderStatus` enum
 pub(crate) fn check_enc_status(status: JxlEncoderStatus) -> Result<(), EncodeError> {
     match status {
-        JxlEncoderStatus_JXL_ENC_SUCCESS => Ok(()),
-        JxlEncoderStatus_JXL_ENC_ERROR => Err(EncodeError::GenericError),
-        JxlEncoderStatus_JXL_ENC_NOT_SUPPORTED => Err(EncodeError::NotSupported),
-        _ => Err(EncodeError::UnknownStatus(status)),
+        JxlEncoderStatus::Success => Ok(()),
+        JxlEncoderStatus::Error => Err(EncodeError::GenericError),
+        JxlEncoderStatus::NotSupported => Err(EncodeError::NotSupported),
+        JxlEncoderStatus::NeedMoreOutput => Err(EncodeError::UnknownStatus(status)),
     }
 }

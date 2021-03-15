@@ -14,7 +14,6 @@ GNU General Public License for more details.
 You should have received a copy of the GNU General Public License
 along with jpegxl-rs.  If not, see <https://www.gnu.org/licenses/>.
 */
-#![allow(non_upper_case_globals)]
 
 //! Decoder of JPEG XL format
 
@@ -23,12 +22,8 @@ use jpegxl_sys::*;
 use std::ptr::null;
 
 use crate::{
-    common::{Endianness, PixelType},
+    common::PixelType,
     errors::{check_dec_status, DecodeError},
-    masking::{
-        JxlDecoderGetColorAsICCProfile, JxlDecoderGetICCProfileSize, JxlDecoderImageOutBufferSize,
-        JxlDecoderSetImageOutBuffer,
-    },
     memory::JxlMemoryManager,
     parallel::JxlParallelRunner,
 };
@@ -99,16 +94,18 @@ impl<'a> JxlDecoder<'a> {
                 ))?
             }
 
-            let events = JxlDecoderStatus_JXL_DEC_BASIC_INFO
-                | JxlDecoderStatus_JXL_DEC_COLOR_ENCODING
-                | if self.options.jpeg_reconstruction {
-                    JxlDecoderStatus_JXL_DEC_JPEG_RECONSTRUCTION
+            let events = jxl_dec_events!(
+                JxlDecoderStatus::BasicInfo,
+                JxlDecoderStatus::ColorEncoding,
+                if self.options.jpeg_reconstruction {
+                    JxlDecoderStatus::JpegReconstruction
                 } else {
-                    JxlDecoderStatus_JXL_DEC_FULL_IMAGE
-                };
+                    JxlDecoderStatus::FullImage
+                }
+            );
 
             // Stop after getting the basic info and decoding the image
-            check_dec_status(crate::masking::JxlDecoderSubscribeEvents(self.dec, events))?;
+            check_dec_status(JxlDecoderSubscribeEvents(self.dec, events))?;
 
             let next_in = data.as_ptr();
             let avail_in = std::mem::size_of_val(data) as _;
@@ -120,24 +117,22 @@ impl<'a> JxlDecoder<'a> {
 
             check_dec_status(JxlDecoderSetInput(self.dec, next_in, avail_in))?;
 
-            let mut status: u32;
+            let mut status;
             loop {
                 status = JxlDecoderProcessInput(self.dec);
 
                 match status {
-                    JxlDecoderStatus_JXL_DEC_ERROR => return Err(DecodeError::GenericError),
-                    JxlDecoderStatus_JXL_DEC_NEED_MORE_INPUT => {
-                        return Err(DecodeError::NeedMoreInput)
-                    }
+                    JxlDecoderStatus::Error => return Err(DecodeError::GenericError),
+                    JxlDecoderStatus::NeedMoreInput => return Err(DecodeError::NeedMoreInput),
 
                     // Get the basic info
-                    JxlDecoderStatus_JXL_DEC_BASIC_INFO => {
+                    JxlDecoderStatus::BasicInfo => {
                         self.get_basic_info::<T>(&mut basic_info, &mut pixel_format)?;
                     }
 
                     // Get color encoding
-                    JxlDecoderStatus_JXL_DEC_COLOR_ENCODING => {
-                        if let Some(format) = pixel_format {
+                    JxlDecoderStatus::ColorEncoding => {
+                        if let Some(format) = &pixel_format {
                             self.get_icc_profile(format, &mut icc_profile)?;
                         } else {
                             return Err(DecodeError::GenericError);
@@ -165,18 +160,18 @@ impl<'a> JxlDecoder<'a> {
                     // }
 
                     // Get the output buffer
-                    JxlDecoderStatus_JXL_DEC_NEED_IMAGE_OUT_BUFFER => {
+                    JxlDecoderStatus::NeedImageOutBuffer => {
                         let mut size = 0;
-                        if let Some(format) = pixel_format {
+                        if let Some(format) = &pixel_format {
                             check_dec_status(JxlDecoderImageOutBufferSize(
-                                self.dec, &format, &mut size,
+                                self.dec, format, &mut size,
                             ))?;
 
                             buffer = Vec::with_capacity(size);
                             buffer.set_len(size);
                             check_dec_status(JxlDecoderSetImageOutBuffer(
                                 self.dec,
-                                &format,
+                                format,
                                 buffer.as_mut_ptr().cast(),
                                 size,
                             ))?;
@@ -185,8 +180,8 @@ impl<'a> JxlDecoder<'a> {
                         };
                     }
 
-                    JxlDecoderStatus_JXL_DEC_FULL_IMAGE => continue,
-                    JxlDecoderStatus_JXL_DEC_SUCCESS => {
+                    JxlDecoderStatus::FullImage => continue,
+                    JxlDecoderStatus::Success => {
                         JxlDecoderReset(self.dec);
                         return basic_info.map_or(Err(DecodeError::GenericError), |info| {
                             Ok(JxlDecoderResult {
@@ -217,10 +212,7 @@ impl<'a> JxlDecoder<'a> {
         let format = format.assume_init();
 
         let num_channels = self.options.num_channels.unwrap_or(format.num_channels);
-        let endianness = self
-            .options
-            .endianness
-            .map_or(format.endianness, Endianness::into);
+        let endianness = self.options.endianness.unwrap_or(format.endianness);
         let align = self.options.align.unwrap_or(format.align);
 
         *pixel_format = Some(JxlPixelFormat {
@@ -235,15 +227,15 @@ impl<'a> JxlDecoder<'a> {
 
     unsafe fn get_icc_profile(
         &mut self,
-        format: JxlPixelFormat,
+        format: &JxlPixelFormat,
         icc_profile: &mut Vec<u8>,
     ) -> Result<(), DecodeError> {
         let mut icc_size = 0;
 
         check_dec_status(JxlDecoderGetICCProfileSize(
             self.dec,
-            &format,
-            JxlColorProfileTarget_JXL_COLOR_PROFILE_TARGET_DATA,
+            format,
+            JxlColorProfileTarget::Data,
             &mut icc_size,
         ))?;
 
@@ -251,8 +243,8 @@ impl<'a> JxlDecoder<'a> {
 
         check_dec_status(JxlDecoderGetColorAsICCProfile(
             self.dec,
-            &format,
-            JxlColorProfileTarget_JXL_COLOR_PROFILE_TARGET_DATA,
+            format,
+            JxlColorProfileTarget::Data,
             icc_profile.as_mut_ptr(),
             icc_size,
         ))?;
@@ -277,8 +269,8 @@ pub struct JxlDecoderBuilder<'a> {
 #[derive(Clone)]
 struct DecoderOptions {
     num_channels: Option<u32>,
-    endianness: Option<Endianness>,
-    align: Option<u64>,
+    endianness: Option<JxlEndianness>,
+    align: Option<usize>,
     jpeg_reconstruction: bool,
 }
 
@@ -292,14 +284,14 @@ impl<'a> JxlDecoderBuilder<'a> {
 
     /// Set endianness for returned result
     #[must_use]
-    pub fn endian(&mut self, endian: Endianness) -> &mut Self {
+    pub fn endian(&mut self, endian: JxlEndianness) -> &mut Self {
         self.options.endianness = Some(endian);
         self
     }
 
     /// Set align for returned result
     #[must_use]
-    pub fn align(&mut self, align: u64) -> &mut Self {
+    pub fn align(&mut self, align: usize) -> &mut Self {
         self.options.align = Some(align);
         self
     }
@@ -382,7 +374,7 @@ mod tests {
         let parallel_runner = ThreadsRunner::default();
         let mut decoder = decoder_builder()
             .num_channels(3)
-            .endian(Endianness::Big)
+            .endian(JxlEndianness::Big)
             .parallel_runner(&parallel_runner)
             .build()?;
 

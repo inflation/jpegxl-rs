@@ -20,20 +20,21 @@ without-threads = ["jpegxl-sys/without-threads"]
 
 [dependencies]
 image = {version = "0.23.12", optional = true, default-features = false}
-jpegxl-sys = "0.3.4-alpha.1"
-thiserror = "1.0.23"
+jpegxl-sys = {version = "0.3.4-alpha.3"}
+thiserror = "1.0.24"
 
 [dev-dependencies]
 criterion = "0.3.4"
-image = "0.23.13"
+image = "0.23.14"
 qcms = "0.2.0"
 
 [package.metadata.docs.rs]
-features = ["docsrs", "with-rayon"]
+features = ["docsrs"]
 rustdoc-args = ["--cfg", "docsrs"]
 
 [lib]
 bench = false
+path = "src/lib.rs"
 
 [[bench]]
 harness = false

@@ -22,9 +22,8 @@ use jpegxl_sys::*;
 use std::ptr::null;
 
 use crate::{
-    common::{Endianness, PixelType},
+    common::PixelType,
     errors::{check_enc_status, EncodeError},
-    masking::{JxlEncoderAddImageFrame, JxlEncoderAddJPEGFrame, JxlEncoderProcessOutput},
     memory::JxlMemoryManager,
     parallel::JxlParallelRunner,
 };
@@ -118,10 +117,10 @@ impl<'a> JxlEncoder<'a> {
             let mut color_encoding = JxlColorEncoding::new_uninit();
             match c {
                 ColorEncoding::SRgb => {
-                    JxlColorEncodingSetToSRGB(color_encoding.as_mut_ptr(), false.into())
+                    JxlColorEncodingSetToSRGB(color_encoding.as_mut_ptr(), false)
                 }
                 ColorEncoding::LinearSRgb => {
-                    JxlColorEncodingSetToLinearSRGB(color_encoding.as_mut_ptr(), false.into())
+                    JxlColorEncodingSetToLinearSRGB(color_encoding.as_mut_ptr(), false)
                 }
             }
             color_encoding.assume_init()
@@ -155,7 +154,7 @@ impl<'a> JxlEncoder<'a> {
     /// # Errors
     /// Return [`EncodeError`] if the internal encoder fails to set lossless mode
     pub fn set_lossless(&mut self, lossless: bool) -> Result<(), EncodeError> {
-        check_enc_status(unsafe { JxlEncoderOptionsSetLossless(self.options_ptr, lossless.into()) })
+        check_enc_status(unsafe { JxlEncoderOptionsSetLossless(self.options_ptr, lossless) })
     }
 
     /// Set speed
@@ -163,7 +162,7 @@ impl<'a> JxlEncoder<'a> {
     /// # Errors
     /// Return [`EncodeError`] if the internal encoder fails to set speed
     pub fn set_speed(&mut self, speed: EncoderSpeed) -> Result<(), EncodeError> {
-        check_enc_status(unsafe { JxlEncoderOptionsSetEffort(self.options_ptr, speed as i32) })
+        check_enc_status(unsafe { JxlEncoderOptionsSetEffort(self.options_ptr, speed as _) })
     }
 
     /// Set quality for lossy compression: target max butteraugli distance, lower = higher quality
@@ -185,7 +184,7 @@ impl<'a> JxlEncoder<'a> {
     /// # Errors
     /// Return [`EncodeError`] if the internal encoder fails to use JPEG XL container format
     pub fn use_container(&mut self, use_container: bool) -> Result<(), EncodeError> {
-        check_enc_status(unsafe { JxlEncoderUseContainer(self.enc, use_container as i32) })
+        check_enc_status(unsafe { JxlEncoderUseContainer(self.enc, use_container) })
     }
 
     // Internal encoder setup
@@ -198,8 +197,8 @@ impl<'a> JxlEncoder<'a> {
         is_jpeg: bool,
     ) -> Result<Vec<U>, EncodeError> {
         unsafe {
-            if let Some(c) = self.color_encoding {
-                JxlEncoderSetColorEncoding(self.enc, &c);
+            if let Some(c) = &self.color_encoding {
+                JxlEncoderSetColorEncoding(self.enc, c);
             }
 
             let mut basic_info = JxlBasicInfo::new_uninit().assume_init();
@@ -253,7 +252,7 @@ impl<'a> JxlEncoder<'a> {
             loop {
                 status = JxlEncoderProcessOutput(self.enc, &mut next_out, &mut avail_out);
 
-                if status != JxlEncoderStatus_JXL_ENC_NEED_MORE_OUTPUT {
+                if status != JxlEncoderStatus::NeedMoreOutput {
                     break;
                 }
 
@@ -281,9 +280,7 @@ impl<'a> JxlEncoder<'a> {
         y_size: u32,
     ) -> Result<Vec<u8>, EncodeError> {
         // If using container format, store JPEG reconstruction metadata
-        check_enc_status(unsafe {
-            JxlEncoderStoreJPEGMetadata(self.enc, self.use_container as i32)
-        })?;
+        check_enc_status(unsafe { JxlEncoderStoreJPEGMetadata(self.enc, self.use_container) })?;
         self._encode::<u8, u8>(data, x_size, y_size, true)
     }
 
@@ -335,14 +332,14 @@ impl<'a> JxlEncoderBuilder<'a> {
 
     /// Set endianness
     #[must_use]
-    pub fn endian(&mut self, endian: Endianness) -> &mut Self {
-        self.pixel_format.endianness = endian.into();
+    pub fn endian(&mut self, endian: JxlEndianness) -> &mut Self {
+        self.pixel_format.endianness = endian;
         self
     }
 
     /// Set align
     #[must_use]
-    pub fn align(&mut self, align: u64) -> &mut Self {
+    pub fn align(&mut self, align: usize) -> &mut Self {
         self.pixel_format.align = align;
         self
     }
@@ -400,7 +397,7 @@ impl<'a> JxlEncoderBuilder<'a> {
     /// Return [`EncodeError::CannotCreateEncoder`] if it fails to create the encoder
     pub fn build(&mut self) -> Result<JxlEncoder<'a>, EncodeError> {
         JxlEncoder::new(
-            self.pixel_format,
+            self.pixel_format.clone(),
             &self.options,
             self.memory_manager.map(|m| m.to_manager()),
             self.parallel_runner,
@@ -415,7 +412,7 @@ pub fn encoder_builder<'a>() -> JxlEncoderBuilder<'a> {
         pixel_format: JxlPixelFormat {
             num_channels: 3,
             data_type: u8::pixel_type(),
-            endianness: Endianness::Native.into(),
+            endianness: JxlEndianness::Native,
             align: 0,
         },
         options: EncoderOptions {

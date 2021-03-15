@@ -19,10 +19,9 @@ along with jpegxl-rs.  If not, see <https://www.gnu.org/licenses/>.
 
 use std::convert::TryInto;
 
-use jpegxl_sys::{
-    JxlDataType, JxlDataType_JXL_TYPE_FLOAT, JxlDataType_JXL_TYPE_UINT16,
-    JxlDataType_JXL_TYPE_UINT32, JxlDataType_JXL_TYPE_UINT8,
-};
+use jpegxl_sys::JxlDataType;
+
+pub use jpegxl_sys::JxlEndianness;
 
 /// Pixel data type.
 /// Currently u8, u16, u32 and f32 are supported.
@@ -39,44 +38,26 @@ pub trait PixelType: Clone + Default + 'static {
 }
 impl PixelType for u8 {
     fn pixel_type() -> JxlDataType {
-        JxlDataType_JXL_TYPE_UINT8
+        JxlDataType::Uint8
     }
 }
 impl PixelType for u16 {
     fn pixel_type() -> JxlDataType {
-        JxlDataType_JXL_TYPE_UINT16
+        JxlDataType::Uint16
     }
 }
 impl PixelType for u32 {
     fn pixel_type() -> JxlDataType {
-        JxlDataType_JXL_TYPE_UINT32
+        JxlDataType::Uint32
     }
 }
 impl PixelType for f32 {
     fn pixel_type() -> JxlDataType {
-        JxlDataType_JXL_TYPE_FLOAT
+        JxlDataType::Float
     }
 
     /// Float representation needs exponential bits
     fn bits_per_sample() -> (u32, u32) {
         (32, 8)
-    }
-}
-
-/// Endianness
-#[repr(C)]
-#[derive(Copy, Clone)]
-pub enum Endianness {
-    /// Native Endian
-    Native = 0,
-    /// Little Endian
-    Little,
-    /// Big Endian
-    Big,
-}
-
-impl From<Endianness> for u32 {
-    fn from(endianness: Endianness) -> Self {
-        endianness as u32
     }
 }

@@ -14,18 +14,32 @@ GNU General Public License for more details.
 You should have received a copy of the GNU General Public License
 along with jpegxl-rs.  If not, see <https://www.gnu.org/licenses/>.
 */
+
 #![warn(missing_docs)]
 #![deny(clippy::all)]
 #![warn(clippy::pedantic)]
 #![cfg_attr(docsrs, feature(doc_cfg))]
 
-//! # Overview
+//! [![Documentation](https://docs.rs/jpegxl-rs/badge.svg)](https://docs.rs/jpegxl-rs/)
+//! [![Crates.io](https://img.shields.io/crates/v/jpegxl-rs.svg)](https://crates.io/crates/jpegxl-rs)
+//! [![CI](https://github.com/inflation/jpegxl-rs/workflows/CI/badge.svg)](https://github.com/inflation/jpegxl-rs/actions?query=workflow%3ACI)
+//! [![License: GPL-3.0-or-later](https://img.shields.io/crates/l/jpegxl-rs)](https://github.com/inflation/jpegxl-rs/blob/master/LICENSE)
+//!
 //! A safe JPEGXL wrapper over `jpeg-xl` library. Check out the original [library](https://gitlab.com/wg1/jpeg-xl)
 //! and the [bindings](https://github.com/inflation/jpegxl-sys).
-
+//!
+//! # Building
+//!
+//! The library build `jpeg-xl` and link to `libc++` by default. Optionally, you can set `--features=system-jpegxl` to
+//! dynamically link to it. If you don't have it in default include and library paths,
+//! set them with `DEP_JXL_INCLUDE` and `DEP_JXL_LIB` respectively.
+//!
+//! If you don't want to depend on C++ standard library, use `--features without-threads` to disable default threadpool.
+//!
 //! # Usage
-
+//!
 //! ## Decoding
+//!
 //! ```
 //! # use jpegxl_rs::*;
 //! # || -> Result<(), Box<dyn std::error::Error>> {
@@ -41,7 +55,7 @@ along with jpegxl-rs.  If not, see <https://www.gnu.org/licenses/>.
 //! // Customize pixel format
 //! let mut decoder = decoder_builder()
 //!                       .num_channels(3)
-//!                       .endian(Endianness::Big)
+//!                       .endian(JxlEndianness::Big)
 //!                       .align(8)
 //!                       .build()?;
 //!
@@ -53,8 +67,9 @@ along with jpegxl-rs.  If not, see <https://www.gnu.org/licenses/>.
 //!                       .build()?;
 //! # Ok(()) };
 //! ```
-
+//!
 //! ## Encoding
+//!
 //! ```
 //! # use jpegxl_rs::encoder_builder;
 //! # || -> Result<(), Box<dyn std::error::Error>> {
@@ -66,6 +81,7 @@ along with jpegxl-rs.  If not, see <https://www.gnu.org/licenses/>.
 //! ```
 //!
 //! Set encoder options
+//!
 //! ```
 //! # || -> Result<(), Box<dyn std::error::Error>> {
 //! # use jpegxl_rs::*;
@@ -78,12 +94,26 @@ along with jpegxl-rs.  If not, see <https://www.gnu.org/licenses/>.
 //! encoder.set_quality(3.0);
 //! # Ok(()) };
 //! ```
+//!
+//! ## [`image`](https://crates.io/crates/image) crate integration
+//!
+//! The integration is enabled by default. If you don't need it, use `without-image` feature.
+//!
+//! ```
+//! # || -> Result<(), Box<dyn std::error::Error>> {
+//! use jpegxl_rs::image::*;
+//! use image::DynamicImage;
+//!
+//! let sample = std::fs::read("test/sample.jxl")?;
+//! let decoder: JxlImageDecoder<u16> = JxlImageDecoder::new(&sample)?;
+//! let img = DynamicImage::from_decoder(decoder)?;       
+//! # Ok(()) };
+//! ```
 
 mod common;
 mod decode;
 mod encode;
 mod errors;
-mod masking;
 pub mod memory;
 pub mod parallel;
 
