@@ -64,7 +64,7 @@ pub struct JxlEncoder<'a> {
     options_ptr: *mut JxlEncoderOptions,
 
     /// Pixel format
-    pub pixel_format: JxlPixelFormat,
+    pixel_format: JxlPixelFormat,
 
     /// Use container format or not
     use_container: bool,
@@ -72,7 +72,7 @@ pub struct JxlEncoder<'a> {
     /// Color Encoding
     color_encoding: Option<JxlColorEncoding>,
 
-    parallel_runner_lifetime: std::marker::PhantomData<&'a dyn JxlParallelRunner>,
+    parallel_runner_lifetime: std::marker::PhantomData<&'a ()>,
 }
 
 impl<'a> JxlEncoder<'a> {
@@ -430,7 +430,7 @@ pub fn encoder_builder<'a>() -> JxlEncoderBuilder<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{decoder_builder, ThreadsRunner};
+    use crate::{decoder_builder, JxlDecoderResult, ThreadsRunner};
 
     use image::io::Reader as ImageReader;
     #[test]
@@ -445,9 +445,9 @@ mod tests {
         let result: Vec<f32> = encoder.encode(sample.as_raw(), sample.width(), sample.height())?;
 
         let mut decoder = decoder_builder().build()?;
-        decoder.decode::<f32>(unsafe {
+        let _res: JxlDecoderResult<f32> = decoder.decode(unsafe {
             std::slice::from_raw_parts(
-                result.as_ptr() as *const u8,
+                result.as_ptr().cast(),
                 result.len() * std::mem::size_of::<f32>(),
             )
         })?;
@@ -485,14 +485,14 @@ mod tests {
             .parallel_runner(&parallel_runner)
             .build()?;
 
-        encoder.encode::<_, u8>(sample.as_raw(), sample.width(), sample.height())?;
+        let _result: Vec<u8> = encoder.encode(sample.as_raw(), sample.width(), sample.height())?;
 
         Ok(())
     }
 
     #[test]
     fn test_memory_manager() -> Result<(), Box<dyn std::error::Error>> {
-        use crate::memory::*;
+        use crate::memory::MallocManager;
 
         let sample = ImageReader::open("test/sample.png")?.decode()?.to_rgba16();
         let memory_manager = MallocManager::default();

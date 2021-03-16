@@ -86,6 +86,11 @@ impl<'a> JxlDecoder<'a> {
         data: &[u8],
     ) -> Result<JxlDecoderResult<T>, DecodeError> {
         unsafe {
+            let signature = JxlSignatureCheck(data.as_ptr(), data.len());
+            if signature != JxlSignature::Codestream && signature != JxlSignature::Container {
+                return Err(DecodeError::InvalidFileFormat);
+            }
+
             if let Some(runner) = self.parallel_runner {
                 check_dec_status(JxlDecoderSetParallelRunner(
                     self.dec,
@@ -387,7 +392,7 @@ mod tests {
 
     #[test]
     fn test_memory_manager() -> Result<(), Box<dyn std::error::Error>> {
-        use crate::memory::*;
+        use crate::memory::MallocManager;
 
         let sample = std::fs::read("test/sample.jxl")?;
         let memory_manager = MallocManager::default();

@@ -34,6 +34,9 @@ pub enum DecodeError {
     /// Need more input bytes
     #[error("Doesn't need more input")]
     NeedMoreInput,
+    /// Invalid file format
+    #[error("The file does not contain a valid codestream or container")]
+    InvalidFileFormat,
     /// Unknown status
     #[error("Unknown status: `{0:?}`")]
     UnknownStatus(JxlDecoderStatus),
