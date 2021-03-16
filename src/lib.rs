@@ -55,7 +55,7 @@ along with jpegxl-rs.  If not, see <https://www.gnu.org/licenses/>.
 //! // Customize pixel format
 //! let mut decoder = decoder_builder()
 //!                       .num_channels(3)
-//!                       .endian(JxlEndianness::Big)
+//!                       .endian(Endianness::Big)
 //!                       .align(8)
 //!                       .build()?;
 //!

@@ -13,7 +13,7 @@ pub fn criterion_benchmark(c: &mut Criterion) {
         .decode()
         .unwrap()
         .to_rgb8();
-    let mut encoder = encoder_builder().build().unwrap();
+    let encoder = encoder_builder().build().unwrap();
     group.bench_function("single thread", |b| {
         b.iter_with_large_drop(|| {
             encoder
@@ -23,7 +23,7 @@ pub fn criterion_benchmark(c: &mut Criterion) {
     });
 
     let parallel_runner = ThreadsRunner::default();
-    let mut encoder = encoder_builder()
+    let encoder = encoder_builder()
         .parallel_runner(&parallel_runner)
         .build()
         .unwrap();

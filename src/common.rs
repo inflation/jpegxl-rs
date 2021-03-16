@@ -21,7 +21,8 @@ use std::convert::TryInto;
 
 use jpegxl_sys::JxlDataType;
 
-pub use jpegxl_sys::JxlEndianness;
+/// Endianness of the pixels
+pub type Endianness = jpegxl_sys::JxlEndianness;
 
 /// Pixel data type.
 /// Currently u8, u16, u32 and f32 are supported.
