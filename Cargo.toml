@@ -1,8 +1,10 @@
 [package]
 authors = ["Inflation <hypernovagama@gmail.com>"]
+categories = ["api-bindings", "encoding", "multimedia::images"]
 description = "Safe Rust wrapper for JPEG XL reference implementation"
 edition = "2018"
 exclude = ["test/"]
+keywords = ["image-format", "jpeg-xl", "jxl"]
 license = "GPL-3.0-or-later"
 name = "jpegxl-rs"
 readme = "README.md"
@@ -12,15 +14,14 @@ version = "0.3.4-alpha.0"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [features]
-default = ["image"]
-docsrs = ["jpegxl-sys/docsrs"]
-system-jpegxl = ["jpegxl-sys/system-jpegxl"]
-without-image = []
-without-threads = ["jpegxl-sys/without-threads"]
+default = ["image-support", "threads"]
+image-support = ["image"]
+system-jxl = ["jpegxl-sys/system-jxl"]
+threads = ["jpegxl-sys/threads"]
 
 [dependencies]
-image = {version = "0.23.12", optional = true, default-features = false}
-jpegxl-sys = {version = "0.3.4-alpha.3"}
+image = {version = "0.23.14", optional = true, default-features = false}
+jpegxl-sys = {version = "0.3.4-alpha.4", path = "../jpegxl-sys"}
 thiserror = "1.0.24"
 
 [dev-dependencies]
@@ -29,7 +30,7 @@ image = "0.23.14"
 qcms = "0.2.0"
 
 [package.metadata.docs.rs]
-features = ["docsrs"]
+features = ["system-jxl"]
 rustdoc-args = ["--cfg", "docsrs"]
 
 [lib]

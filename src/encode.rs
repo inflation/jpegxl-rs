@@ -228,6 +228,63 @@ impl<'a> JxlEncoder<'a> {
         check_enc_status(unsafe { JxlEncoderUseContainer(self.enc, use_container) })
     }
 
+    /// Encode a JPEG XL image from existing raw JPEG data. Only support output pixel type of `u8`
+    /// # Errors
+    /// Return [`EncodeError`] if the internal encoder fails to encode
+    pub fn encode_jpeg(
+        &self,
+        data: &[u8],
+        width: u32,
+        height: u32,
+    ) -> Result<Vec<u8>, EncodeError> {
+        // If using container format, store JPEG reconstruction metadata
+        check_enc_status(unsafe { JxlEncoderStoreJPEGMetadata(self.enc, self.use_container) })?;
+
+        self.setup_encoder::<u8>(width, height, self.has_alpha)?;
+        self.add_jpeg_frame(data)?;
+        self.start_encoding()
+    }
+
+    /// Encode a JPEG XL image from pixels. Use RGB(3) channels, native endianness and no alignment.
+    /// # Errors
+    /// Return [`EncodeError`] if the internal encoder fails to encode
+    pub fn encode<T: PixelType, U: PixelType>(
+        &self,
+        data: &[T],
+        width: u32,
+        height: u32,
+    ) -> Result<Vec<U>, EncodeError> {
+        self.setup_encoder::<U>(width, height, self.has_alpha)?;
+        self.add_frame(&EncoderFrame::new(data))?;
+        self.start_encoding()
+    }
+
+    /// Encode a JPEG XL image from a frame. See [`EncoderFrame`] for custom options of the original pixels.
+    /// # Errors
+    /// Return [`EncodeError`] if the internal encoder fails to encode
+    pub fn encode_frame<T: PixelType, U: PixelType>(
+        &self,
+        frame: &EncoderFrame<T>,
+        width: u32,
+        height: u32,
+    ) -> Result<Vec<U>, EncodeError> {
+        self.setup_encoder::<U>(width, height, self.has_alpha)?;
+        self.add_frame(frame)?;
+        self.start_encoding()
+    }
+
+    /// Return a wrapper type for adding multiple frames to the encoder
+    /// # Errors
+    /// Return [`EncodeError`] if it fails to set up the encoder
+    pub fn multiple<U: PixelType>(
+        &self,
+        width: u32,
+        height: u32,
+    ) -> Result<MultiFrames<U>, EncodeError> {
+        self.setup_encoder::<U>(width, height, self.has_alpha)?;
+        Ok(MultiFrames(self, PhantomData))
+    }
+
     /// Setup the encoder
     fn setup_encoder<U: PixelType>(
         &self,
@@ -324,63 +381,6 @@ impl<'a> JxlEncoder<'a> {
         unsafe { JxlEncoderReset(self.enc) };
 
         Ok(buffer)
-    }
-
-    /// Encode a JPEG XL image from existing raw JPEG data. Only support output pixel type of `u8`
-    /// # Errors
-    /// Return [`EncodeError`] if the internal encoder fails to encode
-    pub fn encode_jpeg(
-        &self,
-        data: &[u8],
-        width: u32,
-        height: u32,
-    ) -> Result<Vec<u8>, EncodeError> {
-        // If using container format, store JPEG reconstruction metadata
-        check_enc_status(unsafe { JxlEncoderStoreJPEGMetadata(self.enc, self.use_container) })?;
-
-        self.setup_encoder::<u8>(width, height, self.has_alpha)?;
-        self.add_jpeg_frame(data)?;
-        self.start_encoding()
-    }
-
-    /// Encode a JPEG XL image from pixels. Use RGB(3) channels, native endianness and no alignment.
-    /// # Errors
-    /// Return [`EncodeError`] if the internal encoder fails to encode
-    pub fn encode<T: PixelType, U: PixelType>(
-        &self,
-        data: &[T],
-        width: u32,
-        height: u32,
-    ) -> Result<Vec<U>, EncodeError> {
-        self.setup_encoder::<U>(width, height, self.has_alpha)?;
-        self.add_frame(&EncoderFrame::new(data))?;
-        self.start_encoding()
-    }
-
-    /// Encode a JPEG XL image from a frame. See [`EncoderFrame`] for custom options of the original pixels.
-    /// # Errors
-    /// Return [`EncodeError`] if the internal encoder fails to encode
-    pub fn encode_frame<T: PixelType, U: PixelType>(
-        &self,
-        frame: &EncoderFrame<T>,
-        width: u32,
-        height: u32,
-    ) -> Result<Vec<U>, EncodeError> {
-        self.setup_encoder::<U>(width, height, self.has_alpha)?;
-        self.add_frame(frame)?;
-        self.start_encoding()
-    }
-
-    /// Return a wrapper type for adding multiple frames to the encoder
-    /// # Errors
-    /// Return [`EncodeError`] if internal encoder fails to encode
-    pub fn multiple<U: PixelType>(
-        &self,
-        width: u32,
-        height: u32,
-    ) -> Result<MultiFrames<U>, EncodeError> {
-        self.setup_encoder::<U>(width, height, self.has_alpha)?;
-        Ok(MultiFrames(self, PhantomData))
     }
 }
 
@@ -516,7 +516,7 @@ pub fn encoder_builder<'a>() -> JxlEncoderBuilder<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{decoder_builder, JxlDecoderResult, ThreadsRunner};
+    use crate::{decoder_builder, DecoderResult, ThreadsRunner};
 
     use image::io::Reader as ImageReader;
     #[test]
@@ -533,7 +533,7 @@ mod tests {
         let mut decoder = decoder_builder()
             .parallel_runner(&parallel_runner)
             .build()?;
-        let _res: JxlDecoderResult<f32> = decoder.decode(unsafe {
+        let _res: DecoderResult<f32> = decoder.decode(unsafe {
             std::slice::from_raw_parts(
                 result.as_ptr().cast(),
                 result.len() * std::mem::size_of::<f32>(),

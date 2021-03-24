@@ -26,7 +26,7 @@ use crate::{
     common::PixelType,
     decoder_builder,
     errors::{DecodeError, EncodeError},
-    BasicInfo, JxlDecoderResult,
+    DecoderResult, DecoderResultInfo,
 };
 
 // Error conversion
@@ -61,7 +61,7 @@ impl From<EncodeError> for image::ImageError {
 /// # Ok(()) };
 /// ```
 pub struct JxlImageDecoder<T: PixelType> {
-    info: BasicInfo,
+    info: DecoderResultInfo,
     data: Vec<T>,
 }
 
@@ -72,7 +72,7 @@ impl<T: PixelType> JxlImageDecoder<T> {
     pub fn new(input: &[u8]) -> ImageResult<JxlImageDecoder<T>> {
         let mut dec = decoder_builder().build()?;
         // TODO: Stream decoding
-        let JxlDecoderResult { info, data, .. } = dec.decode(&input)?;
+        let DecoderResult { info, data, .. } = dec.decode(&input)?;
 
         let decoder = JxlImageDecoder { info, data };
         Ok(decoder)
@@ -83,15 +83,15 @@ impl<'a> ImageDecoder<'a> for JxlImageDecoder<u8> {
     type Reader = std::io::Cursor<Vec<u8>>;
 
     fn color_type(&self) -> ColorType {
-        if self.info.num_extra_channels == 0 {
-            ColorType::Rgb8
-        } else {
+        if self.info.has_alpha {
             ColorType::Rgba8
+        } else {
+            ColorType::Rgb8
         }
     }
 
     fn dimensions(&self) -> (u32, u32) {
-        (self.info.xsize, self.info.ysize)
+        (self.info.width, self.info.height)
     }
 
     fn into_reader(self) -> image::ImageResult<Self::Reader> {
@@ -103,15 +103,15 @@ impl<'a> ImageDecoder<'a> for JxlImageDecoder<u16> {
     type Reader = std::io::Cursor<Vec<u8>>;
 
     fn color_type(&self) -> ColorType {
-        if self.info.num_extra_channels == 0 {
-            ColorType::Rgb16
-        } else {
+        if self.info.has_alpha {
             ColorType::Rgba16
+        } else {
+            ColorType::Rgb16
         }
     }
 
     fn dimensions(&self) -> (u32, u32) {
-        (self.info.xsize, self.info.ysize)
+        (self.info.width, self.info.height)
     }
 
     fn into_reader(self) -> image::ImageResult<Self::Reader> {

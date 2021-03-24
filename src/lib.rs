@@ -18,6 +18,7 @@ along with jpegxl-rs.  If not, see <https://www.gnu.org/licenses/>.
 #![warn(missing_docs)]
 #![deny(clippy::all)]
 #![warn(clippy::pedantic)]
+#![allow(clippy::enum_glob_use)]
 #![cfg_attr(docsrs, feature(doc_cfg))]
 
 //! [![Documentation](https://docs.rs/jpegxl-rs/badge.svg)](https://docs.rs/jpegxl-rs/)
