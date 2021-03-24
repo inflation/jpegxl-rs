@@ -41,14 +41,6 @@ jobs:
           toolchain: stable
           components: clippy
           override: true
-      - uses: actions-rs/cargo@v1
-        with:
-          command: fetch
-      - uses: actions/cache@v2
-        with:
-          path: |
-            target
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
       - name: Clippy
         uses: actions-rs/clippy-check@v1
         with:

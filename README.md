@@ -51,7 +51,7 @@ let mut decoder = decoder_builder()
 use image::io::Reader as ImageReader;
 let sample = ImageReader::open("test/sample.png")?.decode()?.to_rgba16();
 let mut encoder = encoder_builder().build()?;
-let buffer: Vec<f32> = encoder.encode(&sample, sample.width(), sample.height())?;
+let buffer: EncoderResult<f32> = encoder.encode(&sample, sample.width(), sample.height())?;
 ```
 
 Set encoder options

@@ -30,7 +30,7 @@ pub enum DecodeError {
     /// Unknown Error
     // TODO: underlying library is working on a way to retrieve error message
     #[error("Unknown decoder error")]
-    GenericError,
+    GenericError(&'static str),
     /// Need more input bytes
     #[error("Doesn't need more input")]
     NeedMoreInput,
@@ -51,7 +51,7 @@ pub enum EncodeError {
     /// Unknown Error
     // TODO: underlying library is working on a way to retrieve error message
     #[error("Unknown encoder error")]
-    GenericError,
+    GenericError(&'static str),
     /// Not Supported
     #[error("Encoder does not support (yet)")]
     NotSupported,
@@ -61,19 +61,25 @@ pub enum EncodeError {
 }
 
 /// Error mapping from underlying C const to `JxlDecoderStatus` enum
-pub(crate) fn check_dec_status(status: JxlDecoderStatus) -> Result<(), DecodeError> {
+pub(crate) fn check_dec_status(
+    status: JxlDecoderStatus,
+    msg: &'static str,
+) -> Result<(), DecodeError> {
     match status {
         JxlDecoderStatus::Success => Ok(()),
-        JxlDecoderStatus::Error => Err(DecodeError::GenericError),
+        JxlDecoderStatus::Error => Err(DecodeError::GenericError(msg)),
         _ => Err(DecodeError::UnknownStatus(status)),
     }
 }
 
 /// Error mapping from underlying C const to `JxlEncoderStatus` enum
-pub(crate) fn check_enc_status(status: JxlEncoderStatus) -> Result<(), EncodeError> {
+pub(crate) fn check_enc_status(
+    status: JxlEncoderStatus,
+    msg: &'static str,
+) -> Result<(), EncodeError> {
     match status {
         JxlEncoderStatus::Success => Ok(()),
-        JxlEncoderStatus::Error => Err(EncodeError::GenericError),
+        JxlEncoderStatus::Error => Err(EncodeError::GenericError(msg)),
         JxlEncoderStatus::NotSupported => Err(EncodeError::NotSupported),
         JxlEncoderStatus::NeedMoreOutput => Err(EncodeError::UnknownStatus(status)),
     }

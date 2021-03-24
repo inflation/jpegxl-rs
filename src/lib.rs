@@ -72,12 +72,12 @@ along with jpegxl-rs.  If not, see <https://www.gnu.org/licenses/>.
 //! ## Encoding
 //!
 //! ```
-//! # use jpegxl_rs::encoder_builder;
+//! # use jpegxl_rs::{encoder_builder, EncoderResult};
 //! # || -> Result<(), Box<dyn std::error::Error>> {
 //! use image::io::Reader as ImageReader;
 //! let sample = ImageReader::open("test/sample.png")?.decode()?.to_rgba16();
 //! let mut encoder = encoder_builder().build()?;
-//! let buffer: Vec<f32> = encoder.encode(&sample, sample.width(), sample.height())?;
+//! let buffer: EncoderResult<f32> = encoder.encode(&sample, sample.width(), sample.height())?;
 //! # Ok(()) };
 //! ```
 //!
@@ -118,11 +118,11 @@ mod errors;
 pub mod memory;
 pub mod parallel;
 
-#[cfg(not(feature = "without-image"))]
+#[cfg(feature = "image-support")]
 pub mod image;
 
 pub use common::*;
 pub use decode::*;
 pub use encode::*;
-pub use errors::*;
+pub use errors::{DecodeError, EncodeError};
 pub use parallel::ThreadsRunner;
