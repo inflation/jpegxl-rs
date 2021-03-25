@@ -23,19 +23,21 @@ along with jpegxl-rs.  If not, see <https://www.gnu.org/licenses/>.
 
 //! [![Documentation](https://docs.rs/jpegxl-rs/badge.svg)](https://docs.rs/jpegxl-rs/)
 //! [![Crates.io](https://img.shields.io/crates/v/jpegxl-rs.svg)](https://crates.io/crates/jpegxl-rs)
-//! [![CI](https://github.com/inflation/jpegxl-rs/workflows/CI/badge.svg)](https://github.com/inflation/jpegxl-rs/actions?query=workflow%3ACI)
-//! [![License: GPL-3.0-or-later](https://img.shields.io/crates/l/jpegxl-rs)](https://github.com/inflation/jpegxl-rs/blob/master/LICENSE)
+//! [![CI](https://github.com/inflation/jpegxl-rs/workflows/CI/badge.svg)](
+//! https://github.com/inflation/jpegxl-rs/actions?query=workflow%3ACI)
+//! [![License: GPL-3.0-or-later](https://img.shields.io/crates/l/jpegxl-rs)](
+//! https://github.com/inflation/jpegxl-rs/blob/master/LICENSE)
 //!
 //! A safe JPEGXL wrapper over `jpeg-xl` library. Check out the original [library](https://gitlab.com/wg1/jpeg-xl)
 //! and the [bindings](https://github.com/inflation/jpegxl-sys).
 //!
 //! # Building
 //!
-//! The library build `jpeg-xl` and link to `libc++` by default. Optionally, you can set `--features=system-jpegxl` to
-//! dynamically link to it. If you don't have it in default include and library paths,
+//! The library build `jpeg-xl` and link to `lib(std)c++` by default. Optionally, you can use `system-jxl` feature to
+//! dynamically link to it. If you don't have it in the default include and library paths,
 //! set them with `DEP_JXL_INCLUDE` and `DEP_JXL_LIB` respectively.
 //!
-//! If you don't want to depend on C++ standard library, use `--features without-threads` to disable default threadpool.
+//! If you don't want to depend on C++ standard library, disable `threads` feature.
 //!
 //! # Usage
 //!
@@ -72,7 +74,7 @@ along with jpegxl-rs.  If not, see <https://www.gnu.org/licenses/>.
 //! ## Encoding
 //!
 //! ```
-//! # use jpegxl_rs::{encoder_builder, EncoderResult};
+//! # use jpegxl_rs::{encoder_builder, encode::EncoderResult};
 //! # || -> Result<(), Box<dyn std::error::Error>> {
 //! use image::io::Reader as ImageReader;
 //! let sample = ImageReader::open("test/sample.png")?.decode()?.to_rgba16();
@@ -85,7 +87,7 @@ along with jpegxl-rs.  If not, see <https://www.gnu.org/licenses/>.
 //!
 //! ```
 //! # || -> Result<(), Box<dyn std::error::Error>> {
-//! # use jpegxl_rs::*;
+//! # use jpegxl_rs::{*, encode::EncoderSpeed};
 //! let mut encoder = encoder_builder()
 //!                     .lossless(true)
 //!                     .speed(EncoderSpeed::Falcon)
@@ -112,8 +114,8 @@ along with jpegxl-rs.  If not, see <https://www.gnu.org/licenses/>.
 //! ```
 
 mod common;
-mod decode;
-mod encode;
+pub mod decode;
+pub mod encode;
 mod errors;
 pub mod memory;
 pub mod parallel;
@@ -121,8 +123,8 @@ pub mod parallel;
 #[cfg(feature = "image-support")]
 pub mod image;
 
-pub use common::*;
-pub use decode::*;
-pub use encode::*;
+pub use common::Endianness;
+pub use decode::decoder_builder;
+pub use encode::encoder_builder;
 pub use errors::{DecodeError, EncodeError};
 pub use parallel::ThreadsRunner;

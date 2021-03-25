@@ -19,7 +19,7 @@ along with jpegxl-rs.  If not, see <https://www.gnu.org/licenses/>.
 //! # Example
 //! ```
 //! # || -> Result<(), Box<dyn std::error::Error>> {
-//! use jpegxl_rs::{JxlDecoder, decoder_builder, parallel::*};
+//! use jpegxl_rs::{decoder_builder, parallel::*};
 //! // Use the default C++ Threadpool runner:
 //! let mut parallel_runner = ThreadsRunner::default();
 //! let mut decoder = decoder_builder().parallel_runner(&parallel_runner).build()?;

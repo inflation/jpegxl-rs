@@ -24,9 +24,9 @@ use image::{
 
 use crate::{
     common::PixelType,
+    decode::DecoderResult,
     decoder_builder,
     errors::{DecodeError, EncodeError},
-    DecoderResult, DecoderResultInfo,
 };
 
 // Error conversion
@@ -61,8 +61,7 @@ impl From<EncodeError> for image::ImageError {
 /// # Ok(()) };
 /// ```
 pub struct JxlImageDecoder<T: PixelType> {
-    info: DecoderResultInfo,
-    data: Box<[T]>,
+    result: DecoderResult<T>,
 }
 
 impl<T: PixelType> JxlImageDecoder<T> {
@@ -70,11 +69,11 @@ impl<T: PixelType> JxlImageDecoder<T> {
     /// # Errors
     /// Return an [`image::ImageError`] with wrapped [`DecodeError`]
     pub fn new(input: &[u8]) -> ImageResult<JxlImageDecoder<T>> {
-        let mut dec = decoder_builder().build()?;
+        let dec = decoder_builder().build()?;
         // TODO: Stream decoding
-        let DecoderResult { info, data } = dec.decode(&input)?;
+        let result = dec.decode(&input)?;
 
-        let decoder = JxlImageDecoder { info, data };
+        let decoder = JxlImageDecoder { result };
         Ok(decoder)
     }
 }
@@ -83,7 +82,7 @@ impl<'a> ImageDecoder<'a> for JxlImageDecoder<u8> {
     type Reader = std::io::Cursor<Vec<u8>>;
 
     fn color_type(&self) -> ColorType {
-        if self.info.has_alpha {
+        if self.result.info.has_alpha {
             ColorType::Rgba8
         } else {
             ColorType::Rgb8
@@ -91,11 +90,11 @@ impl<'a> ImageDecoder<'a> for JxlImageDecoder<u8> {
     }
 
     fn dimensions(&self) -> (u32, u32) {
-        (self.info.width, self.info.height)
+        (self.result.info.width, self.result.info.height)
     }
 
     fn into_reader(self) -> image::ImageResult<Self::Reader> {
-        Ok(std::io::Cursor::new(self.data.to_vec()))
+        Ok(std::io::Cursor::new(self.result.data.to_vec()))
     }
 }
 
@@ -103,7 +102,7 @@ impl<'a> ImageDecoder<'a> for JxlImageDecoder<u16> {
     type Reader = std::io::Cursor<Vec<u8>>;
 
     fn color_type(&self) -> ColorType {
-        if self.info.has_alpha {
+        if self.result.info.has_alpha {
             ColorType::Rgba16
         } else {
             ColorType::Rgb16
@@ -111,11 +110,11 @@ impl<'a> ImageDecoder<'a> for JxlImageDecoder<u16> {
     }
 
     fn dimensions(&self) -> (u32, u32) {
-        (self.info.width, self.info.height)
+        (self.result.info.width, self.result.info.height)
     }
 
     fn into_reader(self) -> image::ImageResult<Self::Reader> {
-        let mut v = std::mem::ManuallyDrop::new(self.data);
+        let mut v = std::mem::ManuallyDrop::new(self.result.data);
 
         let slice_u8 = unsafe {
             std::slice::from_raw_parts(v.as_mut_ptr().cast(), v.len() * std::mem::size_of::<u16>())

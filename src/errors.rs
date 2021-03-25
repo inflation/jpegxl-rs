@@ -24,16 +24,16 @@ use thiserror::Error;
 /// Errors derived from [`JxlDecoderStatus`]
 #[derive(Error, Debug)]
 pub enum DecodeError {
+    /// Unable to read more data
+    #[error("Error while reading data")]
+    InputError(#[from] std::io::Error),
     /// Cannot create a decoder
     #[error("Cannot create a decoder")]
     CannotCreateDecoder,
     /// Unknown Error
     // TODO: underlying library is working on a way to retrieve error message
-    #[error("Unknown decoder error")]
+    #[error("Decoder error: {0}")]
     GenericError(&'static str),
-    /// Need more input bytes
-    #[error("Doesn't need more input")]
-    NeedMoreInput,
     /// Invalid file format
     #[error("The file does not contain a valid codestream or container")]
     InvalidFileFormat,
@@ -50,7 +50,7 @@ pub enum EncodeError {
     CannotCreateEncoder,
     /// Unknown Error
     // TODO: underlying library is working on a way to retrieve error message
-    #[error("Unknown encoder error")]
+    #[error("Encoder error: {0}")]
     GenericError(&'static str),
     /// Not Supported
     #[error("Encoder does not support (yet)")]

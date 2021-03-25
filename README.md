@@ -2,19 +2,21 @@
 
 [![Documentation](https://docs.rs/jpegxl-rs/badge.svg)](https://docs.rs/jpegxl-rs/)
 [![Crates.io](https://img.shields.io/crates/v/jpegxl-rs.svg)](https://crates.io/crates/jpegxl-rs)
-[![CI](https://github.com/inflation/jpegxl-rs/workflows/CI/badge.svg)](https://github.com/inflation/jpegxl-rs/actions?query=workflow%3ACI)
-[![License: GPL-3.0-or-later](https://img.shields.io/crates/l/jpegxl-rs)](https://github.com/inflation/jpegxl-rs/blob/master/LICENSE)
+[![CI](https://github.com/inflation/jpegxl-rs/workflows/CI/badge.svg)](
+https://github.com/inflation/jpegxl-rs/actions?query=workflow%3ACI)
+[![License: GPL-3.0-or-later](https://img.shields.io/crates/l/jpegxl-rs)](
+https://github.com/inflation/jpegxl-rs/blob/master/LICENSE)
 
 A safe JPEGXL wrapper over `jpeg-xl` library. Check out the original [library](https://gitlab.com/wg1/jpeg-xl)
 and the [bindings](https://github.com/inflation/jpegxl-sys).
 
 ## Building
 
-The library build `jpeg-xl` and link to `libc++` by default. Optionally, you can set `--features=system-jpegxl` to
-dynamically link to it. If you don't have it in default include and library paths,
+The library build `jpeg-xl` and link to `lib(std)c++` by default. Optionally, you can use `system-jxl` feature to
+dynamically link to it. If you don't have it in the default include and library paths,
 set them with `DEP_JXL_INCLUDE` and `DEP_JXL_LIB` respectively.
 
-If you don't want to depend on C++ standard library, use `--features without-threads` to disable default threadpool.
+If you don't want to depend on C++ standard library, disable `threads` feature.
 
 ## Usage
 

@@ -7,13 +7,13 @@ pub fn criterion_benchmark(c: &mut Criterion) {
     group.measurement_time(std::time::Duration::new(20, 0));
 
     let sample = std::fs::read("test/sample.jxl").unwrap();
-    let mut decoder = decoder_builder().build().unwrap();
+    let decoder = decoder_builder().build().unwrap();
     group.bench_function("single thread", |b| {
         b.iter_with_large_drop(|| decoder.decode::<u8>(black_box(&sample)).unwrap())
     });
 
     let parallel_runner = ThreadsRunner::default();
-    let mut decoder = decoder_builder()
+    let decoder = decoder_builder()
         .parallel_runner(&parallel_runner)
         .build()
         .unwrap();

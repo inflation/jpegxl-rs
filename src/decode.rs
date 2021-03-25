@@ -22,11 +22,10 @@ use jpegxl_sys::*;
 use std::ptr::null;
 
 use crate::{
-    common::PixelType,
+    common::{Endianness, PixelType},
     errors::{check_dec_status, DecodeError},
     memory::JxlMemoryManager,
     parallel::JxlParallelRunner,
-    Endianness,
 };
 
 /// Basic Information
@@ -35,13 +34,13 @@ pub type BasicInfo = JxlBasicInfo;
 /// Result of decoding
 pub struct DecoderResult<T: PixelType> {
     /// Extra info
-    pub info: DecoderResultInfo,
+    pub info: ResultInfo,
     /// Decoded image data
     pub data: Box<[T]>,
 }
 
 /// Extra info of the result
-pub struct DecoderResultInfo {
+pub struct ResultInfo {
     /// Width of the image
     pub width: u32,
     /// Height of the image
@@ -125,7 +124,7 @@ impl<'a> JxlDecoder<'a> {
     /// Return a [`DecodeError`] when internal decoder fails
     /// # Panics
     /// Only when underlying library events order is wrong
-    pub fn decode<T: PixelType>(&mut self, data: &[u8]) -> Result<DecoderResult<T>, DecodeError> {
+    pub fn decode<T: PixelType>(&self, data: &[u8]) -> Result<DecoderResult<T>, DecodeError> {
         if let (info, Data::Pixels(data)) = self.decode_internal(data, false)? {
             Ok(DecoderResult { info, data })
         } else {
@@ -140,7 +139,7 @@ impl<'a> JxlDecoder<'a> {
     /// Return a [`DecodeError`] when internal decoder fails
     /// # Panics
     /// Only when underlying library events order is wrong
-    pub fn decode_jpeg(&mut self, data: &[u8]) -> Result<DecoderResult<u8>, DecodeError> {
+    pub fn decode_jpeg(&self, data: &[u8]) -> Result<DecoderResult<u8>, DecodeError> {
         if let (info, Data::Jpeg(data)) = self.decode_internal::<u8>(data, true)? {
             Ok(DecoderResult { info, data })
         } else {
@@ -149,21 +148,22 @@ impl<'a> JxlDecoder<'a> {
     }
 
     fn decode_internal<T: PixelType>(
-        &mut self,
+        &self,
         data: &[u8],
         reconstruct_jpeg: bool,
-    ) -> Result<(DecoderResultInfo, Data<T>), DecodeError> {
+    ) -> Result<(ResultInfo, Data<T>), DecodeError> {
         let mut basic_info = None;
         let mut pixel_format = None;
         let mut icc_profile = Vec::new();
+
         let mut buffer = Vec::new();
         let mut jpeg_buffer = Vec::new();
 
         if reconstruct_jpeg {
-            jpeg_buffer = vec![0; 64 * 1024]; // 1 MiB
+            jpeg_buffer = vec![0; 1024 * 1024]; // 1 MiB
         }
 
-        self.setup_decoder(data, reconstruct_jpeg)?;
+        self.setup_decoder(reconstruct_jpeg)?;
 
         let next_in = data.as_ptr();
         let avail_in = std::mem::size_of_val(data) as _;
@@ -181,7 +181,6 @@ impl<'a> JxlDecoder<'a> {
 
             match status {
                 Error => return Err(DecodeError::GenericError("Process input")),
-                NeedMoreInput => return Err(DecodeError::NeedMoreInput),
 
                 // Get the basic info
                 BasicInfo => self.get_basic_info::<T>(&mut basic_info, &mut pixel_format)?,
@@ -239,7 +238,7 @@ impl<'a> JxlDecoder<'a> {
 
                     let info = basic_info.unwrap();
                     return Ok((
-                        DecoderResultInfo {
+                        ResultInfo {
                             width: info.xsize,
                             height: info.ysize,
                             orientation: info.orientation,
@@ -258,12 +257,7 @@ impl<'a> JxlDecoder<'a> {
         }
     }
 
-    fn setup_decoder(&mut self, data: &[u8], reconstruct_jpeg: bool) -> Result<(), DecodeError> {
-        let signature = unsafe { JxlSignatureCheck(data.as_ptr(), data.len()) };
-        if signature != JxlSignature::Codestream && signature != JxlSignature::Container {
-            return Err(DecodeError::InvalidFileFormat);
-        }
-
+    fn setup_decoder(&self, reconstruct_jpeg: bool) -> Result<(), DecodeError> {
         if let Some(runner) = self.parallel_runner {
             check_dec_status(
                 unsafe {
@@ -285,9 +279,6 @@ impl<'a> JxlDecoder<'a> {
             if reconstruct_jpeg {
                 events |= JpegReconstruction as i32;
             }
-            if self.options.need_preview {
-                events |= PreviewImage as i32;
-            }
 
             events
         };
@@ -305,7 +296,7 @@ impl<'a> JxlDecoder<'a> {
     }
 
     fn get_basic_info<T: PixelType>(
-        &mut self,
+        &self,
         basic_info: &mut Option<JxlBasicInfo>,
         pixel_format: &mut Option<JxlPixelFormat>,
     ) -> Result<(), DecodeError> {
@@ -342,7 +333,7 @@ impl<'a> JxlDecoder<'a> {
     }
 
     fn get_icc_profile(
-        &mut self,
+        &self,
         format: &JxlPixelFormat,
         icc_profile: &mut Vec<u8>,
     ) -> Result<(), DecodeError> {
@@ -379,7 +370,7 @@ impl<'a> JxlDecoder<'a> {
     }
 
     fn output<T: PixelType>(
-        &mut self,
+        &self,
         pixel_format: &JxlPixelFormat,
         buffer: &mut Vec<T>,
     ) -> Result<(), DecodeError> {
@@ -418,8 +409,6 @@ struct DecoderOptions {
     endianness: Option<JxlEndianness>,
     align: Option<usize>,
     keep_orientation: bool,
-    // TODO: Output preview if streaming. Currently always `false`
-    need_preview: bool,
 }
 
 /// Builder for [`JxlDecoder`]
@@ -487,7 +476,6 @@ pub fn decoder_builder<'a>() -> JxlDecoderBuilder<'a> {
             endianness: None,
             align: None,
             keep_orientation: false,
-            need_preview: false,
         },
         memory_manager: None,
         parallel_runner: None,
@@ -505,7 +493,7 @@ mod tests {
     #[test]
     fn test_decode() -> Result<(), ImageError> {
         let sample = std::fs::read("test/sample.jxl")?;
-        let mut decoder = decoder_builder().build()?;
+        let decoder = decoder_builder().build()?;
 
         let DecoderResult { info, data, .. } = decoder.decode::<u8>(&sample)?;
 
@@ -520,7 +508,7 @@ mod tests {
     #[test]
     fn test_decode_container() -> Result<(), ImageError> {
         let sample = std::fs::read("test/sample_jpeg.jxl")?;
-        let mut decoder = decoder_builder().build()?;
+        let decoder = decoder_builder().build()?;
 
         let DecoderResult { data, .. } = decoder.decode_jpeg(&sample)?;
 
@@ -535,7 +523,7 @@ mod tests {
     fn test_decoder_builder() -> Result<(), ImageError> {
         let sample = std::fs::read("test/sample.jxl")?;
         let parallel_runner = ThreadsRunner::default();
-        let mut decoder = decoder_builder()
+        let decoder = decoder_builder()
             .num_channels(3)
             .endian(JxlEndianness::Big)
             .keep_orientation(true)
