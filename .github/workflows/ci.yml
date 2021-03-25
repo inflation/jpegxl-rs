@@ -15,7 +15,7 @@ jobs:
       - uses: actions-rs/toolchain@v1
         with:
           profile: minimal
-          toolchain: stable
+          toolchain: nightly
           override: true
       - uses: actions-rs/cargo@v1
         with:
@@ -29,6 +29,21 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: test
+          args: --no-fail-fast
+        env:
+          CARGO_INCREMENTAL: 0
+          RUSTFLAGS: "-Zprofile -Ccodegen-units=1 -Copt-level=0 -Clink-dead-code -Coverflow-checks=off -Zpanic_abort_tests -Cpanic=abort"
+          RUSTDOCFLAGS: "-Cpanic=abort"
+      - id: coverage
+        name: Code coverage
+        run: |
+          curl -L https://github.com/mozilla/grcov/releases/latest/download/grcov-linux-x86_64.tar.bz2 | tar jxf -
+          ./grcov . -s . --binary-path ./target/debug/ -t lcov --branch --llvm --ignore-not-existing --ignore "/*" -o lcov.info
+      - name: Coveralls upload
+        uses: coverallsapp/github-action@v1.1.2
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path-to-lcov: lcov.info
 
   clippy:
     name: Clippy

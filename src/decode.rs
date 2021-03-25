@@ -128,7 +128,7 @@ impl<'a> JxlDecoder<'a> {
         if let (info, Data::Pixels(data)) = self.decode_internal(data, false)? {
             Ok(DecoderResult { info, data })
         } else {
-            Err(DecodeError::GenericError("Output"))
+            unreachable!()
         }
     }
 
@@ -143,7 +143,7 @@ impl<'a> JxlDecoder<'a> {
         if let (info, Data::Jpeg(data)) = self.decode_internal::<u8>(data, true)? {
             Ok(DecoderResult { info, data })
         } else {
-            Err(DecodeError::GenericError("Output"))
+            unreachable!()
         }
     }
 
@@ -523,9 +523,10 @@ mod tests {
     fn test_decoder_builder() -> Result<(), ImageError> {
         let sample = std::fs::read("test/sample.jxl")?;
         let parallel_runner = ThreadsRunner::default();
-        let decoder = decoder_builder()
+        let mut decoder = decoder_builder()
             .num_channels(3)
             .endian(JxlEndianness::Big)
+            .align(2)
             .keep_orientation(true)
             .parallel_runner(&parallel_runner)
             .build()?;
@@ -533,6 +534,13 @@ mod tests {
         let DecoderResult { info, data, .. } = decoder.decode::<u8>(&sample)?;
 
         assert_eq!(data.len(), (info.width * info.height * 3) as usize);
+
+        decoder.set_align(0);
+        decoder.set_endianness(JxlEndianness::Native);
+        decoder.set_num_channels(4);
+        decoder.keep_orientation(true);
+
+        decoder.decode::<u8>(&sample)?;
 
         Ok(())
     }
