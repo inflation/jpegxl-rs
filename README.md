@@ -72,15 +72,16 @@ encoder.set_quality(3.0);
 
 ### [`image`](https://crates.io/crates/image) crate integration
 
-The integration is enabled by default. If you don't need it, use `without-image` feature.
+The integration is enabled by default. If you don't need it, disable `image-support` feature.
 
 ```rust
-use jpegxl_rs::image::*;
+use jpegxl_rs::image::ToDynamic;
+use jpegxl_rs::decoder_builder;
 use image::DynamicImage;
 
 let sample = std::fs::read("test/sample.jxl")?;
-let decoder: JxlImageDecoder<u16> = JxlImageDecoder::new(&sample)?;
-let img = DynamicImage::from_decoder(decoder)?;
+let decoder = decoder_builder().build()?;
+let img = decoder.decode::<u8>(&sample)?.into_dynamic_image();
 ```
 
 License: GPL-3.0-or-later

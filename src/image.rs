@@ -19,13 +19,11 @@ along with jpegxl-rs.  If not, see <https://www.gnu.org/licenses/>.
 
 use image::{
     error::{DecodingError, EncodingError, ImageFormatHint},
-    ColorType, ImageDecoder, ImageResult,
+    DynamicImage, ImageBuffer,
 };
 
 use crate::{
-    common::PixelType,
     decode::DecoderResult,
-    decoder_builder,
     errors::{DecodeError, EncodeError},
 };
 
@@ -48,94 +46,62 @@ impl From<EncodeError> for image::ImageError {
     }
 }
 
-/// JPEG XL decoder representation for `image` crate.<br />
-/// Note: Since `image` only supports 8-bit and 16-bit pixel depth,
-/// you can only create `u8` and `u16` buffer.
-/// # Example
-/// ```
-/// # || -> Result<(), Box<dyn std::error::Error>> {
-/// # use jpegxl_rs::image::*;
-/// let sample = std::fs::read("test/sample.jxl")?;
-/// let decoder: JxlImageDecoder<u16> = JxlImageDecoder::new(&sample)?;
-/// let img = image::DynamicImage::from_decoder(decoder)?;       
-/// # Ok(()) };
-/// ```
-pub struct JxlImageDecoder<T: PixelType> {
-    result: DecoderResult<T>,
+/// Extension trait for [`DecoderResult`]
+pub trait ToDynamic {
+    /// Convert the decoded result to a [`DynamicImage`]
+    fn into_dynamic_image(self) -> Option<DynamicImage>;
 }
 
-impl<T: PixelType> JxlImageDecoder<T> {
-    /// Create a new JPEG XL Decoder.
-    /// # Errors
-    /// Return an [`image::ImageError`] with wrapped [`DecodeError`]
-    pub fn new(input: &[u8]) -> ImageResult<JxlImageDecoder<T>> {
-        let dec = decoder_builder().build()?;
-        // TODO: Stream decoding
-        let result = dec.decode(&input)?;
-
-        let decoder = JxlImageDecoder { result };
-        Ok(decoder)
-    }
-}
-
-impl<'a> ImageDecoder<'a> for JxlImageDecoder<u8> {
-    type Reader = std::io::Cursor<Vec<u8>>;
-
-    fn color_type(&self) -> ColorType {
-        if self.result.info.has_alpha {
-            ColorType::Rgba8
-        } else {
-            ColorType::Rgb8
+impl ToDynamic for DecoderResult<u8> {
+    fn into_dynamic_image(self) -> Option<DynamicImage> {
+        match self.info.num_channels {
+            1 => ImageBuffer::from_raw(self.info.width, self.info.height, self.data)
+                .map(DynamicImage::ImageLuma8),
+            2 => ImageBuffer::from_raw(self.info.width, self.info.height, self.data)
+                .map(DynamicImage::ImageLumaA8),
+            3 => ImageBuffer::from_raw(self.info.width, self.info.height, self.data)
+                .map(DynamicImage::ImageRgb8),
+            4 => ImageBuffer::from_raw(self.info.width, self.info.height, self.data)
+                .map(DynamicImage::ImageRgba8),
+            _ => unreachable!(),
         }
     }
-
-    fn dimensions(&self) -> (u32, u32) {
-        (self.result.info.width, self.result.info.height)
-    }
-
-    fn into_reader(self) -> image::ImageResult<Self::Reader> {
-        Ok(std::io::Cursor::new(self.result.data.to_vec()))
-    }
 }
 
-impl<'a> ImageDecoder<'a> for JxlImageDecoder<u16> {
-    type Reader = std::io::Cursor<Vec<u8>>;
-
-    fn color_type(&self) -> ColorType {
-        if self.result.info.has_alpha {
-            ColorType::Rgba16
-        } else {
-            ColorType::Rgb16
+impl ToDynamic for DecoderResult<u16> {
+    fn into_dynamic_image(self) -> Option<DynamicImage> {
+        match self.info.num_channels {
+            1 => ImageBuffer::from_raw(self.info.width, self.info.height, self.data)
+                .map(DynamicImage::ImageLuma16),
+            2 => ImageBuffer::from_raw(self.info.width, self.info.height, self.data)
+                .map(DynamicImage::ImageLumaA16),
+            3 => ImageBuffer::from_raw(self.info.width, self.info.height, self.data)
+                .map(DynamicImage::ImageRgb16),
+            4 => ImageBuffer::from_raw(self.info.width, self.info.height, self.data)
+                .map(DynamicImage::ImageRgba16),
+            _ => unreachable!(),
         }
-    }
-
-    fn dimensions(&self) -> (u32, u32) {
-        (self.result.info.width, self.result.info.height)
-    }
-
-    fn into_reader(self) -> image::ImageResult<Self::Reader> {
-        let mut v = std::mem::ManuallyDrop::new(self.result.data);
-
-        let slice_u8 = unsafe {
-            std::slice::from_raw_parts(v.as_mut_ptr().cast(), v.len() * std::mem::size_of::<u16>())
-        };
-        Ok(std::io::Cursor::new(slice_u8.to_vec()))
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use crate::{decoder_builder, ThreadsRunner};
+
     use super::*;
 
     #[test]
     fn test_image_support() -> Result<(), Box<dyn std::error::Error>> {
         let sample = std::fs::read("test/sample.jxl")?;
-        let decoder: JxlImageDecoder<u16> = JxlImageDecoder::new(&sample)?;
+        let parallel_runner = ThreadsRunner::default();
+        let decoder = decoder_builder()
+            .parallel_runner(&parallel_runner)
+            .build()?;
 
-        let img = image::DynamicImage::from_decoder(decoder)?;
+        let img = decoder.decode::<u8>(&sample)?.into_dynamic_image().unwrap();
         let sample_png = image::io::Reader::open("test/sample.png")?.decode()?;
 
-        assert_eq!(img.as_rgb8(), sample_png.as_rgb8());
+        assert_eq!(img.to_rgb8(), sample_png.to_rgb8());
 
         Ok(())
     }
