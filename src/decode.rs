@@ -490,7 +490,10 @@ mod tests {
     use std::error::Error;
 
     use super::*;
-    use crate::ThreadsRunner;
+    use crate::{
+        memory::{MallocManager, NoManager},
+        ThreadsRunner,
+    };
     use image::ImageDecoder;
 
     #[test]
@@ -557,11 +560,15 @@ mod tests {
 
     #[test]
     fn test_memory_manager() -> Result<(), Box<dyn Error>> {
-        use crate::memory::MallocManager;
-
         let sample = std::fs::read("test/sample.jxl")?;
-        let memory_manager = MallocManager::default();
+        let memory_manager = NoManager {};
 
+        let parallel_runner = ThreadsRunner::new(Some(&memory_manager), None);
+        assert!(matches!(parallel_runner, None));
+        let decoder = decoder_builder().memory_manager(&memory_manager).build();
+        assert!(matches!(decoder, Err(DecodeError::CannotCreateDecoder)));
+
+        let memory_manager = MallocManager::default();
         let mut decoder = decoder_builder().memory_manager(&memory_manager).build()?;
         let custom_buffer = decoder.decode::<u8>(&sample)?;
 

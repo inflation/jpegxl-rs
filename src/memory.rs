@@ -57,7 +57,6 @@ pub trait JxlMemoryManager {
 }
 
 /// Example implement of [`JxlMemoryManager`]
-#[derive(Debug)]
 pub struct MallocManager {
     layouts: HashMap<*mut c_void, Layout>,
 }
@@ -82,7 +81,7 @@ impl JxlMemoryManager for MallocManager {
 
                     address.cast()
                 }
-                _ => null_mut(),
+                Err(_) => null_mut(),
             }
         }
 
@@ -97,5 +96,21 @@ impl JxlMemoryManager for MallocManager {
         }
 
         Some(free)
+    }
+}
+
+pub(crate) struct NoManager {}
+
+impl JxlMemoryManager for NoManager {
+    fn alloc(&self) -> Option<crate::memory::AllocFn> {
+        unsafe extern "C" fn alloc(_a: *mut c_void, _b: usize) -> *mut c_void {
+            null_mut()
+        }
+
+        Some(alloc)
+    }
+
+    fn free(&self) -> Option<crate::memory::FreeFn> {
+        None
     }
 }

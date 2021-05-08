@@ -35,21 +35,26 @@ pub trait PixelType: Clone + Default + 'static {
         ((std::mem::size_of::<Self>() * 8) as u32, 0)
     }
 }
+
 impl PixelType for u8 {
     fn pixel_type() -> JxlDataType {
         JxlDataType::Uint8
     }
 }
+
 impl PixelType for u16 {
     fn pixel_type() -> JxlDataType {
         JxlDataType::Uint16
     }
 }
-impl PixelType for u32 {
-    fn pixel_type() -> JxlDataType {
-        JxlDataType::Uint32
-    }
-}
+
+// TODO: Wait until upstream supports the type
+// impl PixelType for u32 {
+//     fn pixel_type() -> JxlDataType {
+//         JxlDataType::Uint32
+//     }
+// }
+
 impl PixelType for f32 {
     fn pixel_type() -> JxlDataType {
         JxlDataType::Float

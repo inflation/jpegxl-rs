@@ -600,8 +600,10 @@ mod tests {
 
     use image::{io::Reader as ImageReader, GenericImageView, ImageFormat};
 
+    type Res = Result<(), Box<dyn std::error::Error>>;
+
     #[test]
-    fn test_encode_single() -> Result<(), image::ImageError> {
+    fn test_encode_single() -> Res {
         let sample = ImageReader::open("test/sample.png")?.decode()?.to_rgb8();
         let parallel_runner = ThreadsRunner::default();
         let encoder = encoder_builder()
@@ -609,7 +611,7 @@ mod tests {
             .speed(EncoderSpeed::Falcon)
             .build()?;
 
-        let result: EncoderResult<u8> =
+        let result: EncoderResult<f32> =
             encoder.encode(sample.as_raw(), sample.width(), sample.height())?;
 
         let decoder = decoder_builder()
@@ -621,7 +623,7 @@ mod tests {
     }
 
     #[test]
-    fn test_encode_jpeg() -> Result<(), image::ImageError> {
+    fn test_encode_jpeg() -> Res {
         let sample = std::fs::read("test/sample.jpg")?;
         let jpeg =
             ImageReader::with_format(std::io::Cursor::new(&sample), ImageFormat::Jpeg).decode()?;
@@ -639,7 +641,7 @@ mod tests {
     }
 
     #[test]
-    fn test_encoder_builder() -> Result<(), image::ImageError> {
+    fn test_encoder_builder() -> Res {
         let sample = ImageReader::open("test/sample.png")?.decode()?.to_rgba8();
         let parallel_runner = ThreadsRunner::default();
         let mut encoder = encoder_builder()
@@ -666,7 +668,7 @@ mod tests {
     }
 
     #[test]
-    fn test_encode_multi_frames() -> Result<(), image::ImageError> {
+    fn test_encode_multi_frames() -> Res {
         let sample = ImageReader::open("test/sample.png")?.decode()?.to_rgb8();
         let sample_jpeg = std::fs::read("test/sample.jpg")?;
         let parallel_runner = ThreadsRunner::default();
@@ -685,7 +687,7 @@ mod tests {
     }
 
     #[test]
-    fn test_memory_manager() -> Result<(), Box<dyn std::error::Error>> {
+    fn test_memory_manager() -> Res {
         let sample = ImageReader::open("test/sample.png")?.decode()?.to_rgba16();
         let memory_manager = MallocManager::default();
         let parallel_runner = ThreadsRunner::default();

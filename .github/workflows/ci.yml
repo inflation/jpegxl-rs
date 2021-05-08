@@ -20,11 +20,12 @@ jobs:
           components: llvm-tools-preview
       - uses: actions-rs/cargo@v1
         with:
-          command: fetch
+          command: generate-lockfile
       - uses: actions/cache@v2
         with:
           path: |
             target
+            ~/.cargo
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
       - name: Test
         uses: actions-rs/cargo@v1

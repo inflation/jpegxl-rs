@@ -17,34 +17,9 @@ along with jpegxl-rs.  If not, see <https://www.gnu.org/licenses/>.
 
 //! `image` crate integration
 
-use image::{
-    error::{DecodingError, EncodingError, ImageFormatHint},
-    DynamicImage, ImageBuffer,
-};
+use image::{DynamicImage, ImageBuffer};
 
-use crate::{
-    decode::DecoderResult,
-    errors::{DecodeError, EncodeError},
-};
-
-// Error conversion
-impl From<DecodeError> for image::ImageError {
-    fn from(e: DecodeError) -> Self {
-        image::ImageError::Decoding(DecodingError::new(
-            ImageFormatHint::Name("JPEGXL".to_string()),
-            e,
-        ))
-    }
-}
-
-impl From<EncodeError> for image::ImageError {
-    fn from(e: EncodeError) -> Self {
-        image::ImageError::Encoding(EncodingError::new(
-            ImageFormatHint::Name("JPEGXL".to_string()),
-            e,
-        ))
-    }
-}
+use crate::decode::DecoderResult;
 
 /// Extension trait for [`DecoderResult`]
 pub trait ToDynamic {
@@ -92,12 +67,41 @@ mod tests {
             .build()?;
 
         let img = decoder
-            .decode::<u8>(&sample)?
+            .decode::<u16>(&sample)?
             .into_dynamic_image()
             .ok_or("Failed to create DynamicImage")?;
         let sample_png = image::io::Reader::open("test/sample.png")?.decode()?;
 
-        assert_eq!(img.to_rgb8(), sample_png.to_rgb8());
+        assert_eq!(img.to_rgba16(), sample_png.to_rgba16());
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_image_channels() -> Result<(), Box<dyn std::error::Error>> {
+        let sample = std::fs::read("test/sample_grey.jxl")?;
+        let parallel_runner = ThreadsRunner::default();
+        let mut decoder = decoder_builder()
+            .parallel_runner(&parallel_runner)
+            .num_channels(1)
+            .build()?;
+
+        decoder
+            .decode::<u8>(&sample)?
+            .into_dynamic_image()
+            .ok_or("Failed to create DynamicImage")?;
+
+        decoder.set_num_channels(2);
+        decoder
+            .decode::<u8>(&sample)?
+            .into_dynamic_image()
+            .ok_or("Failed to create DynamicImage")?;
+
+        decoder.set_num_channels(3);
+        decoder
+            .decode::<u8>(&sample)?
+            .into_dynamic_image()
+            .ok_or("Failed to create DynamicImage")?;
 
         Ok(())
     }

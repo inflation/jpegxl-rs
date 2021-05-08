@@ -25,7 +25,6 @@ use jpegxl_sys::thread_runner::*;
 use super::{JxlParallelRunner, RunnerFn};
 use crate::memory::JxlMemoryManager;
 
-#[derive(Debug)]
 /// Wrapper for default threadpool implementation with C++ standard library
 pub struct ThreadsRunner {
     runner_ptr: *mut c_void,
@@ -34,10 +33,22 @@ pub struct ThreadsRunner {
 impl ThreadsRunner {
     /// Construct with number of threads
     #[must_use]
-    pub fn new(memory_manager: Option<&mut dyn JxlMemoryManager>, num_workers: usize) -> Self {
+    pub fn new(
+        memory_manager: Option<&dyn JxlMemoryManager>,
+        num_workers: Option<usize>,
+    ) -> Option<Self> {
         let memory_manager = memory_manager.map_or(std::ptr::null(), |s| &mut s.to_manager() as _);
-        Self {
-            runner_ptr: unsafe { JxlThreadParallelRunnerCreate(memory_manager, num_workers as _) },
+        let runner_ptr = unsafe {
+            JxlThreadParallelRunnerCreate(
+                memory_manager,
+                num_workers.map_or(JxlThreadParallelRunnerDefaultNumWorkerThreads(), |n| n as _),
+            )
+        };
+
+        if runner_ptr.is_null() {
+            None
+        } else {
+            Some(Self { runner_ptr })
         }
     }
 }
