@@ -17,8 +17,6 @@ along with jpegxl-rs.  If not, see <https://www.gnu.org/licenses/>.
 
 //! Common types used across the crate
 
-use std::convert::TryInto;
-
 use jpegxl_sys::JxlDataType;
 
 /// Endianness of the pixels
@@ -31,10 +29,10 @@ pub trait PixelType: Clone + Default + 'static {
     fn pixel_type() -> JxlDataType;
 
     /// Return number of bits per sample and exponential bits
-    /// Panic: Should never
     #[must_use]
+    #[allow(clippy::cast_possible_truncation)]
     fn bits_per_sample() -> (u32, u32) {
-        ((std::mem::size_of::<Self>() * 8).try_into().unwrap(), 0)
+        ((std::mem::size_of::<Self>() * 8) as u32, 0)
     }
 }
 impl PixelType for u8 {

@@ -28,7 +28,9 @@ along with jpegxl-rs.  If not, see <https://www.gnu.org/licenses/>.
 
 use std::{
     alloc::{GlobalAlloc as _, Layout, System},
+    collections::HashMap,
     ffi::c_void,
+    ptr::null_mut,
 };
 
 /// Allocator function type
@@ -57,13 +59,13 @@ pub trait JxlMemoryManager {
 /// Example implement of [`JxlMemoryManager`]
 #[derive(Debug)]
 pub struct MallocManager {
-    layout: Layout,
+    layouts: HashMap<*mut c_void, Layout>,
 }
 
 impl Default for MallocManager {
     fn default() -> Self {
         Self {
-            layout: Layout::from_size_align(0, 8).unwrap(),
+            layouts: HashMap::new(),
         }
     }
 }
@@ -71,13 +73,17 @@ impl Default for MallocManager {
 impl JxlMemoryManager for MallocManager {
     fn alloc(&self) -> Option<AllocFn> {
         unsafe extern "C" fn alloc(opaque: *mut c_void, size: usize) -> *mut c_void {
-            let layout = Layout::from_size_align(size, 8).unwrap();
-            let address = System.alloc(layout);
+            match Layout::from_size_align(size, 8) {
+                Ok(layout) => {
+                    let address = System.alloc(layout);
 
-            let manager = opaque.cast::<MallocManager>().as_mut().unwrap();
-            manager.layout = layout;
+                    let manager = &mut *opaque.cast::<MallocManager>();
+                    manager.layouts.insert(address.cast(), layout);
 
-            address.cast()
+                    address.cast()
+                }
+                _ => null_mut(),
+            }
         }
 
         Some(alloc)
@@ -85,8 +91,9 @@ impl JxlMemoryManager for MallocManager {
 
     fn free(&self) -> Option<FreeFn> {
         unsafe extern "C" fn free(opaque: *mut c_void, address: *mut c_void) {
-            let layout = opaque.cast::<MallocManager>().as_mut().unwrap().layout;
-            System.dealloc(address.cast(), layout);
+            if let Some(layout) = (*opaque.cast::<MallocManager>()).layouts.remove(&address) {
+                System.dealloc(address.cast(), layout);
+            }
         }
 
         Some(free)

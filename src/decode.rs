@@ -487,14 +487,14 @@ pub fn decoder_builder<'a>() -> JxlDecoderBuilder<'a> {
 
 #[cfg(test)]
 mod tests {
-    use std::convert::TryInto;
+    use std::error::Error;
 
     use super::*;
     use crate::ThreadsRunner;
-    use image::{ImageDecoder, ImageError};
+    use image::ImageDecoder;
 
     #[test]
-    fn test_decode() -> Result<(), ImageError> {
+    fn test_decode() -> Result<(), Box<dyn Error>> {
         let sample = std::fs::read("test/sample.jxl")?;
         let parallel_runner = ThreadsRunner::default();
         let decoder = decoder_builder()
@@ -506,13 +506,14 @@ mod tests {
         assert_eq!(data.len(), (info.width * info.height * 4) as usize);
 
         // Check if icc profile is valid
-        qcms::Profile::new_from_slice(&info.icc_profile).unwrap();
+        qcms::Profile::new_from_slice(&info.icc_profile).ok_or("Failed to retrieve ICC profile")?;
 
         Ok(())
     }
 
     #[test]
-    fn test_decode_container() -> Result<(), ImageError> {
+    #[allow(clippy::cast_possible_truncation)]
+    fn test_decode_container() -> Result<(), Box<dyn Error>> {
         let sample = std::fs::read("test/sample_jpg.jxl")?;
         let parallel_runner = ThreadsRunner::default();
         let decoder = decoder_builder()
@@ -522,14 +523,14 @@ mod tests {
         let DecoderResult { data, .. } = decoder.decode_jpeg(&sample)?;
 
         let jpeg = image::codecs::jpeg::JpegDecoder::new(data.as_slice())?;
-        let mut v = vec![0; jpeg.total_bytes().try_into().unwrap()];
+        let mut v = vec![0; jpeg.total_bytes() as usize];
         jpeg.read_image(&mut v)?;
 
         Ok(())
     }
 
     #[test]
-    fn test_decoder_builder() -> Result<(), ImageError> {
+    fn test_decoder_builder() -> Result<(), Box<dyn Error>> {
         let sample = std::fs::read("test/sample.jxl")?;
         let parallel_runner = ThreadsRunner::default();
         let mut decoder = decoder_builder()
@@ -555,7 +556,7 @@ mod tests {
     }
 
     #[test]
-    fn test_memory_manager() -> Result<(), Box<dyn std::error::Error>> {
+    fn test_memory_manager() -> Result<(), Box<dyn Error>> {
         use crate::memory::MallocManager;
 
         let sample = std::fs::read("test/sample.jxl")?;

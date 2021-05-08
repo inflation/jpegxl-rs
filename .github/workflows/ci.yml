@@ -38,7 +38,7 @@ jobs:
         name: Code coverage
         run: |
           curl -L https://github.com/mozilla/grcov/releases/latest/download/grcov-linux-x86_64.tar.bz2 | tar jxf -
-          ./grcov . -s src --binary-path ./target/debug/ -t lcov --branch --llvm --ignore-not-existing --ignore "/*" -o lcov.info
+          ./grcov . -s . --binary-path ./target/debug/ -t lcov --branch --llvm --ignore-not-existing --ignore "/*" -o lcov.info
       - name: Coveralls upload
         uses: coverallsapp/github-action@v1.1.2
         with:

@@ -52,37 +52,30 @@ pub trait ToDynamic {
     fn into_dynamic_image(self) -> Option<DynamicImage>;
 }
 
-impl ToDynamic for DecoderResult<u8> {
-    fn into_dynamic_image(self) -> Option<DynamicImage> {
-        match self.info.num_channels {
-            1 => ImageBuffer::from_raw(self.info.width, self.info.height, self.data)
-                .map(DynamicImage::ImageLuma8),
-            2 => ImageBuffer::from_raw(self.info.width, self.info.height, self.data)
-                .map(DynamicImage::ImageLumaA8),
-            3 => ImageBuffer::from_raw(self.info.width, self.info.height, self.data)
-                .map(DynamicImage::ImageRgb8),
-            4 => ImageBuffer::from_raw(self.info.width, self.info.height, self.data)
-                .map(DynamicImage::ImageRgba8),
-            _ => unreachable!(),
-        }
-    }
+macro_rules! to_dynamic {
+    ($self:ident, $x:ident) => {
+        ImageBuffer::from_raw($self.info.width, $self.info.height, $self.data).map(DynamicImage::$x)
+    };
 }
 
-impl ToDynamic for DecoderResult<u16> {
-    fn into_dynamic_image(self) -> Option<DynamicImage> {
-        match self.info.num_channels {
-            1 => ImageBuffer::from_raw(self.info.width, self.info.height, self.data)
-                .map(DynamicImage::ImageLuma16),
-            2 => ImageBuffer::from_raw(self.info.width, self.info.height, self.data)
-                .map(DynamicImage::ImageLumaA16),
-            3 => ImageBuffer::from_raw(self.info.width, self.info.height, self.data)
-                .map(DynamicImage::ImageRgb16),
-            4 => ImageBuffer::from_raw(self.info.width, self.info.height, self.data)
-                .map(DynamicImage::ImageRgba16),
-            _ => unreachable!(),
+macro_rules! impl_to_dynamic {
+    ($pix:tt, $a:ident, $b:ident, $c:ident, $d:ident) => {
+        impl ToDynamic for DecoderResult<$pix> {
+            fn into_dynamic_image(self) -> Option<DynamicImage> {
+                match self.info.num_channels {
+                    1 => to_dynamic!(self, $a),
+                    2 => to_dynamic!(self, $b),
+                    3 => to_dynamic!(self, $c),
+                    4 => to_dynamic!(self, $d),
+                    _ => unreachable!(),
+                }
+            }
         }
-    }
+    };
 }
+
+impl_to_dynamic!(u8, ImageLuma8, ImageLumaA8, ImageRgb8, ImageRgba8);
+impl_to_dynamic!(u16, ImageLuma16, ImageLumaA16, ImageRgb16, ImageRgba16);
 
 #[cfg(test)]
 mod tests {
@@ -98,7 +91,10 @@ mod tests {
             .parallel_runner(&parallel_runner)
             .build()?;
 
-        let img = decoder.decode::<u8>(&sample)?.into_dynamic_image().unwrap();
+        let img = decoder
+            .decode::<u8>(&sample)?
+            .into_dynamic_image()
+            .ok_or("Failed to create DynamicImage")?;
         let sample_png = image::io::Reader::open("test/sample.png")?.decode()?;
 
         assert_eq!(img.to_rgb8(), sample_png.to_rgb8());
