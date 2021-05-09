@@ -27,9 +27,9 @@ pub type FreeFn = unsafe extern "C" fn(opaque: *mut c_void, address: *mut c_void
 
 pub trait JxlMemoryManager {
     /// Return a custom allocator function. Can be None for using default one
-    fn alloc(&self) -> Option<AllocFn>;
+    fn alloc(&self) -> AllocFn;
     /// Return a custom deallocator function. Can be None for using default one
-    fn free(&self) -> Option<FreeFn>;
+    fn free(&self) -> FreeFn;
 
     /// Helper conversion function for C API
     fn to_manager(&self) -> jpegxl_sys::JxlMemoryManager {
@@ -43,77 +43,66 @@ pub trait JxlMemoryManager {
 
 #[cfg(test)]
 pub(crate) mod tests {
-    use std::{
-        alloc::{GlobalAlloc, Layout, System},
-        collections::HashMap,
-        ptr::null_mut,
-        sync::Mutex,
-    };
+    use std::ptr::null_mut;
 
     use super::*;
 
     pub(crate) struct NoManager {}
 
     impl JxlMemoryManager for NoManager {
-        fn alloc(&self) -> Option<crate::memory::AllocFn> {
+        fn alloc(&self) -> AllocFn {
             unsafe extern "C" fn alloc(_a: *mut c_void, _b: usize) -> *mut c_void {
                 null_mut()
             }
 
-            Some(alloc)
+            alloc
         }
 
-        fn free(&self) -> Option<crate::memory::FreeFn> {
-            None
+        fn free(&self) -> FreeFn {
+            unsafe extern "C" fn free(_opaque: *mut c_void, _address: *mut c_void) {}
+
+            free
         }
     }
 
-    /// Example implement of [`JxlMemoryManager`]
-    pub struct MallocManager {
-        layouts: Mutex<HashMap<*mut c_void, Layout>>,
+    /// Example implementation of [`JxlMemoryManager`] of a fixed size allocator
+    pub struct BumpManager<const N: usize> {
+        arena: Box<[u8; N]>,
+        footer: usize,
     }
 
-    impl Default for MallocManager {
+    impl<const N: usize> Default for BumpManager<N> {
         fn default() -> Self {
             Self {
-                layouts: Mutex::new(HashMap::new()),
+                arena: Box::new([0_u8; N]),
+                footer: 0,
             }
         }
     }
 
-    impl JxlMemoryManager for MallocManager {
-        fn alloc(&self) -> Option<AllocFn> {
-            unsafe extern "C" fn alloc(opaque: *mut c_void, size: usize) -> *mut c_void {
-                match Layout::from_size_align(size, 8) {
-                    Ok(layout) => {
-                        let address = System.alloc(layout);
-
-                        let manager = &mut *opaque.cast::<MallocManager>();
-                        if let Ok(mut mg) = manager.layouts.lock() {
-                            mg.insert(address.cast(), layout);
-                        } else {
-                            return null_mut();
-                        }
-
-                        address.cast()
-                    }
-                    Err(_) => null_mut(),
+    impl<const N: usize> JxlMemoryManager for BumpManager<N> {
+        fn alloc(&self) -> AllocFn {
+            unsafe extern "C" fn alloc<const N: usize>(
+                opaque: *mut c_void,
+                size: usize,
+            ) -> *mut c_void {
+                let mm = &mut *opaque.cast::<BumpManager<{ N }>>();
+                if mm.footer + size > N {
+                    null_mut()
+                } else {
+                    let addr = mm.arena.get_unchecked_mut(mm.footer);
+                    mm.footer += size;
+                    (addr as *mut u8).cast()
                 }
             }
 
-            Some(alloc)
+            alloc::<N>
         }
 
-        fn free(&self) -> Option<FreeFn> {
-            unsafe extern "C" fn free(opaque: *mut c_void, address: *mut c_void) {
-                if let Ok(mg) = &mut (*opaque.cast::<MallocManager>()).layouts.lock() {
-                    if let Some(layout) = mg.remove(&address) {
-                        System.dealloc(address.cast(), layout);
-                    }
-                };
-            }
+        fn free(&self) -> FreeFn {
+            unsafe extern "C" fn free(_opaque: *mut c_void, _address: *mut c_void) {}
 
-            Some(free)
+            free
         }
     }
 

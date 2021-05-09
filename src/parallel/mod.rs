@@ -46,8 +46,8 @@ pub type RunFn = unsafe extern "C" fn(*mut c_void, u32, usize);
 pub type RunnerFn = unsafe extern "C" fn(
     runner_opaque: *mut c_void,
     jpegxl_opaque: *mut c_void,
-    init_func: Option<InitFn>,
-    run_func: Option<RunFn>,
+    init_func: InitFn,
+    run_func: RunFn,
     start_range: u32,
     end_range: u32,
 ) -> JxlParallelRetCode;

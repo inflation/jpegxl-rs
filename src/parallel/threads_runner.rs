@@ -23,7 +23,6 @@ use std::ffi::c_void;
 use jpegxl_sys::thread_runner::*;
 
 use super::{JxlParallelRunner, RunnerFn};
-use crate::memory::JxlMemoryManager;
 
 /// Wrapper for default threadpool implementation with C++ standard library
 pub struct ThreadsRunner {
@@ -34,13 +33,12 @@ impl ThreadsRunner {
     /// Construct with number of threads
     #[must_use]
     pub fn new(
-        memory_manager: Option<&dyn JxlMemoryManager>,
+        memory_manager: Option<&jpegxl_sys::JxlMemoryManager>,
         num_workers: Option<usize>,
     ) -> Option<Self> {
-        let memory_manager = memory_manager.map_or(std::ptr::null(), |s| &mut s.to_manager() as _);
         let runner_ptr = unsafe {
             JxlThreadParallelRunnerCreate(
-                memory_manager,
+                memory_manager.map_or(std::ptr::null(), |mm| mm),
                 num_workers.map_or(JxlThreadParallelRunnerDefaultNumWorkerThreads(), |n| n as _),
             )
         };
@@ -85,18 +83,21 @@ impl Drop for ThreadsRunner {
 
 #[cfg(test)]
 mod tests {
-    use crate::memory::tests::{MallocManager, NoManager};
+    use crate::memory::{
+        tests::{BumpManager, NoManager},
+        JxlMemoryManager,
+    };
 
     use super::*;
 
     #[test]
     fn test_construction() {
         let memory_manager = NoManager {};
-        let parallel_runner = ThreadsRunner::new(Some(&memory_manager), None);
+        let parallel_runner = ThreadsRunner::new(Some(&memory_manager.to_manager()), None);
         assert!(parallel_runner.is_none());
 
-        let memory_manager = MallocManager::default();
-        let parallel_runner = ThreadsRunner::new(Some(&memory_manager), None);
+        let memory_manager = BumpManager::<512>::default();
+        let parallel_runner = ThreadsRunner::new(Some(&memory_manager.to_manager()), None);
         assert!(parallel_runner.is_some());
     }
 }

@@ -334,11 +334,7 @@ impl<'a> JxlEncoder<'a> {
         if let Some(runner) = self.parallel_runner {
             unsafe {
                 check_enc_status(
-                    JxlEncoderSetParallelRunner(
-                        self.enc,
-                        Some(runner.runner()),
-                        runner.as_opaque_ptr(),
-                    ),
+                    JxlEncoderSetParallelRunner(self.enc, runner.runner(), runner.as_opaque_ptr()),
                     "Set parallel runner",
                 )?
             }

@@ -273,11 +273,7 @@ impl<'a> JxlDecoder<'a> {
         if let Some(runner) = self.parallel_runner {
             check_dec_status(
                 unsafe {
-                    JxlDecoderSetParallelRunner(
-                        self.dec,
-                        Some(runner.runner()),
-                        runner.as_opaque_ptr(),
-                    )
+                    JxlDecoderSetParallelRunner(self.dec, runner.runner(), runner.as_opaque_ptr())
                 },
                 "Set parallel runner",
             )?
@@ -501,9 +497,11 @@ mod tests {
     #[test]
     fn test_decode() -> Result<(), Box<dyn Error>> {
         let sample = std::fs::read("test/sample.jxl")?;
-        let parallel_runner = ThreadsRunner::default();
+        let mm = crate::memory::tests::BumpManager::<{ 1024 * 1024 }>::default();
+        let parallel_runner = ThreadsRunner::new(Some(&mm.to_manager()), None).unwrap();
         let decoder = decoder_builder()
             .parallel_runner(&parallel_runner)
+            .memory_manager(&mm)
             .build()?;
 
         let DecoderResult { info, data, .. } = decoder.decode::<u8>(&sample)?;
