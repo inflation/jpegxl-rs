@@ -82,3 +82,21 @@ impl Drop for ThreadsRunner {
         unsafe { JxlThreadParallelRunnerDestroy(self.runner_ptr) };
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use crate::memory::tests::{MallocManager, NoManager};
+
+    use super::*;
+
+    #[test]
+    fn test_construction() {
+        let memory_manager = NoManager {};
+        let parallel_runner = ThreadsRunner::new(Some(&memory_manager), None);
+        assert!(parallel_runner.is_none());
+
+        let memory_manager = MallocManager::default();
+        let parallel_runner = ThreadsRunner::new(Some(&memory_manager), None);
+        assert!(parallel_runner.is_some());
+    }
+}

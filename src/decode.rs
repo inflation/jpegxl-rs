@@ -122,7 +122,6 @@ impl<'a> JxlDecoder<'a> {
     /// Currently only support RGB(A)8/16/32 encoded static image. Other info are discarded.
     /// # Errors
     /// Return a [`DecodeError`] when internal decoder fails
-    #[allow(clippy::missing_panics_doc)]
     pub fn decode<T: PixelType>(&self, data: &[u8]) -> Result<DecoderResult<T>, DecodeError> {
         if let (info, Data::Pixels(data)) = self.decode_internal(data, false)? {
             Ok(DecoderResult { info, data })
@@ -136,7 +135,6 @@ impl<'a> JxlDecoder<'a> {
     /// Currently only support RGB(A)8/16/32 encoded static image. Other info are discarded.
     /// # Errors
     /// Return a [`DecodeError`] when internal decoder fails
-    #[allow(clippy::missing_panics_doc)]
     pub fn decode_jpeg(&self, data: &[u8]) -> Result<DecoderResult<u8>, DecodeError> {
         if let (info, Data::Jpeg(data)) = self.decode_internal::<u8>(data, true)? {
             Ok(DecoderResult { info, data })
@@ -156,6 +154,8 @@ impl<'a> JxlDecoder<'a> {
         let mut icc_profile = MaybeUninit::uninit();
         let mut buffer = MaybeUninit::uninit();
         let mut jpeg_buffer = MaybeUninit::uninit();
+
+        let mut jpeg_reconstructed = false;
 
         if reconstruct_jpeg {
             jpeg_buffer = MaybeUninit::new(vec![0; 1024 * 1024]); // 1 MiB
@@ -194,6 +194,7 @@ impl<'a> JxlDecoder<'a> {
                 // Get JPEG reconstruction buffer
                 JpegReconstruction => {
                     let jpeg_buffer = unsafe { &mut *jpeg_buffer.as_mut_ptr() };
+                    jpeg_reconstructed = true;
 
                     check_dec_status(
                         unsafe {
@@ -234,6 +235,10 @@ impl<'a> JxlDecoder<'a> {
                 FullImage => continue,
                 Success => {
                     if reconstruct_jpeg {
+                        if !jpeg_reconstructed {
+                            return Err(DecodeError::CannotReconstruct);
+                        }
+
                         let remaining = unsafe { JxlDecoderReleaseJPEGBuffer(self.dec) };
 
                         let jpeg_buffer = unsafe { &mut *jpeg_buffer.as_mut_ptr() };
@@ -490,10 +495,7 @@ mod tests {
     use std::error::Error;
 
     use super::*;
-    use crate::{
-        memory::{MallocManager, NoManager},
-        ThreadsRunner,
-    };
+    use crate::ThreadsRunner;
     use image::ImageDecoder;
 
     #[test]
@@ -559,26 +561,14 @@ mod tests {
     }
 
     #[test]
-    fn test_memory_manager() -> Result<(), Box<dyn Error>> {
-        let sample = std::fs::read("test/sample.jxl")?;
-        let memory_manager = NoManager {};
+    fn test_invalid_data() -> Result<(), DecodeError> {
+        let sample = Vec::new();
 
-        let parallel_runner = ThreadsRunner::new(Some(&memory_manager), None);
-        assert!(matches!(parallel_runner, None));
-        let decoder = decoder_builder().memory_manager(&memory_manager).build();
-        assert!(matches!(decoder, Err(DecodeError::CannotCreateDecoder)));
-
-        let memory_manager = MallocManager::default();
-        let mut decoder = decoder_builder().memory_manager(&memory_manager).build()?;
-        let custom_buffer = decoder.decode::<u8>(&sample)?;
-
-        decoder = decoder_builder().build()?;
-        let default_buffer = decoder.decode::<u8>(&sample)?;
-
-        assert!(
-            custom_buffer.data == default_buffer.data,
-            "Custom memory manager should be the same as default one"
-        );
+        let decoder = decoder_builder().build()?;
+        assert!(matches!(
+            decoder.decode::<u8>(&sample),
+            Err(DecodeError::UnknownStatus(JxlDecoderStatus::NeedMoreInput))
+        ));
 
         Ok(())
     }

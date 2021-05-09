@@ -22,10 +22,10 @@ use jpegxl_sys::*;
 use thiserror::Error;
 
 /// Errors derived from [`JxlDecoderStatus`]
-#[derive(Debug, Error)]
+#[derive(Error, Debug)]
 pub enum DecodeError {
     /// Unable to read more data
-    #[error("Error while reading data")]
+    #[error(transparent)]
     InputError(#[from] std::io::Error),
     /// Cannot create a decoder
     #[error("Cannot create a decoder")]
@@ -37,15 +37,18 @@ pub enum DecodeError {
     /// Invalid file format
     #[error("The file does not contain a valid codestream or container")]
     InvalidFileFormat,
+    /// Cannot reconstruct JPEG codestream
+    #[error("Cannot reconstruct JPEG codestream from the file")]
+    CannotReconstruct,
     /// Unknown status
     #[error("Unknown status: `{0:?}`")]
     UnknownStatus(JxlDecoderStatus),
 }
 
 /// Errors derived from [`JxlEncoderStatus`]
-#[derive(Debug, Error)]
+#[derive(Error, Debug)]
 pub enum EncodeError {
-    /// Cannot create a decoder
+    /// Cannot create an encoder
     #[error("Cannot create an encoder")]
     CannotCreateEncoder,
     /// Unknown Error
@@ -53,14 +56,14 @@ pub enum EncodeError {
     #[error("Encoder error: {0}")]
     GenericError(&'static str),
     /// Not Supported
-    #[error("Encoder does not support (yet)")]
+    #[error("Encoder does not support it (yet)")]
     NotSupported,
     /// Unknown status
     #[error("Unknown status: `{0:?}`")]
     UnknownStatus(JxlEncoderStatus),
 }
 
-/// Error mapping from underlying C const to `JxlDecoderStatus` enum
+/// Error mapping from underlying C const to [`JxlDecoderStatus` enum
 pub(crate) fn check_dec_status(
     status: JxlDecoderStatus,
     msg: &'static str,
@@ -72,7 +75,7 @@ pub(crate) fn check_dec_status(
     }
 }
 
-/// Error mapping from underlying C const to `JxlEncoderStatus` enum
+/// Error mapping from underlying C const to [`JxlEncoderStatus`] enum
 pub(crate) fn check_enc_status(
     status: JxlEncoderStatus,
     msg: &'static str,
@@ -82,5 +85,23 @@ pub(crate) fn check_enc_status(
         JxlEncoderStatus::Error => Err(EncodeError::GenericError(msg)),
         JxlEncoderStatus::NotSupported => Err(EncodeError::NotSupported),
         JxlEncoderStatus::NeedMoreOutput => Err(EncodeError::UnknownStatus(status)),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_mapping() {
+        assert!(matches!(
+            check_dec_status(JxlDecoderStatus::Error, "Testing"),
+            Err(DecodeError::GenericError("Testing"))
+        ));
+
+        assert!(matches!(
+            check_enc_status(JxlEncoderStatus::NeedMoreOutput, "Testing"),
+            Err(EncodeError::UnknownStatus(JxlEncoderStatus::NeedMoreOutput))
+        ));
     }
 }

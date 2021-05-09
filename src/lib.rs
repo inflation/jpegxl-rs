@@ -64,12 +64,6 @@ along with jpegxl-rs.  If not, see <https://www.gnu.org/licenses/>.
 //!                       .align(8)
 //!                       .build()?;
 //!
-//! // Set custom memory manager
-//! use jpegxl_rs::memory::MallocManager;
-//! let manager = MallocManager::default();
-//! let mut decoder = decoder_builder()
-//!                       .memory_manager(&manager)
-//!                       .build()?;
 //! # Ok(()) };
 //! ```
 //!

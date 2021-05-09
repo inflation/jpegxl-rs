@@ -42,7 +42,7 @@ macro_rules! impl_to_dynamic {
                     2 => to_dynamic!(self, $b),
                     3 => to_dynamic!(self, $c),
                     4 => to_dynamic!(self, $d),
-                    _ => unreachable!(),
+                    _ => None,
                 }
             }
         }
@@ -102,6 +102,10 @@ mod tests {
             .decode::<u8>(&sample)?
             .into_dynamic_image()
             .ok_or("Failed to create DynamicImage")?;
+
+        let mut res = decoder.decode::<u8>(&sample)?;
+        res.info.num_channels = 0;
+        assert!(res.into_dynamic_image().is_none());
 
         Ok(())
     }
