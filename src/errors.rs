@@ -100,6 +100,11 @@ mod tests {
         ));
 
         assert!(matches!(
+            check_dec_status(JxlDecoderStatus::NeedMoreInput, "Testing"),
+            Err(DecodeError::UnknownStatus(JxlDecoderStatus::NeedMoreInput))
+        ));
+
+        assert!(matches!(
             check_enc_status(JxlEncoderStatus::NeedMoreOutput, "Testing"),
             Err(EncodeError::UnknownStatus(JxlEncoderStatus::NeedMoreOutput))
         ));

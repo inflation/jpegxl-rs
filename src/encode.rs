@@ -537,7 +537,9 @@ impl<'a> JxlEncoderBuilder<'a> {
         self
     }
 
-    /// Set initial buffer size in bytes. Default: 1MiB
+    /// Set initial buffer size in bytes.
+    ///
+    /// Default: 1MiB
     pub fn init_buffer_size(&mut self, value: usize) -> &mut Self {
         self.options.init_buffer_size = value;
         self

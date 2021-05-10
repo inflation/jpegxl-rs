@@ -19,7 +19,10 @@ along with jpegxl-rs.  If not, see <https://www.gnu.org/licenses/>.
 
 #[allow(clippy::wildcard_imports)]
 use jpegxl_sys::*;
-use std::{mem::MaybeUninit, ptr::null};
+use std::{
+    mem::{ManuallyDrop, MaybeUninit},
+    ptr::null,
+};
 
 use crate::{
     common::{Endianness, PixelType},
@@ -53,11 +56,6 @@ pub struct ResultInfo {
     pub icc_profile: Vec<u8>,
 }
 
-enum Data<T> {
-    Pixels(Vec<T>),
-    Jpeg(Vec<u8>),
-}
-
 /// JPEG XL Decoder
 pub struct JxlDecoder<'a> {
     /// Opaque pointer to the underlying decoder
@@ -68,6 +66,11 @@ pub struct JxlDecoder<'a> {
 
     /// Parallel Runner
     parallel_runner: Option<&'a dyn JxlParallelRunner>,
+}
+
+union Data<T> {
+    pixels: ManuallyDrop<Vec<T>>,
+    jpeg: ManuallyDrop<Vec<u8>>,
 }
 
 impl<'a> JxlDecoder<'a> {
@@ -123,11 +126,11 @@ impl<'a> JxlDecoder<'a> {
     /// # Errors
     /// Return a [`DecodeError`] when internal decoder fails
     pub fn decode<T: PixelType>(&self, data: &[u8]) -> Result<DecoderResult<T>, DecodeError> {
-        if let (info, Data::Pixels(data)) = self.decode_internal(data, false)? {
-            Ok(DecoderResult { info, data })
-        } else {
-            unreachable!()
-        }
+        let (info, data) = self.decode_internal(data, false)?;
+        Ok(DecoderResult {
+            info,
+            data: unsafe { ManuallyDrop::into_inner(data.pixels) },
+        })
     }
 
     /// Decode a JPEG XL image and reconstruct JPEG data
@@ -136,11 +139,11 @@ impl<'a> JxlDecoder<'a> {
     /// # Errors
     /// Return a [`DecodeError`] when internal decoder fails
     pub fn decode_jpeg(&self, data: &[u8]) -> Result<DecoderResult<u8>, DecodeError> {
-        if let (info, Data::Jpeg(data)) = self.decode_internal::<u8>(data, true)? {
-            Ok(DecoderResult { info, data })
-        } else {
-            unreachable!()
-        }
+        let (info, data) = self.decode_internal::<u8>(data, true)?;
+        Ok(DecoderResult {
+            info,
+            data: unsafe { ManuallyDrop::into_inner(data.jpeg) },
+        })
     }
 
     fn decode_internal<T: PixelType>(
@@ -158,7 +161,7 @@ impl<'a> JxlDecoder<'a> {
         let mut jpeg_reconstructed = false;
 
         if reconstruct_jpeg {
-            jpeg_buffer = MaybeUninit::new(vec![0; 1024 * 1024]); // 1 MiB
+            jpeg_buffer = MaybeUninit::new(vec![0; self.options.init_jpeg_buffer]);
         }
 
         self.setup_decoder(reconstruct_jpeg)?;
@@ -258,9 +261,13 @@ impl<'a> JxlDecoder<'a> {
                             icc_profile: unsafe { icc_profile.assume_init() },
                         },
                         if reconstruct_jpeg {
-                            Data::Jpeg(unsafe { jpeg_buffer.assume_init() })
+                            Data {
+                                jpeg: unsafe { ManuallyDrop::new(jpeg_buffer.assume_init()) },
+                            }
                         } else {
-                            Data::Pixels(unsafe { buffer.assume_init() })
+                            Data {
+                                pixels: unsafe { ManuallyDrop::new(buffer.assume_init()) },
+                            }
                         },
                     ));
                 }
@@ -413,6 +420,7 @@ struct DecoderOptions {
     endianness: Option<JxlEndianness>,
     align: Option<usize>,
     keep_orientation: bool,
+    init_jpeg_buffer: usize,
 }
 
 /// Builder for [`JxlDecoder`]
@@ -438,6 +446,15 @@ impl<'a> JxlDecoderBuilder<'a> {
     /// Set align for returned result
     pub fn align(&mut self, align: usize) -> &mut Self {
         self.options.align = Some(align);
+        self
+    }
+
+    /// Set initial buffer for JPEG reconstruction.
+    /// Larger one could be faster with fewer allocations
+    ///
+    /// Default: 1 MiB
+    pub fn init_jpeg_buffer(&mut self, value: usize) -> &mut Self {
+        self.options.init_jpeg_buffer = value;
         self
     }
 
@@ -480,6 +497,7 @@ pub fn decoder_builder<'a>() -> JxlDecoderBuilder<'a> {
             endianness: None,
             align: None,
             keep_orientation: false,
+            init_jpeg_buffer: 1024, // 1 KiB
         },
         memory_manager: None,
         parallel_runner: None,
@@ -497,7 +515,7 @@ mod tests {
     #[test]
     fn test_decode() -> Result<(), Box<dyn Error>> {
         let sample = std::fs::read("test/sample.jxl")?;
-        let mm = crate::memory::tests::BumpManager::<{ 1024 * 1024 }>::default();
+        let mm = crate::memory::tests::BumpManager::<{ 1024 * 5 }>::default();
         let parallel_runner = ThreadsRunner::new(Some(&mm.to_manager()), None).unwrap();
         let decoder = decoder_builder()
             .parallel_runner(&parallel_runner)
@@ -521,6 +539,7 @@ mod tests {
         let parallel_runner = ThreadsRunner::default();
         let decoder = decoder_builder()
             .parallel_runner(&parallel_runner)
+            .init_jpeg_buffer(512)
             .build()?;
 
         let DecoderResult { data, .. } = decoder.decode_jpeg(&sample)?;
@@ -528,6 +547,12 @@ mod tests {
         let jpeg = image::codecs::jpeg::JpegDecoder::new(data.as_slice())?;
         let mut v = vec![0; jpeg.total_bytes() as usize];
         jpeg.read_image(&mut v)?;
+
+        let sample = std::fs::read("test/sample.jxl")?;
+        assert!(matches!(
+            decoder.decode_jpeg(&sample),
+            Err(DecodeError::CannotReconstruct)
+        ));
 
         Ok(())
     }
