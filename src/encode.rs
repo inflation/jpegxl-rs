@@ -26,7 +26,7 @@ use crate::{
     parallel::JxlParallelRunner,
 };
 
-/// Encoding speed, default at Squirrel(7)
+/// Encoding speed
 #[derive(Debug, Clone, Copy)]
 pub enum EncoderSpeed {
     /// Fastest, 3
@@ -45,6 +45,12 @@ pub enum EncoderSpeed {
     Tortoise,
 }
 
+impl std::default::Default for EncoderSpeed {
+    fn default() -> Self {
+        Self::Squirrel
+    }
+}
+
 /// Encoding color profile
 #[derive(Debug, Clone, Copy)]
 pub enum ColorEncoding {
@@ -52,6 +58,23 @@ pub enum ColorEncoding {
     SRgb,
     /// Linear SRGB, default for float pixel types
     LinearSRgb,
+}
+
+impl ColorEncoding {
+    fn to_internal(self) -> JxlColorEncoding {
+        let mut color_encoding = JxlColorEncoding::new_uninit();
+        unsafe {
+            match self {
+                ColorEncoding::SRgb => {
+                    JxlColorEncodingSetToSRGB(color_encoding.as_mut_ptr(), false)
+                }
+                ColorEncoding::LinearSRgb => {
+                    JxlColorEncodingSetToLinearSRGB(color_encoding.as_mut_ptr(), false)
+                }
+            }
+            color_encoding.assume_init()
+        }
+    }
 }
 
 /// A frame for the encoder, consisting of the pixels and its options
@@ -74,6 +97,7 @@ impl<'data, T: PixelType> EncoderFrame<'data, T> {
     }
 
     /// Set the number of channels of the source.
+    ///
     /// _Note_: If you want to use alpha channel, add here
     #[must_use]
     pub fn num_channels(mut self, value: u32) -> Self {
@@ -122,32 +146,52 @@ impl<U: PixelType> Deref for EncoderResult<U> {
 }
 
 /// JPEG XL Encoder
+#[derive(Builder)]
+#[builder(build_fn(skip))]
+#[builder(setter(strip_option))]
 pub struct JxlEncoder<'a> {
     /// Opaque pointer to the underlying encoder
+    #[builder(setter(skip))]
     enc: *mut jpegxl_sys::JxlEncoder,
     /// Opaque pointer to the encoder options
+    #[builder(setter(skip))]
     options_ptr: Cell<*mut JxlEncoderOptions>,
 
-    /// Color encoding
-    color_encoding: Option<JxlColorEncoding>,
+    /// Set alpha channel
+    has_alpha: bool,
+    /// Set lossless
+    lossless: bool,
+    /// Set speed
+    speed: EncoderSpeed,
+    /// Set quality
+    quality: f32,
+    /// Set color encoding
+    use_container: bool,
+    /// Set decoding speed
+    ///
+    /// Range: 0 ..= 4
+    decoding_speed: i32,
+    /// Set initial buffer size in bytes.
+    ///
+    /// Default: 1 MiB
+    init_buffer_size: usize,
 
-    /// Various options
-    options: EncoderOptions,
+    /// Set color encoding
+    color_encoding: Option<ColorEncoding>,
 
     /// Parallel runner
     parallel_runner: Option<&'a dyn JxlParallelRunner>,
 }
 
-impl<'a> JxlEncoder<'a> {
-    fn new(
-        encoder_options: EncoderOptions,
-        memory_manager: Option<jpegxl_sys::JxlMemoryManager>,
-        parallel_runner: Option<&'a dyn JxlParallelRunner>,
-    ) -> Result<Self, EncodeError> {
+impl<'a> JxlEncoderBuilder<'a> {
+    fn _build<'b>(
+        &self,
+        memory_manager: Option<&'b dyn JxlMemoryManager>,
+    ) -> Result<JxlEncoder<'a>, EncodeError> {
         let enc = unsafe {
             memory_manager.map_or_else(
                 || JxlEncoderCreate(null()),
-                |memory_manager| JxlEncoderCreate(&memory_manager),
+                |memory_manager| JxlEncoderCreate(&memory_manager.to_manager()),
             )
         };
 
@@ -157,47 +201,52 @@ impl<'a> JxlEncoder<'a> {
 
         let options_ptr = unsafe { JxlEncoderOptionsCreate(enc, null()) };
 
-        let EncoderOptions {
-            lossless,
-            speed,
-            quality,
-            decoding_speed,
-            color_encoding,
-            ..
-        } = encoder_options;
-
-        let color_encoding = color_encoding.map(|c| unsafe {
-            let mut color_encoding = JxlColorEncoding::new_uninit();
-            match c {
-                ColorEncoding::SRgb => {
-                    JxlColorEncodingSetToSRGB(color_encoding.as_mut_ptr(), false)
-                }
-                ColorEncoding::LinearSRgb => {
-                    JxlColorEncodingSetToLinearSRGB(color_encoding.as_mut_ptr(), false)
-                }
-            }
-            color_encoding.assume_init()
-        });
-
-        let encoder = Self {
+        let encoder = JxlEncoder {
             enc,
             options_ptr: Cell::new(options_ptr),
-            color_encoding,
-            options: encoder_options,
-            parallel_runner,
+            has_alpha: self.has_alpha.unwrap_or_default(),
+            lossless: self.lossless.unwrap_or_default(),
+            speed: self.speed.unwrap_or_default(),
+            quality: self.quality.unwrap_or(1.0),
+            use_container: self.use_container.unwrap_or_default(),
+            decoding_speed: self.decoding_speed.unwrap_or(0),
+            init_buffer_size: self.init_buffer_size.unwrap_or(1024 * 1024),
+            color_encoding: self.color_encoding.flatten(),
+            parallel_runner: self.parallel_runner.flatten(),
         };
 
-        encoder.set_lossless(lossless)?;
-        encoder.set_speed(speed)?;
-        encoder.set_quality(quality)?;
-        encoder.decoding_speed(decoding_speed)?;
+        encoder.set_lossless(encoder.lossless)?;
+        encoder.set_speed(encoder.speed)?;
+        encoder.set_quality(encoder.quality)?;
+        encoder.decoding_speed(encoder.decoding_speed)?;
 
         Ok(encoder)
     }
 
+    /// Build a [`JxlEncoder`]
+    ///
+    /// # Errors
+    /// Return [`EncodeError::CannotCreateEncoder`] if it fails to create the encoder
+    pub fn build(&self) -> Result<JxlEncoder<'a>, EncodeError> {
+        Self::_build(self, None)
+    }
+
+    /// Build a [`JxlEncoder`] with custom memory manager
+    ///
+    /// # Errors
+    /// Return [`EncodeError::CannotCreateEncoder`] if it fails to create the encoder
+    pub fn build_with<'b>(
+        &self,
+        memory_manager: &'b dyn JxlMemoryManager,
+    ) -> Result<JxlEncoder<'a>, EncodeError> {
+        Self::_build(self, Some(memory_manager))
+    }
+}
+
+impl<'a> JxlEncoder<'a> {
     /// Set if have alpha channel
     pub fn has_alpha(&mut self, value: bool) {
-        self.options.has_alpha = value;
+        self.has_alpha = value;
     }
 
     /// Configure the encoder to use the JPEG XL container format
@@ -293,7 +342,7 @@ impl<'a> JxlEncoder<'a> {
         width: u32,
         height: u32,
     ) -> Result<EncoderResult<U>, EncodeError> {
-        self.setup_encoder::<U>(width, height, self.options.has_alpha)?;
+        self.setup_encoder::<U>(width, height, self.has_alpha)?;
         self.add_frame(&EncoderFrame::new(data))?;
         self.start_encoding::<U>()
     }
@@ -307,7 +356,7 @@ impl<'a> JxlEncoder<'a> {
         width: u32,
         height: u32,
     ) -> Result<EncoderResult<U>, EncodeError> {
-        self.setup_encoder::<U>(width, height, self.options.has_alpha)?;
+        self.setup_encoder::<U>(width, height, self.has_alpha)?;
         self.add_frame(frame)?;
         self.start_encoding::<U>()
     }
@@ -320,7 +369,7 @@ impl<'a> JxlEncoder<'a> {
         width: u32,
         height: u32,
     ) -> Result<MultiFrames<U>, EncodeError> {
-        self.setup_encoder::<U>(width, height, self.options.has_alpha)?;
+        self.setup_encoder::<U>(width, height, self.has_alpha)?;
         Ok(MultiFrames(self, PhantomData))
     }
 
@@ -340,17 +389,17 @@ impl<'a> JxlEncoder<'a> {
             }
         }
 
-        self.use_container(self.options.use_container)?;
+        self.use_container(self.use_container)?;
 
         if let Some(c) = &self.color_encoding {
-            unsafe { JxlEncoderSetColorEncoding(self.enc, c) };
+            unsafe { JxlEncoderSetColorEncoding(self.enc, &c.to_internal()) };
         }
 
         let mut basic_info = unsafe { JxlBasicInfo::new_uninit().assume_init() };
         basic_info.xsize = width;
         basic_info.ysize = height;
         basic_info.uses_original_profile = true as _;
-        basic_info.have_container = self.options.use_container as _;
+        basic_info.have_container = self.use_container as _;
 
         let (bits, exp) = U::bits_per_sample();
         basic_info.bits_per_sample = bits;
@@ -405,9 +454,9 @@ impl<'a> JxlEncoder<'a> {
     fn start_encoding<U: PixelType>(&self) -> Result<EncoderResult<U>, EncodeError> {
         unsafe { JxlEncoderCloseInput(self.enc) };
 
-        let mut buffer = vec![0; self.options.init_buffer_size];
+        let mut buffer = vec![0; self.init_buffer_size];
         let mut next_out = buffer.as_mut_ptr().cast();
-        let mut avail_out = self.options.init_buffer_size;
+        let mut avail_out = buffer.len();
 
         let mut status;
         loop {
@@ -452,7 +501,7 @@ impl<'a, 'b, U: PixelType> MultiFrames<'a, 'b, U> {
     /// Add a frame to the encoder
     /// # Errors
     /// Return [`EncodeError`] if the internal encoder fails to add a frame
-    pub fn add_frame<T: PixelType>(&self, frame: &EncoderFrame<T>) -> Result<&Self, EncodeError> {
+    pub fn add_frame<T: PixelType>(self, frame: &EncoderFrame<T>) -> Result<Self, EncodeError> {
         self.0.add_frame(frame)?;
         Ok(self)
     }
@@ -460,7 +509,7 @@ impl<'a, 'b, U: PixelType> MultiFrames<'a, 'b, U> {
     /// Add a JPEG raw frame to the encoder
     /// # Errors
     /// Return [`EncodeError`] if the internal encoder fails to add a jpeg frame
-    pub fn add_jpeg_frame(&self, data: &[u8]) -> Result<&Self, EncodeError> {
+    pub fn add_jpeg_frame(self, data: &[u8]) -> Result<Self, EncodeError> {
         self.0.add_jpeg_frame(data)?;
         Ok(self)
     }
@@ -468,236 +517,13 @@ impl<'a, 'b, U: PixelType> MultiFrames<'a, 'b, U> {
     /// Encode a JPEG XL image from the frames
     /// # Errors
     /// Return [`EncodeError`] if the internal encoder fails to encode
-    pub fn encode(&self) -> Result<EncoderResult<U>, EncodeError> {
+    pub fn encode(self) -> Result<EncoderResult<U>, EncodeError> {
         self.0.start_encoding()
-    }
-}
-
-#[derive(Clone)]
-struct EncoderOptions {
-    has_alpha: bool,
-    lossless: bool,
-    speed: EncoderSpeed,
-    quality: f32,
-    color_encoding: Option<ColorEncoding>,
-    use_container: bool,
-    decoding_speed: i32,
-    init_buffer_size: usize,
-}
-
-/// Builder for [`JxlEncoder`]
-pub struct JxlEncoderBuilder<'a> {
-    options: EncoderOptions,
-    memory_manager: Option<&'a dyn JxlMemoryManager>,
-    parallel_runner: Option<&'a dyn JxlParallelRunner>,
-}
-
-impl<'a> JxlEncoderBuilder<'a> {
-    /// Set alpha channel
-    pub fn has_alpha(&mut self, value: bool) -> &mut Self {
-        self.options.has_alpha = value;
-        self
-    }
-
-    /// Set lossless
-    pub fn lossless(&mut self, value: bool) -> &mut Self {
-        self.options.lossless = value;
-        self
-    }
-
-    /// Set speed
-    pub fn speed(&mut self, value: EncoderSpeed) -> &mut Self {
-        self.options.speed = value;
-        self
-    }
-
-    /// Set quality
-    pub fn quality(&mut self, value: f32) -> &mut Self {
-        self.options.quality = value;
-        self
-    }
-
-    /// Set color encoding
-    pub fn color_encoding(&mut self, value: ColorEncoding) -> &mut Self {
-        self.options.color_encoding = Some(value);
-        self
-    }
-
-    /// Set decoding speed
-    ///
-    /// Range: 0 ..= 4
-    pub fn decoding_speed(&mut self, value: i32) -> &mut Self {
-        self.options.decoding_speed = value;
-        self
-    }
-
-    /// Use container or not
-    pub fn use_container(&mut self, value: bool) -> &mut Self {
-        self.options.use_container = value;
-        self
-    }
-
-    /// Set initial buffer size in bytes.
-    ///
-    /// Default: 1MiB
-    pub fn init_buffer_size(&mut self, value: usize) -> &mut Self {
-        self.options.init_buffer_size = value;
-        self
-    }
-
-    /// Set memory manager
-    pub fn memory_manager(&mut self, value: &'a dyn JxlMemoryManager) -> &mut Self {
-        self.memory_manager = Some(value);
-        self
-    }
-
-    /// Set parallel runner
-    pub fn parallel_runner(&mut self, value: &'a dyn JxlParallelRunner) -> &mut Self {
-        self.parallel_runner = Some(value);
-        self
-    }
-
-    /// Consume the builder and get the encoder
-    /// # Errors
-    /// Return [`EncodeError::CannotCreateEncoder`] if it fails to create the encoder
-    pub fn build(&mut self) -> Result<JxlEncoder<'a>, EncodeError> {
-        JxlEncoder::new(
-            self.options.clone(),
-            self.memory_manager.map(|m| m.to_manager()),
-            self.parallel_runner,
-        )
     }
 }
 
 /// Return a [`JxlEncoderBuilder`] with default settings
 #[must_use]
 pub fn encoder_builder<'a>() -> JxlEncoderBuilder<'a> {
-    JxlEncoderBuilder {
-        options: EncoderOptions {
-            has_alpha: false,
-            lossless: false,
-            speed: EncoderSpeed::Squirrel,
-            quality: 1.0,
-            color_encoding: None,
-            use_container: false,
-            decoding_speed: 0,
-            init_buffer_size: 1024 * 1024,
-        },
-        memory_manager: None,
-        parallel_runner: None,
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::{decode::DecoderResult, decoder_builder, Endianness, ThreadsRunner};
-
-    use image::{io::Reader as ImageReader, GenericImageView, ImageFormat};
-
-    type Res = Result<(), Box<dyn std::error::Error>>;
-
-    #[test]
-    fn test_encode_single() -> Res {
-        let sample = ImageReader::open("test/sample.png")?.decode()?.to_rgb8();
-        let parallel_runner = ThreadsRunner::default();
-        let encoder = encoder_builder()
-            .parallel_runner(&parallel_runner)
-            .build()?;
-
-        let result: EncoderResult<u16> =
-            encoder.encode(sample.as_raw(), sample.width(), sample.height())?;
-
-        let decoder = decoder_builder()
-            .parallel_runner(&parallel_runner)
-            .build()?;
-        let _res: DecoderResult<f32> = decoder.decode(&result)?;
-
-        Ok(())
-    }
-
-    #[test]
-    fn test_encode_jpeg() -> Res {
-        let sample = std::fs::read("test/sample.jpg")?;
-        let jpeg =
-            ImageReader::with_format(std::io::Cursor::new(&sample), ImageFormat::Jpeg).decode()?;
-
-        let parallel_runner = ThreadsRunner::default();
-        let encoder = encoder_builder()
-            .use_container(true)
-            .parallel_runner(&parallel_runner)
-            .build()?;
-
-        let _res = encoder.encode_jpeg(&sample, jpeg.width(), jpeg.height())?;
-
-        Ok(())
-    }
-
-    #[test]
-    fn test_encoder_builder() -> Res {
-        let sample = ImageReader::open("test/sample.png")?.decode()?.to_rgba8();
-        let parallel_runner = ThreadsRunner::default();
-        let mut encoder = encoder_builder()
-            .has_alpha(true)
-            .lossless(false)
-            .speed(EncoderSpeed::Tortoise)
-            .quality(3.0)
-            .color_encoding(ColorEncoding::LinearSRgb)
-            .decoding_speed(4)
-            .init_buffer_size(64)
-            .parallel_runner(&parallel_runner)
-            .build()?;
-
-        let _res: EncoderResult<u8> = encoder.encode_frame(
-            &EncoderFrame::new(sample.as_raw()).num_channels(4),
-            sample.width(),
-            sample.height(),
-        )?;
-
-        // Check encoder reset
-        encoder.has_alpha(false);
-        let _res: EncoderResult<u8> =
-            encoder.encode(sample.as_raw(), sample.width(), sample.height())?;
-
-        Ok(())
-    }
-
-    #[test]
-    fn test_encode_multi_frames() -> Res {
-        let sample = ImageReader::open("test/sample.png")?.decode()?.to_rgb8();
-        let sample_jpeg = std::fs::read("test/sample.jpg")?;
-        let parallel_runner = ThreadsRunner::default();
-        let encoder = encoder_builder()
-            .color_encoding(ColorEncoding::SRgb)
-            .parallel_runner(&parallel_runner)
-            .build()?;
-
-        let frame = EncoderFrame::new(sample.as_raw())
-            .endianness(Endianness::Native)
-            .align(0);
-
-        let _res: EncoderResult<u8> = encoder
-            .multiple(sample.width(), sample.height())?
-            .add_frame(&frame)?
-            .add_jpeg_frame(&sample_jpeg)?
-            .encode()?;
-
-        Ok(())
-    }
-
-    #[test]
-    fn test_invalid_data() -> Res {
-        let encoder = encoder_builder().has_alpha(true).build()?;
-        assert!(matches!(
-            encoder.encode::<u8, u8>(&[], 0, 0),
-            Err(EncodeError::GenericError("Set basic info"))
-        ));
-
-        assert!(matches!(
-            encoder.encode::<f32, f32>(&[1.0, 1.0, 1.0, 0.5], 1, 1),
-            Err(EncodeError::NotSupported)
-        ));
-
-        Ok(())
-    }
+    JxlEncoderBuilder::default()
 }

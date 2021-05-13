@@ -93,7 +93,38 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_mapping() {
+    fn decode_invalid_data() {
+        let sample = Vec::new();
+
+        let decoder = crate::decoder_builder()
+            .build()
+            .expect("Failed to create decoder");
+        assert!(matches!(
+            decoder.decode::<u8>(&sample),
+            Err(DecodeError::UnknownStatus(JxlDecoderStatus::NeedMoreInput))
+        ));
+    }
+
+    #[test]
+    fn encode_invalid_data() {
+        let encoder = crate::encoder_builder()
+            .has_alpha(true)
+            .build()
+            .expect("Failed to create encoder");
+
+        assert!(matches!(
+            encoder.encode::<u8, u8>(&[], 0, 0),
+            Err(EncodeError::GenericError("Set basic info"))
+        ));
+
+        assert!(matches!(
+            encoder.encode::<f32, f32>(&[1.0, 1.0, 1.0, 0.5], 1, 1),
+            Err(EncodeError::NotSupported)
+        ));
+    }
+
+    #[test]
+    fn mapping() {
         assert!(matches!(
             check_dec_status(JxlDecoderStatus::Error, "Testing"),
             Err(DecodeError::GenericError("Testing"))

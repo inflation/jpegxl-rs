@@ -18,6 +18,8 @@ along with jpegxl-rs.  If not, see <https://www.gnu.org/licenses/>.
 //! Memory manager interface
 use std::ffi::c_void;
 
+pub(crate) type MemoryManagerRef = jpegxl_sys::JxlMemoryManager;
+
 /// Allocator function type
 pub type AllocFn = unsafe extern "C" fn(opaque: *mut c_void, size: usize) -> *mut c_void;
 /// Deallocator function type
@@ -45,9 +47,11 @@ pub trait JxlMemoryManager {
 pub(crate) mod tests {
     use std::ptr::null_mut;
 
+    use crate::{decoder_builder, encoder_builder, DecodeError, EncodeError, ThreadsRunner};
+
     use super::*;
 
-    pub(crate) struct NoManager {}
+    pub struct NoManager {}
 
     impl JxlMemoryManager for NoManager {
         fn alloc(&self) -> AllocFn {
@@ -108,14 +112,27 @@ pub(crate) mod tests {
 
     #[test]
     fn test_no_manager() {
-        use crate::{decoder_builder, encoder_builder, DecodeError, EncodeError};
+        let mm = NoManager {};
 
-        let memory_manager = NoManager {};
-
-        let decoder = decoder_builder().memory_manager(&memory_manager).build();
+        let decoder = decoder_builder().build_with(&mm);
         assert!(matches!(decoder, Err(DecodeError::CannotCreateDecoder)));
 
-        let encoder = encoder_builder().memory_manager(&memory_manager).build();
+        let encoder = encoder_builder().build_with(&mm);
         assert!(matches!(encoder, Err(EncodeError::CannotCreateEncoder)));
+    }
+
+    #[test]
+    fn test_bump_manager() -> Result<(), DecodeError> {
+        let sample = std::fs::read("samples/sample.jxl")?;
+        let mm = BumpManager::<{ 1024 * 5 }>::default();
+        let parallel_runner = ThreadsRunner::new(Some(&mm.to_manager()), None)
+            .expect("Failed to create ThreadsRunner");
+        let decoder = decoder_builder()
+            .parallel_runner(&parallel_runner)
+            .build_with(&mm)?;
+
+        decoder.decode::<u8>(&sample)?;
+
+        Ok(())
     }
 }

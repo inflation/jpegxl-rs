@@ -20,11 +20,13 @@ system-jxl = ["jpegxl-sys/system-jxl"]
 threads = ["jpegxl-sys/threads"]
 
 [dependencies]
+derive_builder = "0.10.2"
 image = { version = "0.23.14", optional = true, default-features = false }
 jpegxl-sys = { version = "0.3.8-alpha.0" }
 thiserror = "1.0.24"
 
 [dev-dependencies]
+anyhow = "1.0.40"
 criterion = "0.3.4"
 image = "0.23.14"
 qcms = "0.2.0"

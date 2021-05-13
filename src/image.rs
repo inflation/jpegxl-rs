@@ -59,8 +59,8 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_image_support() -> Result<(), Box<dyn std::error::Error>> {
-        let sample = std::fs::read("test/sample.jxl")?;
+    fn simple() -> Result<(), Box<dyn std::error::Error>> {
+        let sample = std::fs::read("samples/sample.jxl")?;
         let parallel_runner = ThreadsRunner::default();
         let decoder = decoder_builder()
             .parallel_runner(&parallel_runner)
@@ -70,7 +70,7 @@ mod tests {
             .decode::<u16>(&sample)?
             .into_dynamic_image()
             .ok_or("Failed to create DynamicImage")?;
-        let sample_png = image::io::Reader::open("test/sample.png")?.decode()?;
+        let sample_png = image::io::Reader::open("samples/sample.png")?.decode()?;
 
         assert_eq!(img.to_rgba16(), sample_png.to_rgba16());
 
@@ -78,8 +78,8 @@ mod tests {
     }
 
     #[test]
-    fn test_image_channels() -> Result<(), Box<dyn std::error::Error>> {
-        let sample = std::fs::read("test/sample_grey.jxl")?;
+    fn channels() -> Result<(), Box<dyn std::error::Error>> {
+        let sample = std::fs::read("samples/sample_grey.jxl")?;
         let parallel_runner = ThreadsRunner::default();
         let mut decoder = decoder_builder()
             .parallel_runner(&parallel_runner)

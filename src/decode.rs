@@ -57,15 +57,86 @@ pub struct ResultInfo {
 }
 
 /// JPEG XL Decoder
+#[derive(Builder)]
+#[builder(build_fn(skip))]
+#[builder(setter(strip_option))]
 pub struct JxlDecoder<'a> {
     /// Opaque pointer to the underlying decoder
+    #[builder(setter(skip))]
     dec: *mut jpegxl_sys::JxlDecoder,
 
-    /// Decoder options
-    options: DecoderOptions,
+    /// Number of channels for returned result.
+    ///
+    /// Default: 4 for RGBA
+    num_channels: u32,
+    /// Endianness for returned result
+    ///
+    /// Default: native endian
+    endianness: Endianness,
+    /// Set align for returned result
+    ///
+    /// Default: 0
+    align: usize,
 
-    /// Parallel Runner
+    /// Keep orientation or not
+    ///
+    /// Default: false, so the decoder rotates the image for you
+    keep_orientation: bool,
+    /// Set initial buffer for JPEG reconstruction.
+    /// Larger one could be faster with fewer allocations
+    ///
+    /// Default: 1 KiB
+    init_jpeg_buffer: usize,
+
+    /// Set parallel runner
     parallel_runner: Option<&'a dyn JxlParallelRunner>,
+}
+
+impl<'a> JxlDecoderBuilder<'a> {
+    fn _build<'b>(
+        &self,
+        memory_manager: Option<&'b dyn JxlMemoryManager>,
+    ) -> Result<JxlDecoder<'a>, DecodeError> {
+        let dec = unsafe {
+            memory_manager.map_or_else(
+                || JxlDecoderCreate(null()),
+                |memory_manager| JxlDecoderCreate(&memory_manager.to_manager()),
+            )
+        };
+
+        if dec.is_null() {
+            return Err(DecodeError::CannotCreateDecoder);
+        }
+
+        Ok(JxlDecoder {
+            dec,
+            num_channels: self.num_channels.unwrap_or(4),
+            endianness: self.endianness.unwrap_or(Endianness::Native),
+            align: self.align.unwrap_or(0),
+            keep_orientation: self.keep_orientation.unwrap_or(false),
+            init_jpeg_buffer: self.init_jpeg_buffer.unwrap_or(1024),
+            parallel_runner: self.parallel_runner.flatten(),
+        })
+    }
+
+    /// Build a [`JxlDecoder`]
+    ///
+    /// # Errors
+    /// Return [`DecodeError::CannotCreateDecoder`] if it fails to create the decoder.
+    pub fn build(&self) -> Result<JxlDecoder<'a>, DecodeError> {
+        Self::_build(self, None)
+    }
+
+    /// Build a [`JxlDecoder`] with custom memory manager
+    ///
+    /// # Errors
+    /// Return [`DecodeError::CannotCreateDecoder`] if it fails to create the decoder.
+    pub fn build_with<'b>(
+        &self,
+        memory_manager: &'b dyn JxlMemoryManager,
+    ) -> Result<JxlDecoder<'a>, DecodeError> {
+        Self::_build(self, Some(memory_manager))
+    }
 }
 
 union Data<T> {
@@ -74,42 +145,19 @@ union Data<T> {
 }
 
 impl<'a> JxlDecoder<'a> {
-    fn new(
-        options: DecoderOptions,
-        memory_manager: Option<jpegxl_sys::JxlMemoryManager>,
-        parallel_runner: Option<&'a dyn JxlParallelRunner>,
-    ) -> Result<Self, DecodeError> {
-        let dec = unsafe {
-            memory_manager.map_or_else(
-                || JxlDecoderCreate(null()),
-                |memory_manager| JxlDecoderCreate(&memory_manager),
-            )
-        };
-
-        if dec.is_null() {
-            return Err(DecodeError::CannotCreateDecoder);
-        }
-
-        Ok(Self {
-            dec,
-            options,
-            parallel_runner,
-        })
-    }
-
     /// Set number of channels
     pub fn set_num_channels(&mut self, value: u32) {
-        self.options.num_channels = Some(value);
+        self.num_channels = value;
     }
 
     /// Set pixel endianness
     pub fn set_endianness(&mut self, value: Endianness) {
-        self.options.endianness = Some(value);
+        self.endianness = value;
     }
 
     /// Set pixel scanlines alignment
     pub fn set_align(&mut self, value: usize) {
-        self.options.align = Some(value);
+        self.align = value;
     }
 
     /// Keep original orientation or not. Default: `false`
@@ -117,7 +165,7 @@ impl<'a> JxlDecoder<'a> {
     /// Note: Set `true` could make decoding faster, but you need to manually transform the result with the correct
     /// orientation.
     pub fn keep_orientation(&mut self, value: bool) {
-        self.options.keep_orientation = value;
+        self.keep_orientation = value;
     }
 
     /// Decode a JPEG XL image
@@ -161,7 +209,7 @@ impl<'a> JxlDecoder<'a> {
         let mut jpeg_reconstructed = false;
 
         if reconstruct_jpeg {
-            jpeg_buffer = MaybeUninit::new(vec![0; self.options.init_jpeg_buffer]);
+            jpeg_buffer = MaybeUninit::new(vec![0; self.init_jpeg_buffer]);
         }
 
         self.setup_decoder(reconstruct_jpeg)?;
@@ -303,7 +351,7 @@ impl<'a> JxlDecoder<'a> {
         )?;
 
         check_dec_status(
-            unsafe { JxlDecoderSetKeepOrientation(self.dec, self.options.keep_orientation) },
+            unsafe { JxlDecoderSetKeepOrientation(self.dec, self.keep_orientation) },
             "Set if keep orientation",
         )?;
 
@@ -323,24 +371,11 @@ impl<'a> JxlDecoder<'a> {
         }
 
         unsafe {
-            check_dec_status(
-                JxlDecoderDefaultPixelFormat(self.dec, pixel_format),
-                "Get default pixel format",
-            )?;
-        }
-
-        let format = unsafe { &*pixel_format };
-
-        let num_channels = self.options.num_channels.unwrap_or(format.num_channels);
-        let endianness = self.options.endianness.unwrap_or(format.endianness);
-        let align = self.options.align.unwrap_or(format.align);
-
-        unsafe {
             *pixel_format = JxlPixelFormat {
-                num_channels,
+                num_channels: self.num_channels,
                 data_type: T::pixel_type(),
-                endianness,
-                align,
+                endianness: self.endianness,
+                align: self.align,
             };
         }
 
@@ -414,185 +449,8 @@ impl<'a> Drop for JxlDecoder<'a> {
     }
 }
 
-#[derive(Clone)]
-struct DecoderOptions {
-    num_channels: Option<u32>,
-    endianness: Option<JxlEndianness>,
-    align: Option<usize>,
-    keep_orientation: bool,
-    init_jpeg_buffer: usize,
-}
-
-/// Builder for [`JxlDecoder`]
-pub struct JxlDecoderBuilder<'a> {
-    options: DecoderOptions,
-    memory_manager: Option<&'a dyn JxlMemoryManager>,
-    parallel_runner: Option<&'a dyn JxlParallelRunner>,
-}
-
-impl<'a> JxlDecoderBuilder<'a> {
-    /// Set number of channels for returned result
-    pub fn num_channels(&mut self, num: u32) -> &mut Self {
-        self.options.num_channels = Some(num);
-        self
-    }
-
-    /// Set endianness for returned result
-    pub fn endian(&mut self, endian: JxlEndianness) -> &mut Self {
-        self.options.endianness = Some(endian);
-        self
-    }
-
-    /// Set align for returned result
-    pub fn align(&mut self, align: usize) -> &mut Self {
-        self.options.align = Some(align);
-        self
-    }
-
-    /// Set initial buffer for JPEG reconstruction.
-    /// Larger one could be faster with fewer allocations
-    ///
-    /// Default: 1 MiB
-    pub fn init_jpeg_buffer(&mut self, value: usize) -> &mut Self {
-        self.options.init_jpeg_buffer = value;
-        self
-    }
-
-    /// Keep orientation or not
-    pub fn keep_orientation(&mut self, value: bool) -> &mut Self {
-        self.options.keep_orientation = value;
-        self
-    }
-
-    /// Set memory manager
-    pub fn memory_manager(&mut self, memory_manager: &'a dyn JxlMemoryManager) -> &mut Self {
-        self.memory_manager = Some(memory_manager);
-        self
-    }
-
-    /// Set parallel runner
-    pub fn parallel_runner(&mut self, parallel_runner: &'a dyn JxlParallelRunner) -> &mut Self {
-        self.parallel_runner = Some(parallel_runner);
-        self
-    }
-
-    /// Consume the builder and get the decoder
-    /// # Errors
-    /// Return [`DecodeError::CannotCreateDecoder`] if it fails to create the decoder.
-    pub fn build(&mut self) -> Result<JxlDecoder<'a>, DecodeError> {
-        JxlDecoder::new(
-            self.options.clone(),
-            self.memory_manager.map(|m| m.to_manager()),
-            self.parallel_runner,
-        )
-    }
-}
-
 /// Return a [`JxlDecoderBuilder`] with default settings
 #[must_use]
 pub fn decoder_builder<'a>() -> JxlDecoderBuilder<'a> {
-    JxlDecoderBuilder {
-        options: DecoderOptions {
-            num_channels: None,
-            endianness: None,
-            align: None,
-            keep_orientation: false,
-            init_jpeg_buffer: 1024, // 1 KiB
-        },
-        memory_manager: None,
-        parallel_runner: None,
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use std::error::Error;
-
-    use super::*;
-    use crate::ThreadsRunner;
-    use image::ImageDecoder;
-
-    #[test]
-    fn test_decode() -> Result<(), Box<dyn Error>> {
-        let sample = std::fs::read("test/sample.jxl")?;
-        let mm = crate::memory::tests::BumpManager::<{ 1024 * 5 }>::default();
-        let parallel_runner = ThreadsRunner::new(Some(&mm.to_manager()), None).unwrap();
-        let decoder = decoder_builder()
-            .parallel_runner(&parallel_runner)
-            .memory_manager(&mm)
-            .build()?;
-
-        let DecoderResult { info, data, .. } = decoder.decode::<u8>(&sample)?;
-
-        assert_eq!(data.len(), (info.width * info.height * 4) as usize);
-
-        // Check if icc profile is valid
-        qcms::Profile::new_from_slice(&info.icc_profile).ok_or("Failed to retrieve ICC profile")?;
-
-        Ok(())
-    }
-
-    #[test]
-    #[allow(clippy::cast_possible_truncation)]
-    fn test_decode_container() -> Result<(), Box<dyn Error>> {
-        let sample = std::fs::read("test/sample_jpg.jxl")?;
-        let parallel_runner = ThreadsRunner::default();
-        let decoder = decoder_builder()
-            .parallel_runner(&parallel_runner)
-            .init_jpeg_buffer(512)
-            .build()?;
-
-        let DecoderResult { data, .. } = decoder.decode_jpeg(&sample)?;
-
-        let jpeg = image::codecs::jpeg::JpegDecoder::new(data.as_slice())?;
-        let mut v = vec![0; jpeg.total_bytes() as usize];
-        jpeg.read_image(&mut v)?;
-
-        let sample = std::fs::read("test/sample.jxl")?;
-        assert!(matches!(
-            decoder.decode_jpeg(&sample),
-            Err(DecodeError::CannotReconstruct)
-        ));
-
-        Ok(())
-    }
-
-    #[test]
-    fn test_decoder_builder() -> Result<(), Box<dyn Error>> {
-        let sample = std::fs::read("test/sample.jxl")?;
-        let parallel_runner = ThreadsRunner::default();
-        let mut decoder = decoder_builder()
-            .num_channels(3)
-            .endian(JxlEndianness::Big)
-            .align(2)
-            .keep_orientation(true)
-            .parallel_runner(&parallel_runner)
-            .build()?;
-
-        let DecoderResult { info, data, .. } = decoder.decode::<u8>(&sample)?;
-
-        assert_eq!(data.len(), (info.width * info.height * 3) as usize);
-
-        decoder.set_align(0);
-        decoder.set_endianness(JxlEndianness::Native);
-        decoder.set_num_channels(4);
-        decoder.keep_orientation(true);
-
-        decoder.decode::<u8>(&sample)?;
-
-        Ok(())
-    }
-
-    #[test]
-    fn test_invalid_data() -> Result<(), DecodeError> {
-        let sample = Vec::new();
-
-        let decoder = decoder_builder().build()?;
-        assert!(matches!(
-            decoder.decode::<u8>(&sample),
-            Err(DecodeError::UnknownStatus(JxlDecoderStatus::NeedMoreInput))
-        ));
-
-        Ok(())
-    }
+    JxlDecoderBuilder::default()
 }

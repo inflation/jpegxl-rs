@@ -60,7 +60,7 @@ along with jpegxl-rs.  If not, see <https://www.gnu.org/licenses/>.
 //! // Customize pixel format
 //! let mut decoder = decoder_builder()
 //!                       .num_channels(3)
-//!                       .endian(Endianness::Big)
+//!                       .endianness(Endianness::Big)
 //!                       .align(8)
 //!                       .build()?;
 //!
@@ -109,6 +109,9 @@ along with jpegxl-rs.  If not, see <https://www.gnu.org/licenses/>.
 //! let img = decoder.decode::<u8>(&sample)?.into_dynamic_image();       
 //! # Ok(()) };
 //! ```
+
+#[macro_use]
+extern crate derive_builder;
 
 mod common;
 pub mod decode;
