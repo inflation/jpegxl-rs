@@ -30,7 +30,7 @@ along with jpegxl-rs.  If not, see <https://www.gnu.org/licenses/>.
 #[cfg(not(feature = "without-threads"))]
 pub mod threads_runner;
 
-use std::{ffi::c_void, fmt::Debug};
+use std::ffi::c_void;
 
 #[cfg(not(feature = "without-threads"))]
 pub use threads_runner::*;
@@ -53,7 +53,7 @@ pub type RunnerFn = unsafe extern "C" fn(
 ) -> JxlParallelRetCode;
 
 /// JPEG XL Parallel Runner
-pub trait JxlParallelRunner: Debug {
+pub trait JxlParallelRunner {
     /// FFI runner function.
     /// Check `jpeg-xl` header files for more explanations.
     fn runner(&self) -> RunnerFn;

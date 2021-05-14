@@ -65,7 +65,7 @@ pub struct JxlDecoder<'a> {
     #[builder(setter(skip))]
     dec: *mut jpegxl_sys::JxlDecoder,
 
-    /// Number of channels for returned result.
+    /// Number of channels for returned result
     ///
     /// Default: 4 for RGBA
     num_channels: u32,
@@ -73,7 +73,7 @@ pub struct JxlDecoder<'a> {
     ///
     /// Default: native endian
     endianness: Endianness,
-    /// Set align for returned result
+    /// Set pixel scanlines alignment for returned result
     ///
     /// Default: 0
     align: usize,
@@ -168,32 +168,6 @@ impl<'a> JxlDecoder<'a> {
         self.keep_orientation = value;
     }
 
-    /// Decode a JPEG XL image
-    ///
-    /// Currently only support RGB(A)8/16/32 encoded static image. Other info are discarded.
-    /// # Errors
-    /// Return a [`DecodeError`] when internal decoder fails
-    pub fn decode<T: PixelType>(&self, data: &[u8]) -> Result<DecoderResult<T>, DecodeError> {
-        let (info, data) = self.decode_internal(data, false)?;
-        Ok(DecoderResult {
-            info,
-            data: unsafe { ManuallyDrop::into_inner(data.pixels) },
-        })
-    }
-
-    /// Decode a JPEG XL image and reconstruct JPEG data
-    ///
-    /// Currently only support RGB(A)8/16/32 encoded static image. Other info are discarded.
-    /// # Errors
-    /// Return a [`DecodeError`] when internal decoder fails
-    pub fn decode_jpeg(&self, data: &[u8]) -> Result<DecoderResult<u8>, DecodeError> {
-        let (info, data) = self.decode_internal::<u8>(data, true)?;
-        Ok(DecoderResult {
-            info,
-            data: unsafe { ManuallyDrop::into_inner(data.jpeg) },
-        })
-    }
-
     fn decode_internal<T: PixelType>(
         &self,
         data: &[u8],
@@ -202,14 +176,14 @@ impl<'a> JxlDecoder<'a> {
         let mut basic_info = MaybeUninit::uninit();
         let mut pixel_format = MaybeUninit::uninit();
 
-        let mut icc_profile = MaybeUninit::uninit();
-        let mut buffer = MaybeUninit::uninit();
-        let mut jpeg_buffer = MaybeUninit::uninit();
+        let mut icc_profile = vec![];
+        let mut buffer = vec![];
+        let mut jpeg_buffer = vec![];
 
         let mut jpeg_reconstructed = false;
 
         if reconstruct_jpeg {
-            jpeg_buffer = MaybeUninit::new(vec![0; self.init_jpeg_buffer]);
+            jpeg_buffer = vec![0; self.init_jpeg_buffer];
         }
 
         self.setup_decoder(reconstruct_jpeg)?;
@@ -238,13 +212,11 @@ impl<'a> JxlDecoder<'a> {
 
                 // Get color encoding
                 ColorEncoding => {
-                    icc_profile =
-                        MaybeUninit::new(self.get_icc_profile(unsafe { &*pixel_format.as_ptr() })?)
+                    icc_profile = self.get_icc_profile(unsafe { &*pixel_format.as_ptr() })?
                 }
 
                 // Get JPEG reconstruction buffer
                 JpegReconstruction => {
-                    let jpeg_buffer = unsafe { &mut *jpeg_buffer.as_mut_ptr() };
                     jpeg_reconstructed = true;
 
                     check_dec_status(
@@ -263,7 +235,6 @@ impl<'a> JxlDecoder<'a> {
                 JpegNeedMoreOutput => {
                     let need_to_write = unsafe { JxlDecoderReleaseJPEGBuffer(self.dec) };
 
-                    let jpeg_buffer = unsafe { &mut *jpeg_buffer.as_mut_ptr() };
                     let old_len = jpeg_buffer.len();
                     jpeg_buffer.resize(old_len + need_to_write, 0);
                     check_dec_status(
@@ -280,7 +251,7 @@ impl<'a> JxlDecoder<'a> {
 
                 // Get the output buffer
                 NeedImageOutBuffer => {
-                    buffer = MaybeUninit::new(self.output(unsafe { &*pixel_format.as_ptr() })?);
+                    buffer = self.output(unsafe { &*pixel_format.as_ptr() })?;
                 }
 
                 FullImage => continue,
@@ -292,7 +263,6 @@ impl<'a> JxlDecoder<'a> {
 
                         let remaining = unsafe { JxlDecoderReleaseJPEGBuffer(self.dec) };
 
-                        let jpeg_buffer = unsafe { &mut *jpeg_buffer.as_mut_ptr() };
                         jpeg_buffer.truncate(jpeg_buffer.len() - remaining);
                         jpeg_buffer.shrink_to_fit();
                     }
@@ -306,15 +276,15 @@ impl<'a> JxlDecoder<'a> {
                             height: info.ysize,
                             orientation: info.orientation,
                             num_channels: unsafe { pixel_format.assume_init().num_channels },
-                            icc_profile: unsafe { icc_profile.assume_init() },
+                            icc_profile,
                         },
                         if reconstruct_jpeg {
                             Data {
-                                jpeg: unsafe { ManuallyDrop::new(jpeg_buffer.assume_init()) },
+                                jpeg: ManuallyDrop::new(jpeg_buffer),
                             }
                         } else {
                             Data {
-                                pixels: unsafe { ManuallyDrop::new(buffer.assume_init()) },
+                                pixels: ManuallyDrop::new(buffer),
                             }
                         },
                     ));
@@ -440,6 +410,32 @@ impl<'a> JxlDecoder<'a> {
         buffer.shrink_to_fit();
 
         Ok(buffer)
+    }
+
+    /// Decode a JPEG XL image
+    ///
+    /// Currently only support RGB(A)8/16/32 encoded static image. Other info are discarded.
+    /// # Errors
+    /// Return a [`DecodeError`] when internal decoder fails
+    pub fn decode<T: PixelType>(&self, data: &[u8]) -> Result<DecoderResult<T>, DecodeError> {
+        let (info, data) = self.decode_internal(data, false)?;
+        Ok(DecoderResult {
+            info,
+            data: unsafe { ManuallyDrop::into_inner(data.pixels) },
+        })
+    }
+
+    /// Decode a JPEG XL image and reconstruct JPEG data
+    ///
+    /// Currently only support RGB(A)8/16/32 encoded static image. Other info are discarded.
+    /// # Errors
+    /// Return a [`DecodeError`] when internal decoder fails
+    pub fn decode_jpeg(&self, data: &[u8]) -> Result<DecoderResult<u8>, DecodeError> {
+        let (info, data) = self.decode_internal::<u8>(data, true)?;
+        Ok(DecoderResult {
+            info,
+            data: unsafe { ManuallyDrop::into_inner(data.jpeg) },
+        })
     }
 }
 

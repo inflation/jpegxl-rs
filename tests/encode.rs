@@ -82,6 +82,7 @@ fn multi_frames() -> Result<()> {
     let parallel_runner = ThreadsRunner::default();
     let encoder = encoder_builder()
         .parallel_runner(&parallel_runner)
+        .color_encoding(ColorEncoding::SRgb)
         .build()?;
 
     let frame = EncoderFrame::new(sample.as_raw())

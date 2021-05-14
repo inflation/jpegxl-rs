@@ -18,6 +18,7 @@ along with jpegxl-rs.  If not, see <https://www.gnu.org/licenses/>.
 //! `image` crate integration
 
 use image::{DynamicImage, ImageBuffer};
+use paste::paste;
 
 use crate::decode::DecoderResult;
 
@@ -33,24 +34,25 @@ macro_rules! to_dynamic {
     };
 }
 
-macro_rules! impl_to_dynamic {
-    ($pix:tt, $a:ident, $b:ident, $c:ident, $d:ident) => {
-        impl ToDynamic for DecoderResult<$pix> {
-            fn into_dynamic_image(self) -> Option<DynamicImage> {
-                match self.info.num_channels {
-                    1 => to_dynamic!(self, $a),
-                    2 => to_dynamic!(self, $b),
-                    3 => to_dynamic!(self, $c),
-                    4 => to_dynamic!(self, $d),
-                    _ => None,
+macro_rules! impl_to_dynamic_for_bytes {
+    ($($b:expr),*) => {
+        $(paste! {
+            impl ToDynamic for DecoderResult<[<u $b>]> {
+                fn into_dynamic_image(self) -> Option<DynamicImage> {
+                    match self.info.num_channels {
+                        1 => to_dynamic!(self, [<ImageLuma $b>]),
+                        2 => to_dynamic!(self, [<ImageLumaA $b>]),
+                        3 => to_dynamic!(self, [<ImageRgb $b>]),
+                        4 => to_dynamic!(self, [<ImageRgba $b>]),
+                        _ => None,
+                    }
                 }
             }
-        }
+        })*
     };
 }
 
-impl_to_dynamic!(u8, ImageLuma8, ImageLumaA8, ImageRgb8, ImageRgba8);
-impl_to_dynamic!(u16, ImageLuma16, ImageLumaA16, ImageRgb16, ImageRgba16);
+impl_to_dynamic_for_bytes!(8, 16);
 
 #[cfg(test)]
 mod tests {

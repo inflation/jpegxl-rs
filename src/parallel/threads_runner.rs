@@ -27,7 +27,6 @@ use super::{JxlParallelRunner, RunnerFn};
 use crate::memory::MemoryManagerRef;
 
 /// Wrapper for default threadpool implementation with C++ standard library
-#[derive(Debug)]
 pub struct ThreadsRunner {
     runner_ptr: *mut c_void,
 }
