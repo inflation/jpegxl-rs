@@ -19,14 +19,14 @@ along with jpegxl-rs.  If not, see <https://www.gnu.org/licenses/>.
 
 #![cfg_attr(docsrs, doc(cfg(feature = "threads")))]
 
-use std::ffi::c_void;
+use std::{ffi::c_void, pin::Pin, ptr::null_mut};
 
 #[allow(clippy::wildcard_imports)]
 use jpegxl_sys::thread_runner::*;
 
 use super::{JxlParallelRunner, RunnerFn};
 
-use crate::memory::MemoryManagerRef;
+use crate::memory::JxlMemoryManager;
 
 /// Wrapper for default threadpool implementation with C++ standard library
 pub struct ThreadsRunner {
@@ -37,13 +37,14 @@ impl ThreadsRunner {
     /// Construct with number of threads
     #[must_use]
     pub fn new(
-        memory_manager: Option<&MemoryManagerRef>,
+        memory_manager: Option<Pin<&dyn JxlMemoryManager>>,
         num_workers: Option<usize>,
     ) -> Option<Self> {
+        let mm = memory_manager.map(JxlMemoryManager::manager);
         let runner_ptr = unsafe {
             JxlThreadParallelRunnerCreate(
-                memory_manager.map_or(std::ptr::null(), |mm| mm),
-                num_workers.map_or(JxlThreadParallelRunnerDefaultNumWorkerThreads(), |n| n as _),
+                mm.as_ref().map_or(null_mut(), |mm| mm),
+                num_workers.unwrap_or_else(|| JxlThreadParallelRunnerDefaultNumWorkerThreads()),
             )
         };
 
@@ -86,21 +87,19 @@ impl Drop for ThreadsRunner {
 
 #[cfg(test)]
 mod tests {
-    use crate::memory::{
-        tests::{BumpManager, NoManager},
-        JxlMemoryManager,
-    };
+    use crate::memory::tests::{BumpManager, NoManager};
 
     use super::*;
 
     #[test]
     fn test_construction() {
-        let memory_manager = NoManager {};
-        let parallel_runner = ThreadsRunner::new(Some(&memory_manager.to_manager()), None);
+        let memory_manager = Pin::new(&NoManager {});
+        let parallel_runner = ThreadsRunner::new(Some(memory_manager), None);
         assert!(parallel_runner.is_none());
 
-        let memory_manager = BumpManager::<512>::default();
-        let parallel_runner = ThreadsRunner::new(Some(&memory_manager.to_manager()), None);
+        let memory_manager = BumpManager::<1024>::default();
+        let memory_manager = Pin::new(&memory_manager);
+        let parallel_runner = ThreadsRunner::new(Some(memory_manager), None);
         assert!(parallel_runner.is_some());
     }
 }

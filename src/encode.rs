@@ -19,7 +19,7 @@ along with jpegxl-rs.  If not, see <https://www.gnu.org/licenses/>.
 
 #[allow(clippy::wildcard_imports)]
 use jpegxl_sys::*;
-use std::{cell::Cell, marker::PhantomData, ops::Deref, ptr::null};
+use std::{cell::Cell, marker::PhantomData, ops::Deref, pin::Pin, ptr::null};
 
 use crate::{
     common::PixelType, errors::check_enc_status, errors::EncodeError, memory::JxlMemoryManager,
@@ -206,12 +206,12 @@ pub struct JxlEncoder<'a> {
 impl<'a> JxlEncoderBuilder<'a> {
     fn _build<'b>(
         &self,
-        memory_manager: Option<&'b dyn JxlMemoryManager>,
+        memory_manager: Option<Pin<&'b dyn JxlMemoryManager>>,
     ) -> Result<JxlEncoder<'a>, EncodeError> {
         let enc = unsafe {
             memory_manager.map_or_else(
                 || JxlEncoderCreate(null()),
-                |memory_manager| JxlEncoderCreate(&memory_manager.to_manager()),
+                |memory_manager| JxlEncoderCreate(&memory_manager.manager()),
             )
         };
 
@@ -257,7 +257,7 @@ impl<'a> JxlEncoderBuilder<'a> {
     /// Return [`EncodeError::CannotCreateEncoder`] if it fails to create the encoder
     pub fn build_with<'b>(
         &self,
-        memory_manager: &'b dyn JxlMemoryManager,
+        memory_manager: Pin<&'b dyn JxlMemoryManager>,
     ) -> Result<JxlEncoder<'a>, EncodeError> {
         Self::_build(self, Some(memory_manager))
     }

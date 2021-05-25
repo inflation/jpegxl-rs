@@ -21,6 +21,7 @@ along with jpegxl-rs.  If not, see <https://www.gnu.org/licenses/>.
 use jpegxl_sys::*;
 use std::{
     mem::{ManuallyDrop, MaybeUninit},
+    pin::Pin,
     ptr::null,
 };
 
@@ -95,12 +96,12 @@ pub struct JxlDecoder<'a> {
 impl<'a> JxlDecoderBuilder<'a> {
     fn _build<'b>(
         &self,
-        memory_manager: Option<&'b dyn JxlMemoryManager>,
+        memory_manager: Option<Pin<&'b dyn JxlMemoryManager>>,
     ) -> Result<JxlDecoder<'a>, DecodeError> {
         let dec = unsafe {
             memory_manager.map_or_else(
                 || JxlDecoderCreate(null()),
-                |memory_manager| JxlDecoderCreate(&memory_manager.to_manager()),
+                |memory_manager| JxlDecoderCreate(&memory_manager.manager()),
             )
         };
 
@@ -133,7 +134,7 @@ impl<'a> JxlDecoderBuilder<'a> {
     /// Return [`DecodeError::CannotCreateDecoder`] if it fails to create the decoder.
     pub fn build_with<'b>(
         &self,
-        memory_manager: &'b dyn JxlMemoryManager,
+        memory_manager: Pin<&'b dyn JxlMemoryManager>,
     ) -> Result<JxlDecoder<'a>, DecodeError> {
         Self::_build(self, Some(memory_manager))
     }

@@ -16,9 +16,7 @@ along with jpegxl-rs.  If not, see <https://www.gnu.org/licenses/>.
 */
 
 //! Memory manager interface
-use std::ffi::c_void;
-
-pub(crate) type MemoryManagerRef = jpegxl_sys::JxlMemoryManager;
+use std::{ffi::c_void, pin::Pin};
 
 /// Allocator function type
 pub type AllocFn = unsafe extern "C" fn(opaque: *mut c_void, size: usize) -> *mut c_void;
@@ -28,15 +26,17 @@ pub type FreeFn = unsafe extern "C" fn(opaque: *mut c_void, address: *mut c_void
 /// General trait for a memory manager
 
 pub trait JxlMemoryManager {
-    /// Return a custom allocator function. Can be None for using default one
+    /// Return a custom allocator function
     fn alloc(&self) -> AllocFn;
-    /// Return a custom deallocator function. Can be None for using default one
+    /// Return a custom deallocator function
     fn free(&self) -> FreeFn;
 
     /// Helper conversion function for C API
-    fn to_manager(&self) -> jpegxl_sys::JxlMemoryManager {
+    #[must_use]
+    fn manager(self: Pin<&Self>) -> jpegxl_sys::JxlMemoryManager {
+        let opaque = self.get_ref() as *const Self as _;
         jpegxl_sys::JxlMemoryManager {
-            opaque: (self as *const _ as *mut Self).cast(),
+            opaque,
             alloc: self.alloc(),
             free: self.free(),
         }
@@ -45,7 +45,10 @@ pub trait JxlMemoryManager {
 
 #[cfg(test)]
 pub(crate) mod tests {
-    use std::ptr::null_mut;
+    use std::{
+        ptr::null_mut,
+        sync::atomic::{AtomicUsize, Ordering},
+    };
 
     use crate::{decoder_builder, encoder_builder, DecodeError, EncodeError, ThreadsRunner};
 
@@ -72,14 +75,14 @@ pub(crate) mod tests {
     /// Example implementation of [`JxlMemoryManager`] of a fixed size allocator
     pub struct BumpManager<const N: usize> {
         arena: Box<[u8; N]>,
-        footer: usize,
+        footer: AtomicUsize,
     }
 
     impl<const N: usize> Default for BumpManager<N> {
         fn default() -> Self {
             Self {
                 arena: Box::new([0_u8; N]),
-                footer: 0,
+                footer: AtomicUsize::new(0),
             }
         }
     }
@@ -91,12 +94,24 @@ pub(crate) mod tests {
                 size: usize,
             ) -> *mut c_void {
                 let mm = &mut *opaque.cast::<BumpManager<{ N }>>();
-                if mm.footer + size > N {
-                    null_mut()
-                } else {
-                    let addr = mm.arena.get_unchecked_mut(mm.footer);
-                    mm.footer += size;
-                    (addr as *mut u8).cast()
+
+                let mut footer = mm.footer.load(Ordering::Acquire);
+                let mut new = footer + size;
+
+                loop {
+                    if new > N {
+                        break null_mut();
+                    } else if mm
+                        .footer
+                        .compare_exchange(footer, new, Ordering::Release, Ordering::Relaxed)
+                        .is_err()
+                    {
+                        footer = mm.footer.load(Ordering::Acquire);
+                        new = footer + size;
+                    } else {
+                        let addr = mm.arena.get_unchecked_mut(footer);
+                        break (addr as *mut u8).cast();
+                    }
                 }
             }
 
@@ -112,12 +127,12 @@ pub(crate) mod tests {
 
     #[test]
     fn test_no_manager() {
-        let mm = NoManager {};
+        let mm = Pin::new(&NoManager {});
 
-        let decoder = decoder_builder().build_with(&mm);
+        let decoder = decoder_builder().build_with(mm);
         assert!(matches!(decoder, Err(DecodeError::CannotCreateDecoder)));
 
-        let encoder = encoder_builder().build_with(&mm);
+        let encoder = encoder_builder().build_with(mm);
         assert!(matches!(encoder, Err(EncodeError::CannotCreateEncoder)));
     }
 
@@ -125,11 +140,12 @@ pub(crate) mod tests {
     fn test_bump_manager() -> Result<(), DecodeError> {
         let sample = std::fs::read("samples/sample.jxl")?;
         let mm = BumpManager::<{ 1024 * 5 }>::default();
-        let parallel_runner = ThreadsRunner::new(Some(&mm.to_manager()), None)
-            .expect("Failed to create ThreadsRunner");
+        let mm = Pin::new(&mm);
+        let parallel_runner =
+            ThreadsRunner::new(Some(mm), Some(64)).expect("Failed to create ThreadsRunner");
         let decoder = decoder_builder()
             .parallel_runner(&parallel_runner)
-            .build_with(&mm)?;
+            .build_with(mm)?;
 
         decoder.decode::<u8>(&sample)?;
 
