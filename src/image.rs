@@ -15,6 +15,8 @@ You should have received a copy of the GNU General Public License
 along with jpegxl-rs.  If not, see <https://www.gnu.org/licenses/>.
 */
 
+#![cfg_attr(docsrs, doc(cfg(feature = "image-support")))]
+
 //! `image` crate integration
 
 use image::{DynamicImage, ImageBuffer};

@@ -20,7 +20,6 @@ along with jpegxl-rs.  If not, see <https://www.gnu.org/licenses/>.
 #![warn(clippy::pedantic)]
 #![allow(clippy::enum_glob_use)]
 #![allow(clippy::default_trait_access)]
-#![cfg_attr(docsrs, feature(doc_cfg))]
 
 //! [![Documentation](https://docs.rs/jpegxl-rs/badge.svg)](https://docs.rs/jpegxl-rs/)
 //! [![Crates.io](https://img.shields.io/crates/v/jpegxl-rs.svg)](https://crates.io/crates/jpegxl-rs)
@@ -51,7 +50,7 @@ along with jpegxl-rs.  If not, see <https://www.gnu.org/licenses/>.
 //! # || -> Result<(), Box<dyn std::error::Error>> {
 //! let mut decoder = decoder_builder().build()?;
 //!
-//! // Use multithread
+//! // Multi-threading
 //! use jpegxl_rs::ThreadsRunner;
 //! let runner = ThreadsRunner::default();
 //! let mut decoder = decoder_builder()
@@ -110,6 +109,8 @@ along with jpegxl-rs.  If not, see <https://www.gnu.org/licenses/>.
 //! let img = decoder.decode::<u8>(&sample)?.into_dynamic_image();       
 //! # Ok(()) };
 //! ```
+
+#![cfg_attr(docsrs, feature(doc_cfg))]
 
 #[macro_use]
 extern crate derive_builder;

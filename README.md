@@ -27,7 +27,7 @@ If you don't want to depend on C++ standard library, disable `threads` feature.
 ```rust
 let mut decoder = decoder_builder().build()?;
 
-// Use multithread
+// Multi-threading
 use jpegxl_rs::ThreadsRunner;
 let runner = ThreadsRunner::default();
 let mut decoder = decoder_builder()
@@ -37,16 +37,10 @@ let mut decoder = decoder_builder()
 // Customize pixel format
 let mut decoder = decoder_builder()
                       .num_channels(3)
-                      .endian(Endianness::Big)
+                      .endianness(Endianness::Big)
                       .align(8)
                       .build()?;
 
-// Set custom memory manager
-use jpegxl_rs::memory::MallocManager;
-let manager = MallocManager::default();
-let mut decoder = decoder_builder()
-                      .memory_manager(&manager)
-                      .build()?;
 ```
 
 ### Encoding

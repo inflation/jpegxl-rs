@@ -27,12 +27,12 @@ along with jpegxl-rs.  If not, see <https://www.gnu.org/licenses/>.
 //! # };
 //! ```
 
-#[cfg(not(feature = "without-threads"))]
+#[cfg(feature = "threads")]
 pub mod threads_runner;
 
 use std::ffi::c_void;
 
-#[cfg(not(feature = "without-threads"))]
+#[cfg(feature = "threads")]
 pub use threads_runner::*;
 
 /// Parallel runner return code
