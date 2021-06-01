@@ -17,7 +17,7 @@ jobs:
           profile: minimal
           toolchain: nightly
           override: true
-          components: llvm-tools-preview
+          components: llvm-tools-preview, rust-src
       - uses: actions-rs/cargo@v1
         with:
           command: generate-lockfile
@@ -45,6 +45,26 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           path-to-lcov: lcov.info
+
+  sanitizer:
+    name: Address Sanitizer
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: nightly
+          override: true
+          components: rust-src
+      - name: Address Sanitizer
+        uses: actions-rs/cargo@v1
+        with:
+          command: test
+          args: -Z build-std --target=x86_64-unknown-linux-gnu
+        env:
+          RUSTFLAGS: "-Z sanitizer=address"
+          RUSTDOCFLAGS: "-Z sanitizer=address"
 
   clippy:
     name: Clippy

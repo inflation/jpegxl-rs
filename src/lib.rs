@@ -89,8 +89,8 @@ along with jpegxl-rs.  If not, see <https://www.gnu.org/licenses/>.
 //!                     .speed(EncoderSpeed::Falcon)
 //!                     .build()?;
 //! // You can change the settings after initialization
-//! encoder.set_lossless(false);
-//! encoder.set_quality(3.0);
+//! encoder.lossless(false);
+//! encoder.quality(3.0);
 //! # Ok(()) };
 //! ```
 //!

@@ -235,11 +235,6 @@ impl<'a> JxlEncoderBuilder<'a> {
             parallel_runner: self.parallel_runner.flatten(),
         };
 
-        encoder.set_lossless(encoder.lossless)?;
-        encoder.set_speed(encoder.speed)?;
-        encoder.set_quality(encoder.quality)?;
-        encoder.decoding_speed(encoder.decoding_speed)?;
-
         Ok(encoder)
     }
 
@@ -263,95 +258,37 @@ impl<'a> JxlEncoderBuilder<'a> {
     }
 }
 
+// Private helper functions
 impl<'a> JxlEncoder<'a> {
-    /// Set if have alpha channel
-    pub fn has_alpha(&mut self, value: bool) {
-        self.has_alpha = value;
-    }
-
-    /// Configure the encoder to use the JPEG XL container format
-    ///
-    /// Using the JPEG XL container format allows to store metadata such as JPEG reconstruction;
-    /// but it adds a few bytes to the encoded file for container headers even if there is no extra metadata.
-    ///
-    /// # Errors
-    /// Return [`EncodeError`] if the internal encoder fails to use JPEG XL container format
-    pub fn use_container(&self, use_container: bool) -> Result<(), EncodeError> {
+    // Set options
+    fn set_options(&self) -> Result<(), EncodeError> {
         check_enc_status(
-            unsafe { JxlEncoderUseContainer(self.enc, use_container) },
+            unsafe { JxlEncoderUseContainer(self.enc, self.use_container) },
             "If use container",
-        )
-    }
-
-    /// Set lossless mode. Default is lossy
-    ///
-    /// # Errors
-    /// Return [`EncodeError`] if the internal encoder fails to set lossless mode
-    pub fn set_lossless(&self, lossless: bool) -> Result<(), EncodeError> {
+        )?;
         check_enc_status(
-            unsafe { JxlEncoderOptionsSetLossless(self.options_ptr.get(), lossless) },
+            unsafe { JxlEncoderOptionsSetLossless(self.options_ptr.get(), self.lossless) },
             "Set lossless",
-        )
-    }
-
-    /// Set speed
-    ///
-    /// Default: `[EncodeSpeed::Squirrel] (7)`.
-    ///
-    /// # Errors
-    /// Return [`EncodeError`] if the internal encoder fails to set speed
-    pub fn set_speed(&self, speed: EncoderSpeed) -> Result<(), EncodeError> {
+        )?;
         check_enc_status(
-            unsafe { JxlEncoderOptionsSetEffort(self.options_ptr.get(), speed as _) },
+            unsafe { JxlEncoderOptionsSetEffort(self.options_ptr.get(), self.speed as _) },
             "Set speed",
-        )
-    }
-
-    /// Set quality for lossy compression: target max butteraugli distance, lower = higher quality
-    ///
-    ///  Range: 0 .. 15.<br />
-    ///    0.0 = mathematically lossless (however, use `set_lossless` to use true lossless). <br />
-    ///    1.0 = visually lossless. <br />
-    ///    Recommended range: 0.5 .. 3.0. <br />
-    ///    Default value: 1.0. <br />
-    ///    If `set_lossless` is used, this value is unused and implied to be 0.
-    ///
-    /// # Errors
-    /// Return [`EncodeError`] if the internal encoder fails to set quality
-    pub fn set_quality(&self, quality: f32) -> Result<(), EncodeError> {
+        )?;
         check_enc_status(
-            unsafe { JxlEncoderOptionsSetDistance(self.options_ptr.get(), quality) },
+            unsafe { JxlEncoderOptionsSetDistance(self.options_ptr.get(), self.quality) },
             "Set quality",
-        )
-    }
-
-    /// Set the decoding speed tier for the provided options.
-    ///
-    /// Minimum is 0 (highest quality), and maximum is 4 (lowest quality). Default is 0.
-    ///
-    /// # Errors
-    /// Return [`EncodeError`] if the internal encoder fails to set decoding speed
-    pub fn decoding_speed(&self, value: i32) -> Result<(), EncodeError> {
+        )?;
         check_enc_status(
-            unsafe { JxlEncoderOptionsSetDecodingSpeed(self.options_ptr.get(), value) },
+            unsafe {
+                JxlEncoderOptionsSetDecodingSpeed(self.options_ptr.get(), self.decoding_speed)
+            },
             "Set decoding speed",
-        )
+        )?;
+
+        Ok(())
     }
 
-    /// Return a wrapper type for adding multiple frames to the encoder
-    ///
-    /// # Errors
-    /// Return [`EncodeError`] if it fails to set up the encoder
-    pub fn multiple<U: PixelType>(
-        &self,
-        width: u32,
-        height: u32,
-    ) -> Result<MultiFrames<U>, EncodeError> {
-        self.setup_encoder::<U>(width, height, self.has_alpha)?;
-        Ok(MultiFrames(self, PhantomData))
-    }
-
-    /// Setup the encoder
+    // Setup the encoder
     fn setup_encoder<U: PixelType>(
         &self,
         width: u32,
@@ -367,7 +304,7 @@ impl<'a> JxlEncoder<'a> {
             }
         }
 
-        self.use_container(self.use_container)?;
+        self.set_options()?;
 
         if let Some(c) = &self.color_encoding {
             unsafe { JxlEncoderSetColorEncoding(self.enc, c) };
@@ -398,7 +335,7 @@ impl<'a> JxlEncoder<'a> {
         )
     }
 
-    /// Add a frame
+    // Add a frame
     fn add_frame<T: PixelType>(&self, frame: &EncoderFrame<T>) -> Result<(), EncodeError> {
         check_enc_status(
             unsafe {
@@ -413,7 +350,7 @@ impl<'a> JxlEncoder<'a> {
         )
     }
 
-    /// Add a frame from JPEG raw data
+    // Add a frame from JPEG raw data
     fn add_jpeg_frame(&self, data: &[u8]) -> Result<(), EncodeError> {
         check_enc_status(
             unsafe {
@@ -427,7 +364,7 @@ impl<'a> JxlEncoder<'a> {
         )
     }
 
-    /// Start encoding
+    // Start encoding
     #[allow(clippy::cast_sign_loss)]
     fn start_encoding<U: PixelType>(&self) -> Result<EncoderResult<U>, EncodeError> {
         unsafe { JxlEncoderCloseInput(self.enc) };
@@ -456,13 +393,73 @@ impl<'a> JxlEncoder<'a> {
 
         unsafe { JxlEncoderReset(self.enc) };
         self.options_ptr
-            .set(unsafe { JxlEncoderOptionsCreate(self.enc, self.options_ptr.get()) });
+            .set(unsafe { JxlEncoderOptionsCreate(self.enc, null()) });
 
         buffer.shrink_to_fit();
         Ok(EncoderResult {
             data: buffer,
             _output_pixel_type: PhantomData,
         })
+    }
+}
+
+// Public interface
+impl<'a> JxlEncoder<'a> {
+    /// Set if result has alpha channel
+    pub fn has_alpha(&mut self, value: bool) {
+        self.has_alpha = value;
+    }
+
+    /// Configure the encoder to use the JPEG XL container format
+    ///
+    /// Using the JPEG XL container format allows to store metadata such as JPEG reconstruction;
+    /// but it adds a few bytes to the encoded file for container headers even if there is no extra metadata
+    pub fn use_container(&mut self, use_container: bool) {
+        self.use_container = use_container;
+    }
+
+    /// Set lossless mode. Default is lossy
+    pub fn lossless(&mut self, lossless: bool) {
+        self.lossless = lossless;
+    }
+
+    /// Set speed
+    ///
+    /// Default: `[EncodeSpeed::Squirrel] (7)`
+    pub fn speed(&mut self, speed: EncoderSpeed) {
+        self.speed = speed;
+    }
+
+    /// Set quality for lossy compression: target max butteraugli distance, lower = higher quality
+    ///
+    ///  Range: 0 .. 15.<br />
+    ///    0.0 = mathematically lossless (however, use `set_lossless` to use true lossless). <br />
+    ///    1.0 = visually lossless. <br />
+    ///    Recommended range: 0.5 .. 3.0. <br />
+    ///    Default value: 1.0. <br />
+    ///    If `lossless` is set to `true`, this value is unused and implied to be 0
+    pub fn quality(&mut self, quality: f32) {
+        self.quality = quality;
+    }
+
+    /// Set the decoding speed tier for the provided options.
+    ///
+    /// Minimum is 0 (highest quality), and maximum is 4 (lowest quality). Default is 0
+    pub fn decoding_speed(&mut self, value: i32) {
+        self.decoding_speed = value;
+    }
+
+    /// Return a wrapper type for adding multiple frames to the encoder
+    ///
+    /// # Errors
+    /// Return [`EncodeError`] if it fails to set up the encoder
+    pub fn multiple<U: PixelType>(
+        &self,
+        width: u32,
+        height: u32,
+    ) -> Result<MultiFrames<U>, EncodeError> {
+        self.setup_encoder::<U>(width, height, self.has_alpha)?;
+        Ok(MultiFrames(self, PhantomData))
     }
 
     /// Encode a JPEG XL image from existing raw JPEG data
