@@ -17,7 +17,7 @@ jobs:
           profile: minimal
           toolchain: nightly
           override: true
-          components: llvm-tools-preview, rust-src
+          components: llvm-tools-preview
       - uses: actions-rs/cargo@v1
         with:
           command: generate-lockfile
@@ -47,7 +47,7 @@ jobs:
           path-to-lcov: lcov.info
 
   sanitizer:
-    name: Address Sanitizer
+    name: Sanitizers
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2

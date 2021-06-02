@@ -21,7 +21,6 @@ along with jpegxl-rs.  If not, see <https://www.gnu.org/licenses/>.
 use jpegxl_sys::*;
 use std::{
     mem::{ManuallyDrop, MaybeUninit},
-    pin::Pin,
     ptr::null,
 };
 
@@ -61,7 +60,7 @@ pub struct ResultInfo {
 #[derive(Builder)]
 #[builder(build_fn(skip))]
 #[builder(setter(strip_option))]
-pub struct JxlDecoder<'a> {
+pub struct JxlDecoder<'prl, 'mm> {
     /// Opaque pointer to the underlying decoder
     #[builder(setter(skip))]
     dec: *mut jpegxl_sys::JxlDecoder,
@@ -69,39 +68,43 @@ pub struct JxlDecoder<'a> {
     /// Number of channels for returned result
     ///
     /// Default: 4 for RGBA
-    num_channels: u32,
+    pub num_channels: u32,
     /// Endianness for returned result
     ///
     /// Default: native endian
-    endianness: Endianness,
+    pub endianness: Endianness,
     /// Set pixel scanlines alignment for returned result
     ///
     /// Default: 0
-    align: usize,
+    pub align: usize,
 
     /// Keep orientation or not
     ///
     /// Default: false, so the decoder rotates the image for you
-    keep_orientation: bool,
+    pub keep_orientation: bool,
     /// Set initial buffer for JPEG reconstruction.
     /// Larger one could be faster with fewer allocations
     ///
     /// Default: 1 KiB
-    init_jpeg_buffer: usize,
+    pub init_jpeg_buffer: usize,
 
-    /// Set parallel runner
-    parallel_runner: Option<&'a dyn JxlParallelRunner>,
+    /// Parallel runner
+    pub parallel_runner: Option<&'prl dyn JxlParallelRunner>,
+
+    /// Store memory manager ref so it pins until the end of the decoder
+    #[builder(setter(skip))]
+    _memory_manager: Option<&'mm dyn JxlMemoryManager>,
 }
 
-impl<'a> JxlDecoderBuilder<'a> {
-    fn _build<'b>(
+impl<'prl, 'mm> JxlDecoderBuilder<'prl, 'mm> {
+    fn _build(
         &self,
-        memory_manager: Option<Pin<&'b dyn JxlMemoryManager>>,
-    ) -> Result<JxlDecoder<'a>, DecodeError> {
+        memory_manager: Option<&'mm dyn JxlMemoryManager>,
+    ) -> Result<JxlDecoder<'prl, 'mm>, DecodeError> {
         let dec = unsafe {
             memory_manager.map_or_else(
                 || JxlDecoderCreate(null()),
-                |memory_manager| JxlDecoderCreate(&memory_manager.manager()),
+                |mm| JxlDecoderCreate(&mm.manager()),
             )
         };
 
@@ -117,6 +120,7 @@ impl<'a> JxlDecoderBuilder<'a> {
             keep_orientation: self.keep_orientation.unwrap_or(false),
             init_jpeg_buffer: self.init_jpeg_buffer.unwrap_or(1024),
             parallel_runner: self.parallel_runner.flatten(),
+            _memory_manager: memory_manager,
         })
     }
 
@@ -124,7 +128,7 @@ impl<'a> JxlDecoderBuilder<'a> {
     ///
     /// # Errors
     /// Return [`DecodeError::CannotCreateDecoder`] if it fails to create the decoder.
-    pub fn build(&self) -> Result<JxlDecoder<'a>, DecodeError> {
+    pub fn build(&self) -> Result<JxlDecoder<'prl, 'mm>, DecodeError> {
         Self::_build(self, None)
     }
 
@@ -132,11 +136,11 @@ impl<'a> JxlDecoderBuilder<'a> {
     ///
     /// # Errors
     /// Return [`DecodeError::CannotCreateDecoder`] if it fails to create the decoder.
-    pub fn build_with<'b>(
+    pub fn build_with(
         &self,
-        memory_manager: Pin<&'b dyn JxlMemoryManager>,
-    ) -> Result<JxlDecoder<'a>, DecodeError> {
-        Self::_build(self, Some(memory_manager))
+        mm: &'mm dyn JxlMemoryManager,
+    ) -> Result<JxlDecoder<'prl, 'mm>, DecodeError> {
+        Self::_build(self, Some(mm))
     }
 }
 
@@ -145,30 +149,7 @@ union Data<T> {
     jpeg: ManuallyDrop<Vec<u8>>,
 }
 
-impl<'a> JxlDecoder<'a> {
-    /// Set number of channels
-    pub fn set_num_channels(&mut self, value: u32) {
-        self.num_channels = value;
-    }
-
-    /// Set pixel endianness
-    pub fn set_endianness(&mut self, value: Endianness) {
-        self.endianness = value;
-    }
-
-    /// Set pixel scanlines alignment
-    pub fn set_align(&mut self, value: usize) {
-        self.align = value;
-    }
-
-    /// Keep original orientation or not. Default: `false`
-    ///
-    /// Note: Set `true` could make decoding faster, but you need to manually transform the result with the correct
-    /// orientation.
-    pub fn keep_orientation(&mut self, value: bool) {
-        self.keep_orientation = value;
-    }
-
+impl<'prl, 'mm> JxlDecoder<'prl, 'mm> {
     fn decode_internal<T: PixelType>(
         &self,
         data: &[u8],
@@ -440,7 +421,7 @@ impl<'a> JxlDecoder<'a> {
     }
 }
 
-impl<'a> Drop for JxlDecoder<'a> {
+impl<'prl, 'mm> Drop for JxlDecoder<'prl, 'mm> {
     fn drop(&mut self) {
         unsafe { JxlDecoderDestroy(self.dec) };
     }
@@ -448,6 +429,6 @@ impl<'a> Drop for JxlDecoder<'a> {
 
 /// Return a [`JxlDecoderBuilder`] with default settings
 #[must_use]
-pub fn decoder_builder<'a>() -> JxlDecoderBuilder<'a> {
+pub fn decoder_builder<'prl, 'mm>() -> JxlDecoderBuilder<'prl, 'mm> {
     JxlDecoderBuilder::default()
 }

@@ -95,13 +95,13 @@ mod tests {
             .into_dynamic_image()
             .ok_or("Failed to create DynamicImage")?;
 
-        decoder.set_num_channels(2);
+        decoder.num_channels = 2;
         decoder
             .decode::<u8>(&sample)?
             .into_dynamic_image()
             .ok_or("Failed to create DynamicImage")?;
 
-        decoder.set_num_channels(3);
+        decoder.num_channels = 3;
         decoder
             .decode::<u8>(&sample)?
             .into_dynamic_image()

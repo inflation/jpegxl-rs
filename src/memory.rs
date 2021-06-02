@@ -16,7 +16,7 @@ along with jpegxl-rs.  If not, see <https://www.gnu.org/licenses/>.
 */
 
 //! Memory manager interface
-use std::{ffi::c_void, pin::Pin};
+use std::ffi::c_void;
 
 /// Allocator function type
 pub type AllocFn = unsafe extern "C" fn(opaque: *mut c_void, size: usize) -> *mut c_void;
@@ -33,10 +33,9 @@ pub trait JxlMemoryManager {
 
     /// Helper conversion function for C API
     #[must_use]
-    fn manager(self: Pin<&Self>) -> jpegxl_sys::JxlMemoryManager {
-        let opaque = self.get_ref() as *const Self as _;
+    fn manager(&self) -> jpegxl_sys::JxlMemoryManager {
         jpegxl_sys::JxlMemoryManager {
-            opaque,
+            opaque: self as *const Self as _,
             alloc: self.alloc(),
             free: self.free(),
         }
@@ -103,7 +102,7 @@ pub(crate) mod tests {
                         break null_mut();
                     } else if mm
                         .footer
-                        .compare_exchange(footer, new, Ordering::Release, Ordering::Relaxed)
+                        .compare_exchange_weak(footer, new, Ordering::AcqRel, Ordering::Relaxed)
                         .is_err()
                     {
                         footer = mm.footer.load(Ordering::Acquire);
@@ -127,12 +126,12 @@ pub(crate) mod tests {
 
     #[test]
     fn test_no_manager() {
-        let mm = Pin::new(&NoManager {});
+        let mm = NoManager {};
 
-        let decoder = decoder_builder().build_with(mm);
+        let decoder = decoder_builder().build_with(&mm);
         assert!(matches!(decoder, Err(DecodeError::CannotCreateDecoder)));
 
-        let encoder = encoder_builder().build_with(mm);
+        let encoder = encoder_builder().build_with(&mm);
         assert!(matches!(encoder, Err(EncodeError::CannotCreateEncoder)));
     }
 
@@ -140,12 +139,11 @@ pub(crate) mod tests {
     fn test_bump_manager() -> Result<(), DecodeError> {
         let sample = std::fs::read("samples/sample.jxl")?;
         let mm = BumpManager::<{ 1024 * 5 }>::default();
-        let mm = Pin::new(&mm);
         let parallel_runner =
-            ThreadsRunner::new(Some(mm), Some(64)).expect("Failed to create ThreadsRunner");
+            ThreadsRunner::new(Some(&mm), Some(64)).expect("Failed to create ThreadsRunner");
         let decoder = decoder_builder()
             .parallel_runner(&parallel_runner)
-            .build_with(mm)?;
+            .build_with(&mm)?;
 
         decoder.decode::<u8>(&sample)?;
 

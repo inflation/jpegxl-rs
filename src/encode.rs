@@ -19,7 +19,7 @@ along with jpegxl-rs.  If not, see <https://www.gnu.org/licenses/>.
 
 #[allow(clippy::wildcard_imports)]
 use jpegxl_sys::*;
-use std::{cell::Cell, marker::PhantomData, ops::Deref, pin::Pin, ptr::null};
+use std::{cell::Cell, marker::PhantomData, ops::Deref, ptr::null};
 
 use crate::{
     common::PixelType, errors::check_enc_status, errors::EncodeError, memory::JxlMemoryManager,
@@ -148,7 +148,7 @@ impl<U: PixelType> Deref for EncoderResult<U> {
 #[derive(Builder)]
 #[builder(build_fn(skip))]
 #[builder(setter(strip_option))]
-pub struct JxlEncoder<'a> {
+pub struct JxlEncoder<'prl, 'mm> {
     /// Opaque pointer to the underlying encoder
     #[builder(setter(skip))]
     enc: *mut jpegxl_sys::JxlEncoder,
@@ -159,15 +159,15 @@ pub struct JxlEncoder<'a> {
     /// Set alpha channel
     ///
     /// Default: false
-    has_alpha: bool,
+    pub has_alpha: bool,
     /// Set lossless
     ///
     /// Default: false
-    lossless: bool,
+    pub lossless: bool,
     /// Set speed
     ///
     /// Default: `[EncodeSpeed::Squirrel] (7)`.
-    speed: EncoderSpeed,
+    pub speed: EncoderSpeed,
     /// Set quality for lossy compression: target max butteraugli distance, lower = higher quality
     ///
     ///  Range: 0 .. 15.<br />
@@ -176,20 +176,20 @@ pub struct JxlEncoder<'a> {
     ///    Recommended range: 0.5 .. 3.0. <br />
     ///    Default value: 1.0. <br />
     ///    If `lossless` is set to `true`, this value is unused and implied to be 0.
-    quality: f32,
+    pub quality: f32,
     /// Configure the encoder to use the JPEG XL container format
     ///
     /// Using the JPEG XL container format allows to store metadata such as JPEG reconstruction;
     /// but it adds a few bytes to the encoded file for container headers even if there is no extra metadata.
-    use_container: bool,
+    pub use_container: bool,
     /// Set the decoding speed tier
     ///
     /// Minimum is 0 (highest quality), and maximum is 4 (lowest quality). Default is 0.
-    decoding_speed: i32,
+    pub decoding_speed: i32,
     /// Set initial output buffer size in bytes
     ///
     /// Default: 1 MiB
-    init_buffer_size: usize,
+    pub init_buffer_size: usize,
 
     /// Set color encoding
     ///
@@ -200,14 +200,18 @@ pub struct JxlEncoder<'a> {
     /// Set parallel runner
     ///
     /// Default: `None`, indicating single thread execution
-    parallel_runner: Option<&'a dyn JxlParallelRunner>,
+    pub parallel_runner: Option<&'prl dyn JxlParallelRunner>,
+
+    /// Store memory manager ref so it pins until the end of the encoder
+    #[builder(setter(skip))]
+    _memory_manager: Option<&'mm dyn JxlMemoryManager>,
 }
 
-impl<'a> JxlEncoderBuilder<'a> {
-    fn _build<'b>(
+impl<'prl, 'mm> JxlEncoderBuilder<'prl, 'mm> {
+    fn _build(
         &self,
-        memory_manager: Option<Pin<&'b dyn JxlMemoryManager>>,
-    ) -> Result<JxlEncoder<'a>, EncodeError> {
+        memory_manager: Option<&'mm dyn JxlMemoryManager>,
+    ) -> Result<JxlEncoder<'prl, 'mm>, EncodeError> {
         let enc = unsafe {
             memory_manager.map_or_else(
                 || JxlEncoderCreate(null()),
@@ -233,6 +237,7 @@ impl<'a> JxlEncoderBuilder<'a> {
             init_buffer_size: self.init_buffer_size.unwrap_or(1024 * 1024),
             color_encoding: self.color_encoding.clone().flatten(),
             parallel_runner: self.parallel_runner.flatten(),
+            _memory_manager: memory_manager,
         };
 
         Ok(encoder)
@@ -242,7 +247,7 @@ impl<'a> JxlEncoderBuilder<'a> {
     ///
     /// # Errors
     /// Return [`EncodeError::CannotCreateEncoder`] if it fails to create the encoder
-    pub fn build(&self) -> Result<JxlEncoder<'a>, EncodeError> {
+    pub fn build(&self) -> Result<JxlEncoder<'prl, 'mm>, EncodeError> {
         Self::_build(self, None)
     }
 
@@ -250,16 +255,16 @@ impl<'a> JxlEncoderBuilder<'a> {
     ///
     /// # Errors
     /// Return [`EncodeError::CannotCreateEncoder`] if it fails to create the encoder
-    pub fn build_with<'b>(
+    pub fn build_with(
         &self,
-        memory_manager: Pin<&'b dyn JxlMemoryManager>,
-    ) -> Result<JxlEncoder<'a>, EncodeError> {
-        Self::_build(self, Some(memory_manager))
+        mm: &'mm dyn JxlMemoryManager,
+    ) -> Result<JxlEncoder<'prl, 'mm>, EncodeError> {
+        Self::_build(self, Some(mm))
     }
 }
 
 // Private helper functions
-impl<'a> JxlEncoder<'a> {
+impl JxlEncoder<'_, '_> {
     // Set options
     fn set_options(&self) -> Result<(), EncodeError> {
         check_enc_status(
@@ -404,51 +409,7 @@ impl<'a> JxlEncoder<'a> {
 }
 
 // Public interface
-impl<'a> JxlEncoder<'a> {
-    /// Set if result has alpha channel
-    pub fn has_alpha(&mut self, value: bool) {
-        self.has_alpha = value;
-    }
-
-    /// Configure the encoder to use the JPEG XL container format
-    ///
-    /// Using the JPEG XL container format allows to store metadata such as JPEG reconstruction;
-    /// but it adds a few bytes to the encoded file for container headers even if there is no extra metadata
-    pub fn use_container(&mut self, use_container: bool) {
-        self.use_container = use_container;
-    }
-
-    /// Set lossless mode. Default is lossy
-    pub fn lossless(&mut self, lossless: bool) {
-        self.lossless = lossless;
-    }
-
-    /// Set speed
-    ///
-    /// Default: `[EncodeSpeed::Squirrel] (7)`
-    pub fn speed(&mut self, speed: EncoderSpeed) {
-        self.speed = speed;
-    }
-
-    /// Set quality for lossy compression: target max butteraugli distance, lower = higher quality
-    ///
-    ///  Range: 0 .. 15.<br />
-    ///    0.0 = mathematically lossless (however, use `set_lossless` to use true lossless). <br />
-    ///    1.0 = visually lossless. <br />
-    ///    Recommended range: 0.5 .. 3.0. <br />
-    ///    Default value: 1.0. <br />
-    ///    If `lossless` is set to `true`, this value is unused and implied to be 0
-    pub fn quality(&mut self, quality: f32) {
-        self.quality = quality;
-    }
-
-    /// Set the decoding speed tier for the provided options.
-    ///
-    /// Minimum is 0 (highest quality), and maximum is 4 (lowest quality). Default is 0
-    pub fn decoding_speed(&mut self, value: i32) {
-        self.decoding_speed = value;
-    }
-
+impl JxlEncoder<'_, '_> {
     /// Return a wrapper type for adding multiple frames to the encoder
     ///
     /// # Errors
@@ -518,16 +479,16 @@ impl<'a> JxlEncoder<'a> {
     }
 }
 
-impl<'a> Drop for JxlEncoder<'a> {
+impl Drop for JxlEncoder<'_, '_> {
     fn drop(&mut self) {
         unsafe { JxlEncoderDestroy(self.enc) };
     }
 }
 
 /// A wrapper type for encoding multiple frames
-pub struct MultiFrames<'a, 'b, U>(&'a JxlEncoder<'b>, PhantomData<U>);
+pub struct MultiFrames<'enc, 'prl, 'mm, U>(&'enc JxlEncoder<'prl, 'mm>, PhantomData<U>);
 
-impl<'a, 'b, U: PixelType> MultiFrames<'a, 'b, U> {
+impl<U: PixelType> MultiFrames<'_, '_, '_, U> {
     /// Add a frame to the encoder
     /// # Errors
     /// Return [`EncodeError`] if the internal encoder fails to add a frame
@@ -554,6 +515,6 @@ impl<'a, 'b, U: PixelType> MultiFrames<'a, 'b, U> {
 
 /// Return a [`JxlEncoderBuilder`] with default settings
 #[must_use]
-pub fn encoder_builder<'a>() -> JxlEncoderBuilder<'a> {
+pub fn encoder_builder<'prl, 'mm>() -> JxlEncoderBuilder<'prl, 'mm> {
     JxlEncoderBuilder::default()
 }

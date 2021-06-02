@@ -64,6 +64,9 @@ along with jpegxl-rs.  If not, see <https://www.gnu.org/licenses/>.
 //!                       .align(8)
 //!                       .build()?;
 //!
+//! // You can change the settings after initialization
+//! decoder.num_channels = 1;
+//! decoder.endianness = Endianness::Native;
 //! # Ok(()) };
 //! ```
 //!
@@ -89,8 +92,8 @@ along with jpegxl-rs.  If not, see <https://www.gnu.org/licenses/>.
 //!                     .speed(EncoderSpeed::Falcon)
 //!                     .build()?;
 //! // You can change the settings after initialization
-//! encoder.lossless(false);
-//! encoder.quality(3.0);
+//! encoder.lossless = false;
+//! encoder.quality = 3.0;
 //! # Ok(()) };
 //! ```
 //!

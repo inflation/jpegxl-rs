@@ -41,6 +41,9 @@ let mut decoder = decoder_builder()
                       .align(8)
                       .build()?;
 
+// You can change the settings after initialization
+decoder.num_channels = 1;
+decoder.endianness = Endianness::Native;
 ```
 
 ### Encoding
@@ -60,8 +63,8 @@ let mut encoder = encoder_builder()
                     .speed(EncoderSpeed::Falcon)
                     .build()?;
 // You can change the settings after initialization
-encoder.lossless(false);
-encoder.quality(3.0);
+encoder.lossless = false;
+encoder.quality = 3.0;
 ```
 
 ### [`image`](https://crates.io/crates/image) crate integration

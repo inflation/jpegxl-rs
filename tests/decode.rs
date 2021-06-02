@@ -61,10 +61,10 @@ fn builder() -> Result<()> {
 
     assert_eq!(data.len(), (info.width * info.height * 3) as usize);
 
-    decoder.set_align(0);
-    decoder.set_endianness(Endianness::Native);
-    decoder.set_num_channels(4);
-    decoder.keep_orientation(true);
+    decoder.align = 0;
+    decoder.endianness = Endianness::Native;
+    decoder.num_channels = 4;
+    decoder.keep_orientation = true;
 
     decoder.decode::<u8>(&sample)?;
 

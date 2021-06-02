@@ -68,7 +68,7 @@ fn builder() -> Result<()> {
     )?;
 
     // Check encoder reset
-    encoder.has_alpha(false);
+    encoder.has_alpha = false;
     let _res: EncoderResult<u8> =
         encoder.encode(sample.as_raw(), sample.width(), sample.height())?;
 

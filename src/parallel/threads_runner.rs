@@ -19,7 +19,7 @@ along with jpegxl-rs.  If not, see <https://www.gnu.org/licenses/>.
 
 #![cfg_attr(docsrs, doc(cfg(feature = "threads")))]
 
-use std::{ffi::c_void, pin::Pin, ptr::null_mut};
+use std::{ffi::c_void, ptr::null_mut};
 
 #[allow(clippy::wildcard_imports)]
 use jpegxl_sys::thread_runner::*;
@@ -29,15 +29,16 @@ use super::{JxlParallelRunner, RunnerFn};
 use crate::memory::JxlMemoryManager;
 
 /// Wrapper for default threadpool implementation with C++ standard library
-pub struct ThreadsRunner {
+pub struct ThreadsRunner<'mm> {
     runner_ptr: *mut c_void,
+    _memory_manager: Option<&'mm dyn JxlMemoryManager>,
 }
 
-impl ThreadsRunner {
+impl<'mm> ThreadsRunner<'mm> {
     /// Construct with number of threads
     #[must_use]
     pub fn new(
-        memory_manager: Option<Pin<&dyn JxlMemoryManager>>,
+        memory_manager: Option<&'mm dyn JxlMemoryManager>,
         num_workers: Option<usize>,
     ) -> Option<Self> {
         let mm = memory_manager.map(JxlMemoryManager::manager);
@@ -51,12 +52,15 @@ impl ThreadsRunner {
         if runner_ptr.is_null() {
             None
         } else {
-            Some(Self { runner_ptr })
+            Some(Self {
+                runner_ptr,
+                _memory_manager: memory_manager,
+            })
         }
     }
 }
 
-impl Default for ThreadsRunner {
+impl Default for ThreadsRunner<'_> {
     fn default() -> Self {
         Self {
             runner_ptr: unsafe {
@@ -65,11 +69,12 @@ impl Default for ThreadsRunner {
                     JxlThreadParallelRunnerDefaultNumWorkerThreads(),
                 )
             },
+            _memory_manager: None,
         }
     }
 }
 
-impl JxlParallelRunner for ThreadsRunner {
+impl JxlParallelRunner for ThreadsRunner<'_> {
     fn runner(&self) -> RunnerFn {
         JxlThreadParallelRunner
     }
@@ -79,7 +84,7 @@ impl JxlParallelRunner for ThreadsRunner {
     }
 }
 
-impl Drop for ThreadsRunner {
+impl Drop for ThreadsRunner<'_> {
     fn drop(&mut self) {
         unsafe { JxlThreadParallelRunnerDestroy(self.runner_ptr) };
     }
@@ -93,13 +98,12 @@ mod tests {
 
     #[test]
     fn test_construction() {
-        let memory_manager = Pin::new(&NoManager {});
-        let parallel_runner = ThreadsRunner::new(Some(memory_manager), None);
+        let memory_manager = NoManager {};
+        let parallel_runner = ThreadsRunner::new(Some(&memory_manager), None);
         assert!(parallel_runner.is_none());
 
         let memory_manager = BumpManager::<1024>::default();
-        let memory_manager = Pin::new(&memory_manager);
-        let parallel_runner = ThreadsRunner::new(Some(memory_manager), None);
+        let parallel_runner = ThreadsRunner::new(Some(&memory_manager), None);
         assert!(parallel_runner.is_some());
     }
 }
