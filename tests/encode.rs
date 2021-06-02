@@ -12,7 +12,7 @@ use image::{io::Reader as ImageReader, GenericImageView, ImageFormat};
 fn simple() -> Result<()> {
     let sample = ImageReader::open("samples/sample.png")?.decode()?.to_rgb8();
     let parallel_runner = ThreadsRunner::default();
-    let encoder = encoder_builder()
+    let mut encoder = encoder_builder()
         .parallel_runner(&parallel_runner)
         .build()?;
 
@@ -34,7 +34,7 @@ fn jpeg() -> Result<()> {
         ImageReader::with_format(std::io::Cursor::new(&sample), ImageFormat::Jpeg).decode()?;
 
     let parallel_runner = ThreadsRunner::default();
-    let encoder = encoder_builder()
+    let mut encoder = encoder_builder()
         .use_container(true)
         .parallel_runner(&parallel_runner)
         .build()?;
@@ -80,7 +80,7 @@ fn multi_frames() -> Result<()> {
     let sample = ImageReader::open("samples/sample.png")?.decode()?.to_rgb8();
     let sample_jpeg = std::fs::read("samples/sample.jpg")?;
     let parallel_runner = ThreadsRunner::default();
-    let encoder = encoder_builder()
+    let mut encoder = encoder_builder()
         .parallel_runner(&parallel_runner)
         .color_encoding(ColorEncoding::SRgb)
         .build()?;

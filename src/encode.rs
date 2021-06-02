@@ -19,7 +19,7 @@ along with jpegxl-rs.  If not, see <https://www.gnu.org/licenses/>.
 
 #[allow(clippy::wildcard_imports)]
 use jpegxl_sys::*;
-use std::{cell::Cell, marker::PhantomData, ops::Deref, ptr::null};
+use std::{marker::PhantomData, ops::Deref, ptr::null};
 
 use crate::{
     common::PixelType, errors::check_enc_status, errors::EncodeError, memory::JxlMemoryManager,
@@ -154,7 +154,7 @@ pub struct JxlEncoder<'prl, 'mm> {
     enc: *mut jpegxl_sys::JxlEncoder,
     /// Opaque pointer to the encoder options
     #[builder(setter(skip))]
-    options_ptr: Cell<*mut JxlEncoderOptions>,
+    options_ptr: *mut JxlEncoderOptions,
 
     /// Set alpha channel
     ///
@@ -227,7 +227,7 @@ impl<'prl, 'mm> JxlEncoderBuilder<'prl, 'mm> {
 
         let encoder = JxlEncoder {
             enc,
-            options_ptr: Cell::new(options_ptr),
+            options_ptr,
             has_alpha: self.has_alpha.unwrap_or_default(),
             lossless: self.lossless.unwrap_or_default(),
             speed: self.speed.unwrap_or_default(),
@@ -272,21 +272,19 @@ impl JxlEncoder<'_, '_> {
             "If use container",
         )?;
         check_enc_status(
-            unsafe { JxlEncoderOptionsSetLossless(self.options_ptr.get(), self.lossless) },
+            unsafe { JxlEncoderOptionsSetLossless(self.options_ptr, self.lossless) },
             "Set lossless",
         )?;
         check_enc_status(
-            unsafe { JxlEncoderOptionsSetEffort(self.options_ptr.get(), self.speed as _) },
+            unsafe { JxlEncoderOptionsSetEffort(self.options_ptr, self.speed as _) },
             "Set speed",
         )?;
         check_enc_status(
-            unsafe { JxlEncoderOptionsSetDistance(self.options_ptr.get(), self.quality) },
+            unsafe { JxlEncoderOptionsSetDistance(self.options_ptr, self.quality) },
             "Set quality",
         )?;
         check_enc_status(
-            unsafe {
-                JxlEncoderOptionsSetDecodingSpeed(self.options_ptr.get(), self.decoding_speed)
-            },
+            unsafe { JxlEncoderOptionsSetDecodingSpeed(self.options_ptr, self.decoding_speed) },
             "Set decoding speed",
         )?;
 
@@ -345,7 +343,7 @@ impl JxlEncoder<'_, '_> {
         check_enc_status(
             unsafe {
                 JxlEncoderAddImageFrame(
-                    self.options_ptr.get(),
+                    self.options_ptr,
                     &frame.pixel_format(),
                     frame.data.as_ptr().cast(),
                     std::mem::size_of_val(frame.data),
@@ -360,7 +358,7 @@ impl JxlEncoder<'_, '_> {
         check_enc_status(
             unsafe {
                 JxlEncoderAddJPEGFrame(
-                    self.options_ptr.get(),
+                    self.options_ptr,
                     data.as_ptr().cast(),
                     std::mem::size_of_val(data),
                 )
@@ -371,7 +369,7 @@ impl JxlEncoder<'_, '_> {
 
     // Start encoding
     #[allow(clippy::cast_sign_loss)]
-    fn start_encoding<U: PixelType>(&self) -> Result<EncoderResult<U>, EncodeError> {
+    fn start_encoding<U: PixelType>(&mut self) -> Result<EncoderResult<U>, EncodeError> {
         unsafe { JxlEncoderCloseInput(self.enc) };
 
         let mut buffer = vec![0; self.init_buffer_size];
@@ -397,8 +395,7 @@ impl JxlEncoder<'_, '_> {
         check_enc_status(status, "Process output")?;
 
         unsafe { JxlEncoderReset(self.enc) };
-        self.options_ptr
-            .set(unsafe { JxlEncoderOptionsCreate(self.enc, null()) });
+        self.options_ptr = unsafe { JxlEncoderOptionsCreate(self.enc, null()) };
 
         buffer.shrink_to_fit();
         Ok(EncoderResult {
@@ -409,18 +406,18 @@ impl JxlEncoder<'_, '_> {
 }
 
 // Public interface
-impl JxlEncoder<'_, '_> {
+impl<'prl, 'mm> JxlEncoder<'prl, 'mm> {
     /// Return a wrapper type for adding multiple frames to the encoder
     ///
     /// # Errors
     /// Return [`EncodeError`] if it fails to set up the encoder
-    pub fn multiple<U: PixelType>(
-        &self,
+    pub fn multiple<'enc, U: PixelType>(
+        &'enc mut self,
         width: u32,
         height: u32,
-    ) -> Result<MultiFrames<U>, EncodeError> {
+    ) -> Result<MultiFrames<'enc, 'prl, 'mm, U>, EncodeError> {
         self.setup_encoder::<U>(width, height, self.has_alpha)?;
-        Ok(MultiFrames(self, PhantomData))
+        Ok(MultiFrames::<'enc, 'prl, '_, U>(self, PhantomData))
     }
 
     /// Encode a JPEG XL image from existing raw JPEG data
@@ -430,7 +427,7 @@ impl JxlEncoder<'_, '_> {
     /// # Errors
     /// Return [`EncodeError`] if the internal encoder fails to encode
     pub fn encode_jpeg(
-        &self,
+        &mut self,
         data: &[u8],
         width: u32,
         height: u32,
@@ -453,7 +450,7 @@ impl JxlEncoder<'_, '_> {
     /// # Errors
     /// Return [`EncodeError`] if the internal encoder fails to encode
     pub fn encode<T: PixelType, U: PixelType>(
-        &self,
+        &mut self,
         data: &[T],
         width: u32,
         height: u32,
@@ -468,7 +465,7 @@ impl JxlEncoder<'_, '_> {
     /// # Errors
     /// Return [`EncodeError`] if the internal encoder fails to encode
     pub fn encode_frame<T: PixelType, U: PixelType>(
-        &self,
+        &mut self,
         frame: &EncoderFrame<T>,
         width: u32,
         height: u32,
@@ -486,7 +483,10 @@ impl Drop for JxlEncoder<'_, '_> {
 }
 
 /// A wrapper type for encoding multiple frames
-pub struct MultiFrames<'enc, 'prl, 'mm, U>(&'enc JxlEncoder<'prl, 'mm>, PhantomData<U>);
+pub struct MultiFrames<'enc, 'prl, 'mm, U>(&'enc mut JxlEncoder<'prl, 'mm>, PhantomData<U>)
+where
+    'prl: 'enc,
+    'mm: 'enc;
 
 impl<U: PixelType> MultiFrames<'_, '_, '_, U> {
     /// Add a frame to the encoder

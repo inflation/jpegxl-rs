@@ -1,19 +1,20 @@
 use ::image::io::Reader as ImageReader;
-use criterion::{black_box, criterion_group, criterion_main, Criterion};
+use criterion::{black_box, criterion_group, criterion_main, Criterion, SamplingMode};
 use jpegxl_rs::*;
 use parallel::ThreadsRunner;
 
 pub fn criterion_benchmark(c: &mut Criterion) {
     let mut group = c.benchmark_group("Encoder");
+    group.sampling_mode(SamplingMode::Flat);
     group.sample_size(10);
     group.measurement_time(std::time::Duration::new(15, 0));
 
-    let sample = ImageReader::open("test/bench.png")
+    let sample = ImageReader::open("samples/bench.png")
         .unwrap()
         .decode()
         .unwrap()
         .to_rgb8();
-    let encoder = encoder_builder().build().unwrap();
+    let mut encoder = encoder_builder().build().unwrap();
     group.bench_function("single thread", |b| {
         b.iter_with_large_drop(|| {
             encoder
@@ -23,7 +24,7 @@ pub fn criterion_benchmark(c: &mut Criterion) {
     });
 
     let parallel_runner = ThreadsRunner::default();
-    let encoder = encoder_builder()
+    let mut encoder = encoder_builder()
         .parallel_runner(&parallel_runner)
         .build()
         .unwrap();

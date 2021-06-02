@@ -107,7 +107,7 @@ mod tests {
 
     #[test]
     fn encode_invalid_data() {
-        let encoder = crate::encoder_builder()
+        let mut encoder = crate::encoder_builder()
             .has_alpha(true)
             .build()
             .expect("Failed to create encoder");
