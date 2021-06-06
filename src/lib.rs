@@ -43,11 +43,16 @@ along with jpegxl-rs.  If not, see <https://www.gnu.org/licenses/>.
 //!
 //! # Usage
 //!
+//! Currently, `u8`, `u16` and `f32`(partial) are supported as pixel types. `u32` is in the header but not implemented.
+//!
+//! Note: `f32` with alpha channel is not supported in encoder.
+//!
 //! ## Decoding
 //!
 //! ```
 //! # use jpegxl_rs::*;
 //! # || -> Result<(), Box<dyn std::error::Error>> {
+//! # let sample = [];
 //! let mut decoder = decoder_builder().build()?;
 //!
 //! // Multi-threading
@@ -63,6 +68,8 @@ along with jpegxl-rs.  If not, see <https://www.gnu.org/licenses/>.
 //!                       .endianness(Endianness::Big)
 //!                       .align(8)
 //!                       .build()?;
+//!
+//! decoder.decode_to::<u8>(&sample);
 //!
 //! // You can change the settings after initialization
 //! decoder.num_channels = 1;
@@ -109,7 +116,7 @@ along with jpegxl-rs.  If not, see <https://www.gnu.org/licenses/>.
 //!
 //! let sample = std::fs::read("test/sample.jxl")?;
 //! let decoder = decoder_builder().build()?;
-//! let img = decoder.decode::<u8>(&sample)?.into_dynamic_image();       
+//! let img = decoder.decode(&sample)?.into_dynamic_image();       
 //! # Ok(()) };
 //! ```
 

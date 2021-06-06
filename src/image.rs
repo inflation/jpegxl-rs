@@ -22,7 +22,7 @@ along with jpegxl-rs.  If not, see <https://www.gnu.org/licenses/>.
 use image::{DynamicImage, ImageBuffer};
 use paste::paste;
 
-use crate::decode::DecoderResult;
+use crate::decode::{Data, DecoderResult};
 
 /// Extension trait for [`DecoderResult`]
 pub trait ToDynamic {
@@ -31,30 +31,34 @@ pub trait ToDynamic {
 }
 
 macro_rules! to_dynamic {
-    ($self:ident, $x:ident) => {
-        ImageBuffer::from_raw($self.info.width, $self.info.height, $self.data).map(DynamicImage::$x)
+    ($info:expr, $data:expr, $x:ident) => {
+        ImageBuffer::from_raw($info.width, $info.height, $data).map(DynamicImage::$x)
     };
 }
 
 macro_rules! impl_to_dynamic_for_bytes {
-    ($($b:expr),*) => {
-        $(paste! {
-            impl ToDynamic for DecoderResult<[<u $b>]> {
-                fn into_dynamic_image(self) -> Option<DynamicImage> {
-                    match self.info.num_channels {
-                        1 => to_dynamic!(self, [<ImageLuma $b>]),
-                        2 => to_dynamic!(self, [<ImageLumaA $b>]),
-                        3 => to_dynamic!(self, [<ImageRgb $b>]),
-                        4 => to_dynamic!(self, [<ImageRgba $b>]),
-                        _ => None,
-                    }
-                }
+    ($info:expr, $data:expr, $b:expr) => {
+        paste! {
+            match $info.num_channels {
+                1 => to_dynamic!($info,$data, [<ImageLuma $b>]),
+                2 => to_dynamic!($info,$data, [<ImageLumaA $b>]),
+                3 => to_dynamic!($info,$data, [<ImageRgb $b>]),
+                4 => to_dynamic!($info,$data, [<ImageRgba $b>]),
+                _ => None,
             }
-        })*
+        }
     };
 }
 
-impl_to_dynamic_for_bytes!(8, 16);
+impl ToDynamic for DecoderResult {
+    fn into_dynamic_image(self) -> Option<DynamicImage> {
+        match self.data {
+            Data::U8(data) => impl_to_dynamic_for_bytes!(self.info, data, 8),
+            Data::U16(data) => impl_to_dynamic_for_bytes!(self.info, data, 16),
+            _ => None,
+        }
+    }
+}
 
 #[cfg(test)]
 mod tests {
@@ -71,7 +75,7 @@ mod tests {
             .build()?;
 
         let img = decoder
-            .decode::<u16>(&sample)?
+            .decode_to::<u16>(&sample)?
             .into_dynamic_image()
             .ok_or("Failed to create DynamicImage")?;
         let sample_png = image::io::Reader::open("samples/sample.png")?.decode()?;
@@ -91,23 +95,23 @@ mod tests {
             .build()?;
 
         decoder
-            .decode::<u8>(&sample)?
+            .decode_to::<u8>(&sample)?
             .into_dynamic_image()
             .ok_or("Failed to create DynamicImage")?;
 
         decoder.num_channels = 2;
         decoder
-            .decode::<u8>(&sample)?
+            .decode_to::<u8>(&sample)?
             .into_dynamic_image()
             .ok_or("Failed to create DynamicImage")?;
 
         decoder.num_channels = 3;
         decoder
-            .decode::<u8>(&sample)?
+            .decode_to::<u8>(&sample)?
             .into_dynamic_image()
             .ok_or("Failed to create DynamicImage")?;
 
-        let mut res = decoder.decode::<u8>(&sample)?;
+        let mut res = decoder.decode_to::<u8>(&sample)?;
         res.info.num_channels = 0;
         assert!(res.into_dynamic_image().is_none());
 

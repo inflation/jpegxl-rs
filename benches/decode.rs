@@ -11,7 +11,7 @@ pub fn criterion_benchmark(c: &mut Criterion) {
     let sample = std::fs::read("samples/bench.jxl").unwrap();
     let decoder = decoder_builder().build().unwrap();
     group.bench_function("single thread", |b| {
-        b.iter_with_large_drop(|| decoder.decode::<u8>(black_box(&sample)).unwrap())
+        b.iter_with_large_drop(|| decoder.decode_to::<u8>(black_box(&sample)).unwrap())
     });
 
     let parallel_runner = ThreadsRunner::default();
@@ -20,7 +20,7 @@ pub fn criterion_benchmark(c: &mut Criterion) {
         .build()
         .unwrap();
     group.bench_function("c++ threadpool", |b| {
-        b.iter_with_large_drop(|| decoder.decode::<u8>(black_box(&sample)).unwrap())
+        b.iter_with_large_drop(|| decoder.decode_to::<u8>(black_box(&sample)).unwrap())
     });
 
     group.finish();

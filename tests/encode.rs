@@ -1,5 +1,4 @@
 use jpegxl_rs::{
-    decode::DecoderResult,
     decoder_builder,
     encode::{ColorEncoding, EncoderFrame, EncoderResult, EncoderSpeed},
     encoder_builder, Endianness, ThreadsRunner,
@@ -22,7 +21,7 @@ fn simple() -> Result<()> {
     let decoder = decoder_builder()
         .parallel_runner(&parallel_runner)
         .build()?;
-    let _res: DecoderResult<f32> = decoder.decode(&result)?;
+    let _res = decoder.decode(&result)?;
 
     Ok(())
 }

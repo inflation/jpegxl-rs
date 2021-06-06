@@ -1,6 +1,11 @@
+use core::panic;
+
 use anyhow::{Context, Result};
 use image::ImageDecoder;
-use jpegxl_rs::{decode::DecoderResult, decoder_builder, DecodeError, Endianness, ThreadsRunner};
+use jpegxl_rs::{
+    decode::{Data, DecoderResult},
+    decoder_builder, DecodeError, Endianness, ThreadsRunner,
+};
 
 #[test]
 fn simple() -> Result<()> {
@@ -10,14 +15,20 @@ fn simple() -> Result<()> {
         .parallel_runner(&parallel_runner)
         .build()?;
 
-    let DecoderResult { info, data, .. } = decoder.decode::<u8>(&sample)?;
+    if let DecoderResult {
+        info,
+        data: Data::U8(data),
+    } = decoder.decode_to::<u8>(&sample)?
+    {
+        assert_eq!(data.len(), (info.width * info.height * 4) as usize);
+        // Check if icc profile is valid
+        qcms::Profile::new_from_slice(&info.icc_profile)
+            .context("Failed to retrieve ICC profile")?;
 
-    assert_eq!(data.len(), (info.width * info.height * 4) as usize);
-
-    // Check if icc profile is valid
-    qcms::Profile::new_from_slice(&info.icc_profile).context("Failed to retrieve ICC profile")?;
-
-    Ok(())
+        Ok(())
+    } else {
+        panic!()
+    }
 }
 
 #[test]
@@ -30,7 +41,7 @@ fn container() -> Result<()> {
         .init_jpeg_buffer(512)
         .build()?;
 
-    let DecoderResult { data, .. } = decoder.decode_jpeg(&sample)?;
+    let (_, data) = decoder.decode_jpeg(&sample)?;
 
     let jpeg = image::codecs::jpeg::JpegDecoder::new(data.as_slice())?;
     let mut v = vec![0; jpeg.total_bytes() as usize];
@@ -57,16 +68,22 @@ fn builder() -> Result<()> {
         .parallel_runner(&parallel_runner)
         .build()?;
 
-    let DecoderResult { info, data, .. } = decoder.decode::<u8>(&sample)?;
-
-    assert_eq!(data.len(), (info.width * info.height * 3) as usize);
+    if let DecoderResult {
+        info,
+        data: Data::U8(data),
+    } = decoder.decode_to::<u8>(&sample)?
+    {
+        assert_eq!(data.len(), (info.width * info.height * 3) as usize);
+    } else {
+        panic!()
+    };
 
     decoder.align = 0;
     decoder.endianness = Endianness::Native;
     decoder.num_channels = 4;
     decoder.keep_orientation = true;
 
-    decoder.decode::<u8>(&sample)?;
+    decoder.decode_to::<u8>(&sample)?;
 
     Ok(())
 }

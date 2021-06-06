@@ -100,7 +100,7 @@ mod tests {
             .build()
             .expect("Failed to create decoder");
         assert!(matches!(
-            decoder.decode::<u8>(&sample),
+            decoder.decode_to::<u8>(&sample),
             Err(DecodeError::UnknownStatus(JxlDecoderStatus::NeedMoreInput))
         ));
     }

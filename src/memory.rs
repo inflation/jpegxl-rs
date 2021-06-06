@@ -145,7 +145,7 @@ pub(crate) mod tests {
             .parallel_runner(&parallel_runner)
             .build_with(&mm)?;
 
-        decoder.decode::<u8>(&sample)?;
+        decoder.decode(&sample)?;
 
         Ok(())
     }

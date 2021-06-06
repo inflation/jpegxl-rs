@@ -22,11 +22,11 @@ use jpegxl_sys::JxlDataType;
 /// Endianness of the pixels
 pub type Endianness = jpegxl_sys::JxlEndianness;
 
-/// Pixel data type.
-/// Currently `u8`, `u16` and `f32`(partial) are supported.
-/// Notes: The encoder does not support f32 with alpha channel
+// Pixel data type.
+// Currently `u8`, `u16` and `f32`(partial) are supported.
+// Notes: The encoder does not support f32 with alpha channel
 pub trait PixelType: Clone + Default + 'static {
-    /// Return the c const
+    /// Return the C const
     fn pixel_type() -> JxlDataType;
 
     /// Return number of bits per sample and exponential bits
@@ -62,7 +62,7 @@ impl PixelType for f32 {
         JxlDataType::Float
     }
 
-    /// Float representation needs exponential bits
+    // Float representation needs exponential bits
     fn bits_per_sample() -> (u32, u32) {
         (32, 8)
     }
