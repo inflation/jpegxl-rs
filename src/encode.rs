@@ -58,6 +58,8 @@ pub enum ColorEncoding {
     SRgb,
     /// Linear SRGB, default for float pixel types
     LinearSRgb,
+    /// SRGB, images with only luma channel
+    SRgbLuma,
 }
 
 impl From<ColorEncoding> for JxlColorEncoding {
@@ -70,6 +72,16 @@ impl From<ColorEncoding> for JxlColorEncoding {
             match val {
                 SRgb => JxlColorEncodingSetToSRGB(color_encoding.as_mut_ptr(), false),
                 LinearSRgb => JxlColorEncodingSetToLinearSRGB(color_encoding.as_mut_ptr(), false),
+                SRgbLuma => {
+                    JxlColorEncodingSetToSRGB(color_encoding.as_mut_ptr(), true);
+
+                    // FIXME: Temp workaround, need to handle color_encoding more gracefully
+                    let c = &mut *color_encoding.as_mut_ptr();
+                    c.primaries = JxlPrimaries::SRgb;
+                    c.primaries_red_xy = [0.0; 2];
+                    c.primaries_green_xy = [0.0; 2];
+                    c.primaries_blue_xy = [0.0; 2];
+                }
             }
             color_encoding.assume_init()
         }

@@ -17,8 +17,8 @@ fn simple() -> Result<()> {
 
     if let DecoderResult {
         info,
-        data: Data::U8(data),
-    } = decoder.decode_to::<u8>(&sample)?
+        data: Data::U16(data),
+    } = decoder.decode(&sample)?
     {
         assert_eq!(data.len(), (info.width * info.height * 4) as usize);
         // Check if icc profile is valid
@@ -70,8 +70,8 @@ fn builder() -> Result<()> {
 
     if let DecoderResult {
         info,
-        data: Data::U8(data),
-    } = decoder.decode_to::<u8>(&sample)?
+        data: Data::F32(data),
+    } = decoder.decode_to::<f32>(&sample)?
     {
         assert_eq!(data.len(), (info.width * info.height * 3) as usize);
     } else {
@@ -83,7 +83,7 @@ fn builder() -> Result<()> {
     decoder.num_channels = 4;
     decoder.keep_orientation = true;
 
-    decoder.decode_to::<u8>(&sample)?;
+    decoder.decode(&sample)?;
 
     Ok(())
 }

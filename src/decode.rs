@@ -70,7 +70,7 @@ pub struct ResultInfo {
 #[derive(Builder)]
 #[builder(build_fn(skip))]
 #[builder(setter(strip_option))]
-pub struct JxlDecoder<'prl, 'mm> {
+pub struct JxlDecoder<'pr, 'mm> {
     /// Opaque pointer to the underlying decoder
     #[builder(setter(skip))]
     dec: *mut jpegxl_sys::JxlDecoder,
@@ -95,22 +95,22 @@ pub struct JxlDecoder<'prl, 'mm> {
     /// Set initial buffer for JPEG reconstruction.
     /// Larger one could be faster with fewer allocations
     ///
-    /// Default: 1 KiB
+    /// Default: 512 KiB
     pub init_jpeg_buffer: usize,
 
     /// Parallel runner
-    pub parallel_runner: Option<&'prl dyn JxlParallelRunner>,
+    pub parallel_runner: Option<&'pr dyn JxlParallelRunner>,
 
     /// Store memory manager ref so it pins until the end of the decoder
     #[builder(setter(skip))]
     _memory_manager: Option<&'mm dyn JxlMemoryManager>,
 }
 
-impl<'prl, 'mm> JxlDecoderBuilder<'prl, 'mm> {
+impl<'pr, 'mm> JxlDecoderBuilder<'pr, 'mm> {
     fn _build(
         &self,
         memory_manager: Option<&'mm dyn JxlMemoryManager>,
-    ) -> Result<JxlDecoder<'prl, 'mm>, DecodeError> {
+    ) -> Result<JxlDecoder<'pr, 'mm>, DecodeError> {
         let dec = unsafe {
             memory_manager.map_or_else(
                 || JxlDecoderCreate(null()),
@@ -128,7 +128,7 @@ impl<'prl, 'mm> JxlDecoderBuilder<'prl, 'mm> {
             endianness: self.endianness.unwrap_or(Endianness::Native),
             align: self.align.unwrap_or(0),
             keep_orientation: self.keep_orientation.unwrap_or(false),
-            init_jpeg_buffer: self.init_jpeg_buffer.unwrap_or(1024),
+            init_jpeg_buffer: self.init_jpeg_buffer.unwrap_or(512 * 1024),
             parallel_runner: self.parallel_runner.flatten(),
             _memory_manager: memory_manager,
         })
@@ -138,7 +138,7 @@ impl<'prl, 'mm> JxlDecoderBuilder<'prl, 'mm> {
     ///
     /// # Errors
     /// Return [`DecodeError::CannotCreateDecoder`] if it fails to create the decoder.
-    pub fn build(&self) -> Result<JxlDecoder<'prl, 'mm>, DecodeError> {
+    pub fn build(&self) -> Result<JxlDecoder<'pr, 'mm>, DecodeError> {
         Self::_build(self, None)
     }
 
@@ -149,12 +149,12 @@ impl<'prl, 'mm> JxlDecoderBuilder<'prl, 'mm> {
     pub fn build_with(
         &self,
         mm: &'mm dyn JxlMemoryManager,
-    ) -> Result<JxlDecoder<'prl, 'mm>, DecodeError> {
+    ) -> Result<JxlDecoder<'pr, 'mm>, DecodeError> {
         Self::_build(self, Some(mm))
     }
 }
 
-impl<'prl, 'mm> JxlDecoder<'prl, 'mm> {
+impl<'pr, 'mm> JxlDecoder<'pr, 'mm> {
     #[allow(clippy::needless_pass_by_value)]
     fn decode_internal(
         &self,
@@ -346,7 +346,7 @@ impl<'prl, 'mm> JxlDecoder<'prl, 'mm> {
                     JxlDataType::Float
                 }
             }
-            _ => unimplemented!(),
+            _ => unreachable!(),
         });
 
         unsafe {
@@ -402,7 +402,7 @@ impl<'prl, 'mm> JxlDecoder<'prl, 'mm> {
             f: &JxlPixelFormat,
             size: usize,
         ) -> Result<Vec<T>, DecodeError> {
-            let mut buffer = vec![T::default(); size];
+            let mut buffer = vec![T::default(); size / std::mem::size_of::<T>()];
             check_dec_status(
                 JxlDecoderSetImageOutBuffer(dec, f, buffer.as_mut_ptr().cast(), size),
                 "Set output buffer",
@@ -424,7 +424,7 @@ impl<'prl, 'mm> JxlDecoder<'prl, 'mm> {
                 JxlDataType::Float => Data::F32(buf(self.dec, pixel_format, size)?),
                 JxlDataType::Uint8 => Data::U8(buf(self.dec, pixel_format, size)?),
                 JxlDataType::Uint16 => Data::U16(buf(self.dec, pixel_format, size)?),
-                _ => unimplemented!(),
+                _ => unimplemented!(), // TODO: Add other types
             }
         })
     }

@@ -96,3 +96,28 @@ fn multi_frames() -> Result<()> {
 
     Ok(())
 }
+
+#[test]
+fn gray() -> Result<()> {
+    let sample = ImageReader::open("samples/sample.png")?
+        .decode()?
+        .to_luma8();
+    let parallel_runner = ThreadsRunner::default();
+    let mut encoder = encoder_builder()
+        .color_encoding(ColorEncoding::SRgbLuma)
+        .parallel_runner(&parallel_runner)
+        .build()?;
+
+    let _res: EncoderResult<u8> = encoder.encode_frame(
+        &EncoderFrame::new(sample.as_raw()).num_channels(1),
+        sample.width(),
+        sample.height(),
+    )?;
+
+    // Check encoder reset
+    encoder.has_alpha = false;
+    let _res: EncoderResult<u8> =
+        encoder.encode(sample.as_raw(), sample.width(), sample.height())?;
+
+    Ok(())
+}
