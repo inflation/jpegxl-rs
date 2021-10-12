@@ -139,4 +139,6 @@ pub use common::Endianness;
 pub use decode::decoder_builder;
 pub use encode::encoder_builder;
 pub use errors::{DecodeError, EncodeError};
+
+#[cfg(feature = "threads")]
 pub use parallel::ThreadsRunner;
