@@ -10,17 +10,12 @@ use image::{io::Reader as ImageReader, GenericImageView, ImageFormat};
 #[test]
 fn simple() -> Result<()> {
     let sample = ImageReader::open("samples/sample.png")?.decode()?.to_rgb8();
-    let parallel_runner = ThreadsRunner::default();
-    let mut encoder = encoder_builder()
-        .parallel_runner(&parallel_runner)
-        .build()?;
+    let mut encoder = encoder_builder().build()?;
 
     let result: EncoderResult<u16> =
         encoder.encode(sample.as_raw(), sample.width(), sample.height())?;
 
-    let decoder = decoder_builder()
-        .parallel_runner(&parallel_runner)
-        .build()?;
+    let decoder = decoder_builder().build()?;
     let _res = decoder.decode(&result)?;
 
     Ok(())

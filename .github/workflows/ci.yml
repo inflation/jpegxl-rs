@@ -5,8 +5,32 @@ on: push
 env:
   CARGO_TERM_COLOR: always
   RUST_BACKTRACE: 1
+  CARGO_INCREMENTAL: 0
 
 jobs:
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: stable
+          override: true
+      - uses: Swatinem/rust-cache@v1
+        with:
+          sharedKey: jpegxl-rs
+      - name: Build
+        uses: actions-rs/cargo@v1
+        with:
+          command: build
+      - name: Build without default features
+        uses: actions-rs/cargo@v1
+        with:
+          command: build
+          args: --no-default-features
+
   test:
     name: Unit Tests
     runs-on: ubuntu-latest
@@ -18,15 +42,9 @@ jobs:
           toolchain: nightly
           override: true
           components: llvm-tools-preview
-      - uses: actions-rs/cargo@v1
+      - uses: Swatinem/rust-cache@v1
         with:
-          command: generate-lockfile
-      - uses: actions/cache@v2
-        with:
-          path: |
-            target
-            ~/.cargo
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          sharedKey: jpegxl-rs
       - name: Test
         uses: actions-rs/cargo@v1
         with:

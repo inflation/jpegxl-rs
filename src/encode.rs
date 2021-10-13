@@ -52,7 +52,7 @@ impl std::default::Default for EncoderSpeed {
 }
 
 /// Encoding color profile
-#[derive(Clone)]
+#[derive(Clone, Copy)]
 pub enum ColorEncoding {
     /// SRGB, default for uint pixel types
     SRgb,
@@ -205,9 +205,8 @@ pub struct JxlEncoder<'prl, 'mm> {
 
     /// Set color encoding
     ///
-    /// Default: determined by input data type
-    #[builder(setter(into))]
-    color_encoding: Option<JxlColorEncoding>,
+    /// Default: SRGB
+    color_encoding: ColorEncoding,
 
     /// Set parallel runner
     ///
@@ -247,7 +246,7 @@ impl<'prl, 'mm> JxlEncoderBuilder<'prl, 'mm> {
             use_container: self.use_container.unwrap_or_default(),
             decoding_speed: self.decoding_speed.unwrap_or_default(),
             init_buffer_size: self.init_buffer_size.unwrap_or(1024 * 1024),
-            color_encoding: self.color_encoding.clone().flatten(),
+            color_encoding: self.color_encoding.unwrap_or(ColorEncoding::SRgb),
             parallel_runner: self.parallel_runner.flatten(),
             _memory_manager: memory_manager,
         };
@@ -315,17 +314,16 @@ impl JxlEncoder<'_, '_> {
                 check_enc_status(
                     JxlEncoderSetParallelRunner(self.enc, runner.runner(), runner.as_opaque_ptr()),
                     "Set parallel runner",
-                )?
+                )?;
             }
         }
 
         self.set_options()?;
 
-        if let Some(c) = &self.color_encoding {
-            unsafe { JxlEncoderSetColorEncoding(self.enc, c) };
-        }
+        unsafe { JxlEncoderSetColorEncoding(self.enc, &self.color_encoding.into()) };
 
         let mut basic_info = unsafe { JxlBasicInfo::new_uninit().assume_init() };
+        unsafe { JxlEncoderInitBasicInfo(&mut basic_info) };
         basic_info.xsize = width;
         basic_info.ysize = height;
         basic_info.uses_original_profile = true as _;

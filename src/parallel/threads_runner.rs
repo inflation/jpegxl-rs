@@ -22,7 +22,7 @@ along with jpegxl-rs.  If not, see <https://www.gnu.org/licenses/>.
 use std::{ffi::c_void, ptr::null_mut};
 
 #[allow(clippy::wildcard_imports)]
-use jpegxl_sys::thread_runner::*;
+use jpegxl_sys::parallel_runner::*;
 
 use super::{JxlParallelRunner, RunnerFn};
 

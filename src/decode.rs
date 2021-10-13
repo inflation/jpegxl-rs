@@ -197,7 +197,7 @@ impl<'pr, 'mm> JxlDecoder<'pr, 'mm> {
                 // Get the basic info
                 BasicInfo => {
                     self.get_basic_info(
-                        pixel_type.clone(),
+                        pixel_type,
                         basic_info.as_mut_ptr(),
                         pixel_format.as_mut_ptr(),
                     )?;
@@ -205,7 +205,7 @@ impl<'pr, 'mm> JxlDecoder<'pr, 'mm> {
 
                 // Get color encoding
                 ColorEncoding => {
-                    icc_profile = self.get_icc_profile(unsafe { &*pixel_format.as_ptr() })?
+                    icc_profile = self.get_icc_profile(unsafe { &*pixel_format.as_ptr() })?;
                 }
 
                 // Get JPEG reconstruction buffer
@@ -290,7 +290,7 @@ impl<'pr, 'mm> JxlDecoder<'pr, 'mm> {
                     JxlDecoderSetParallelRunner(self.dec, runner.runner(), runner.as_opaque_ptr())
                 },
                 "Set parallel runner",
-            )?
+            )?;
         }
 
         let events = {
