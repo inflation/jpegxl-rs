@@ -326,8 +326,8 @@ impl JxlEncoder<'_, '_> {
         unsafe { JxlEncoderInitBasicInfo(&mut basic_info) };
         basic_info.xsize = width;
         basic_info.ysize = height;
-        basic_info.uses_original_profile = true as _;
-        basic_info.have_container = self.use_container as _;
+        basic_info.uses_original_profile = JxlBool::True;
+        basic_info.have_container = self.use_container.into();
 
         let (bits, exp) = U::bits_per_sample();
         basic_info.bits_per_sample = bits;
@@ -436,19 +436,26 @@ impl<'prl, 'mm> JxlEncoder<'prl, 'mm> {
     ///
     /// # Errors
     /// Return [`EncodeError`] if the internal encoder fails to encode
-    pub fn encode_jpeg(
-        &mut self,
-        data: &[u8],
-        width: u32,
-        height: u32,
-    ) -> Result<EncoderResult<u8>, EncodeError> {
+    pub fn encode_jpeg(&mut self, data: &[u8]) -> Result<EncoderResult<u8>, EncodeError> {
         // If using container format, store JPEG reconstruction metadata
         check_enc_status(
             unsafe { JxlEncoderStoreJPEGMetadata(self.enc, true) },
             "Set store jpeg metadata",
         )?;
 
-        self.setup_encoder::<u8>(width, height, false)?;
+        if let Some(runner) = self.parallel_runner {
+            unsafe {
+                check_enc_status(
+                    JxlEncoderSetParallelRunner(self.enc, runner.runner(), runner.as_opaque_ptr()),
+                    "Set parallel runner",
+                )?;
+            }
+        }
+
+        self.set_options()?;
+
+        unsafe { JxlEncoderSetColorEncoding(self.enc, &self.color_encoding.into()) };
+
         self.add_jpeg_frame(data)?;
         self.start_encoding()
     }

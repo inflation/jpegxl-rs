@@ -5,7 +5,7 @@ use jpegxl_rs::{
 };
 
 use anyhow::Result;
-use image::{io::Reader as ImageReader, GenericImageView, ImageFormat};
+use image::io::Reader as ImageReader;
 
 #[test]
 fn simple() -> Result<()> {
@@ -24,8 +24,6 @@ fn simple() -> Result<()> {
 #[test]
 fn jpeg() -> Result<()> {
     let sample = std::fs::read("samples/sample.jpg")?;
-    let jpeg =
-        ImageReader::with_format(std::io::Cursor::new(&sample), ImageFormat::Jpeg).decode()?;
 
     let parallel_runner = ThreadsRunner::default();
     let mut encoder = encoder_builder()
@@ -33,7 +31,7 @@ fn jpeg() -> Result<()> {
         .parallel_runner(&parallel_runner)
         .build()?;
 
-    let _res = encoder.encode_jpeg(&sample, jpeg.width(), jpeg.height())?;
+    let _res = encoder.encode_jpeg(&sample)?;
 
     Ok(())
 }
