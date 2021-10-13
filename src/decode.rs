@@ -164,8 +164,8 @@ impl<'pr, 'mm> JxlDecoder<'pr, 'mm> {
     ) -> Result<(ResultInfo, Data), DecodeError> {
         let mut basic_info = MaybeUninit::uninit();
         let mut pixel_format = MaybeUninit::uninit();
-        let mut result = MaybeUninit::uninit();
 
+        let mut result = Data::U8(vec![]);
         let mut icc_profile = vec![];
         let mut jpeg_buffer = vec![];
 
@@ -244,7 +244,7 @@ impl<'pr, 'mm> JxlDecoder<'pr, 'mm> {
 
                 // Get the output buffer
                 NeedImageOutBuffer => {
-                    result = MaybeUninit::new(self.output(unsafe { &*pixel_format.as_ptr() })?);
+                    result = self.output(unsafe { &*pixel_format.as_ptr() })?;
                 }
 
                 FullImage => continue,
@@ -274,7 +274,7 @@ impl<'pr, 'mm> JxlDecoder<'pr, 'mm> {
                         if reconstruct_jpeg {
                             Data::U8(jpeg_buffer)
                         } else {
-                            unsafe { result.assume_init() }
+                            result
                         },
                     ));
                 }
