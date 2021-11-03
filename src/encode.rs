@@ -29,7 +29,11 @@ use crate::{
 /// Encoding speed
 #[derive(Debug, Clone, Copy)]
 pub enum EncoderSpeed {
-    /// Fastest, 3
+    /// Fastest, 1
+    Lightning = 1,
+    /// 2
+    Thunder = 2,
+    /// 3
     Falcon = 3,
     /// 4
     Cheetah,

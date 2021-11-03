@@ -45,7 +45,7 @@ fn builder() -> Result<()> {
     let mut encoder = encoder_builder()
         .has_alpha(true)
         .lossless(false)
-        .speed(EncoderSpeed::Tortoise)
+        .speed(EncoderSpeed::Lightning)
         .quality(3.0)
         .color_encoding(ColorEncoding::LinearSRgb)
         .decoding_speed(4)
