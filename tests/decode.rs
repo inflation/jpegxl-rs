@@ -75,7 +75,7 @@ fn builder() -> Result<()> {
     {
         assert_eq!(data.len(), (info.width * info.height * 3) as usize);
     } else {
-        panic!()
+        unreachable!()
     };
 
     decoder.align = 0;
