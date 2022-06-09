@@ -18,8 +18,8 @@ along with jpegxl-rs.  If not, see <https://www.gnu.org/licenses/>.
 #![warn(missing_docs)]
 #![deny(clippy::all)]
 #![warn(clippy::pedantic)]
-#![allow(clippy::enum_glob_use)]
-#![allow(clippy::default_trait_access)]
+// #![allow(clippy::enum_glob_use)]
+// #![allow(clippy::default_trait_access)]
 
 //! [![Documentation](https://docs.rs/jpegxl-rs/badge.svg)](https://docs.rs/jpegxl-rs/)
 //! [![Crates.io](https://img.shields.io/crates/v/jpegxl-rs.svg)](https://crates.io/crates/jpegxl-rs)
@@ -133,7 +133,7 @@ mod errors;
 pub mod memory;
 pub mod parallel;
 
-#[cfg(feature = "image-support")]
+#[cfg(feature = "image")]
 pub mod image;
 
 pub use common::Endianness;

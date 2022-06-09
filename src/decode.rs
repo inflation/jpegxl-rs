@@ -187,7 +187,10 @@ impl<'pr, 'mm> JxlDecoder<'pr, 'mm> {
 
         let mut status;
         loop {
-            use JxlDecoderStatus::*;
+            use JxlDecoderStatus::{
+                BasicInfo, ColorEncoding, Error, FullImage, JpegNeedMoreOutput, JpegReconstruction,
+                NeedImageOutBuffer, Success,
+            };
 
             status = unsafe { JxlDecoderProcessInput(self.dec) };
 
@@ -294,7 +297,7 @@ impl<'pr, 'mm> JxlDecoder<'pr, 'mm> {
         }
 
         let events = {
-            use JxlDecoderStatus::*;
+            use JxlDecoderStatus::{BasicInfo, ColorEncoding, FullImage, JpegReconstruction};
 
             let mut events = jxl_dec_events!(BasicInfo, ColorEncoding, FullImage);
 
@@ -332,7 +335,7 @@ impl<'pr, 'mm> JxlDecoder<'pr, 'mm> {
 
         let basic_info = unsafe { &*basic_info };
         let num_channels = if self.num_channels == 0 {
-            basic_info.num_color_channels + (basic_info.alpha_bits != 0) as u32
+            basic_info.num_color_channels + u32::from(basic_info.alpha_bits != 0)
         } else {
             self.num_channels
         };

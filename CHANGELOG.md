@@ -1,6 +1,22 @@
 # Changelog
 All notable changes to this project will be documented in this file.
 
+## [unreleased]
+
+### Documentation
+
+- :memo: Update docs to the latest address
+
+## [0.6.1] - 2021-11-03
+
+### Documentation
+
+- :memo: Add CHANGELOG.md
+
+### Build
+
+- :arrow_up: Upgrade to v0.6.1
+
 ## [0.6.0] - 2021-10-13
 
 ### Bug Fixes

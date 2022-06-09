@@ -68,7 +68,7 @@ pub enum ColorEncoding {
 
 impl From<ColorEncoding> for JxlColorEncoding {
     fn from(val: ColorEncoding) -> Self {
-        use ColorEncoding::*;
+        use ColorEncoding::{LinearSRgb, SRgb, SRgbLuma};
 
         let mut color_encoding = JxlColorEncoding::new_uninit();
 
