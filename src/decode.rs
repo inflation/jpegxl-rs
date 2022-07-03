@@ -160,22 +160,21 @@ impl<'pr, 'mm> JxlDecoder<'pr, 'mm> {
         &self,
         pixel_type: Option<JxlDataType>,
         data: &[u8],
-        reconstruct_jpeg: bool,
+        mut reconstruct_jpeg_buffer: Option<&mut Vec<u8>>,
     ) -> Result<(ResultInfo, Data), DecodeError> {
         let mut basic_info = MaybeUninit::uninit();
         let mut pixel_format = MaybeUninit::uninit();
 
         let mut result = Data::U8(vec![]);
         let mut icc_profile = vec![];
-        let mut jpeg_buffer = vec![];
 
         let mut jpeg_reconstructed = false;
 
-        if reconstruct_jpeg {
-            jpeg_buffer.resize(self.init_jpeg_buffer, 0);
+        if let Some(buf) = reconstruct_jpeg_buffer.as_deref_mut() {
+            buf.resize(self.init_jpeg_buffer, 0);
         }
 
-        self.setup_decoder(reconstruct_jpeg)?;
+        self.setup_decoder(reconstruct_jpeg_buffer.is_some())?;
 
         let next_in = data.as_ptr();
         let avail_in = std::mem::size_of_val(data) as _;
@@ -213,36 +212,32 @@ impl<'pr, 'mm> JxlDecoder<'pr, 'mm> {
 
                 // Get JPEG reconstruction buffer
                 JpegReconstruction => {
-                    jpeg_reconstructed = true;
+                    if let Some(buf) = reconstruct_jpeg_buffer.as_deref_mut() {
+                        jpeg_reconstructed = true;
 
-                    check_dec_status(
-                        unsafe {
-                            JxlDecoderSetJPEGBuffer(
-                                self.dec,
-                                jpeg_buffer.as_mut_ptr(),
-                                jpeg_buffer.len(),
-                            )
-                        },
-                        "In JPEG reconstruction event",
-                    )?;
+                        check_dec_status(
+                            unsafe {
+                                JxlDecoderSetJPEGBuffer(self.dec, buf.as_mut_ptr(), buf.len())
+                            },
+                            "In JPEG reconstruction event",
+                        )?;
+                    }
                 }
 
                 // JPEG buffer need more space
                 JpegNeedMoreOutput => {
-                    let need_to_write = unsafe { JxlDecoderReleaseJPEGBuffer(self.dec) };
+                    if let Some(buf) = reconstruct_jpeg_buffer.as_deref_mut() {
+                        let need_to_write = unsafe { JxlDecoderReleaseJPEGBuffer(self.dec) };
 
-                    let old_len = jpeg_buffer.len();
-                    jpeg_buffer.resize(old_len + need_to_write, 0);
-                    check_dec_status(
-                        unsafe {
-                            JxlDecoderSetJPEGBuffer(
-                                self.dec,
-                                jpeg_buffer.as_mut_ptr(),
-                                jpeg_buffer.len(),
-                            )
-                        },
-                        "In JPEG need more output event, set without releasing",
-                    )?;
+                        let old_len = buf.len();
+                        buf.resize(old_len + need_to_write, 0);
+                        check_dec_status(
+                            unsafe {
+                                JxlDecoderSetJPEGBuffer(self.dec, buf.as_mut_ptr(), buf.len())
+                            },
+                            "In JPEG need more output event, set without releasing",
+                        )?;
+                    }
                 }
 
                 // Get the output buffer
@@ -252,15 +247,15 @@ impl<'pr, 'mm> JxlDecoder<'pr, 'mm> {
 
                 FullImage => continue,
                 Success => {
-                    if reconstruct_jpeg {
+                    if let Some(buf) = reconstruct_jpeg_buffer.as_deref_mut() {
                         if !jpeg_reconstructed {
                             return Err(DecodeError::CannotReconstruct);
                         }
 
                         let remaining = unsafe { JxlDecoderReleaseJPEGBuffer(self.dec) };
 
-                        jpeg_buffer.truncate(jpeg_buffer.len() - remaining);
-                        jpeg_buffer.shrink_to_fit();
+                        buf.truncate(buf.len() - remaining);
+                        buf.shrink_to_fit();
                     }
 
                     unsafe { JxlDecoderReset(self.dec) };
@@ -274,11 +269,7 @@ impl<'pr, 'mm> JxlDecoder<'pr, 'mm> {
                             num_channels: unsafe { pixel_format.assume_init().num_channels },
                             icc_profile,
                         },
-                        if reconstruct_jpeg {
-                            Data::U8(jpeg_buffer)
-                        } else {
-                            result
-                        },
+                        result,
                     ));
                 }
                 _ => return Err(DecodeError::UnknownStatus(status)),
@@ -438,7 +429,7 @@ impl<'pr, 'mm> JxlDecoder<'pr, 'mm> {
     /// # Errors
     /// Return a [`DecodeError`] when internal decoder fails
     pub fn decode(&self, data: &[u8]) -> Result<DecoderResult, DecodeError> {
-        let (info, data) = self.decode_internal(None, data, false)?;
+        let (info, data) = self.decode_internal(None, data, None)?;
         Ok(DecoderResult { info, data })
     }
 
@@ -448,7 +439,7 @@ impl<'pr, 'mm> JxlDecoder<'pr, 'mm> {
     /// # Errors
     /// Return a [`DecodeError`] when internal decoder fails
     pub fn decode_to<T: PixelType>(&self, data: &[u8]) -> Result<DecoderResult, DecodeError> {
-        let (info, data) = self.decode_internal(Some(T::pixel_type()), data, false)?;
+        let (info, data) = self.decode_internal(Some(T::pixel_type()), data, None)?;
         Ok(DecoderResult { info, data })
     }
 
@@ -458,11 +449,10 @@ impl<'pr, 'mm> JxlDecoder<'pr, 'mm> {
     /// # Errors
     /// Return a [`DecodeError`] when internal decoder fails
     pub fn decode_jpeg(&self, data: &[u8]) -> Result<(ResultInfo, Vec<u8>), DecodeError> {
-        if let (info, Data::U8(data)) = self.decode_internal(None, data, true)? {
-            Ok((info, data))
-        } else {
-            Err(DecodeError::CannotReconstruct)
-        }
+        let mut buffer = vec![0; self.init_jpeg_buffer];
+        let (info, _) = self.decode_internal(None, data, Some(&mut buffer))?;
+
+        Ok((info, buffer))
     }
 }
 
