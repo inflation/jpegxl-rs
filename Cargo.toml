@@ -27,7 +27,6 @@ thiserror = "1.0.31"
 
 [dependencies.jpegxl-sys]
 version = "0.6.2-alpha0"
-path = "../jpegxl-sys"
 
 [dev-dependencies]
 anyhow = "1.0.57"
