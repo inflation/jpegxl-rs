@@ -1,29 +1,37 @@
 use jpegxl_rs::{
     decoder_builder,
     encode::{ColorEncoding, EncoderFrame, EncoderResult, EncoderSpeed},
-    encoder_builder, Endianness, ThreadsRunner,
+    encoder_builder, EncodeError, Endianness, ThreadsRunner,
 };
 
-use anyhow::Result;
-use image::io::Reader as ImageReader;
+use image::{io::Reader as ImageReader, DynamicImage};
+
+fn get_sample() -> DynamicImage {
+    ImageReader::open("../samples/sample.png")
+        .ok()
+        .and_then(|i| i.decode().ok())
+        .expect(&format!("Failed to get sample file"))
+}
 
 #[test]
-fn simple() -> Result<()> {
-    let sample = ImageReader::open("samples/sample.png")?.decode()?.to_rgb8();
+fn simple() -> Result<(), EncodeError> {
+    let sample = get_sample().to_rgb8();
     let mut encoder = encoder_builder().build()?;
 
     let result: EncoderResult<u16> =
         encoder.encode(sample.as_raw(), sample.width(), sample.height())?;
 
-    let decoder = decoder_builder().build()?;
-    let _res = decoder.decode(&result)?;
+    let decoder = decoder_builder().build().expect("Failed to build decoder");
+    let _res = decoder
+        .decode(&result)
+        .expect("Failed to decode the encoded image");
 
     Ok(())
 }
 
 #[test]
-fn jpeg() -> Result<()> {
-    let sample = std::fs::read("samples/sample.jpg")?;
+fn jpeg() -> Result<(), EncodeError> {
+    let sample = std::fs::read("../samples/sample.jpg").expect("Failed to read sample image file");
 
     let parallel_runner = ThreadsRunner::default();
     let mut encoder = encoder_builder()
@@ -37,10 +45,8 @@ fn jpeg() -> Result<()> {
 }
 
 #[test]
-fn builder() -> Result<()> {
-    let sample = ImageReader::open("samples/sample.png")?
-        .decode()?
-        .to_rgba8();
+fn builder() -> Result<(), EncodeError> {
+    let sample = get_sample().to_rgba8();
     let parallel_runner = ThreadsRunner::default();
     let mut encoder = encoder_builder()
         .has_alpha(true)
@@ -68,9 +74,10 @@ fn builder() -> Result<()> {
 }
 
 #[test]
-fn multi_frames() -> Result<()> {
-    let sample = ImageReader::open("samples/sample.png")?.decode()?.to_rgb8();
-    let sample_jpeg = std::fs::read("samples/sample.jpg")?;
+fn multi_frames() -> Result<(), EncodeError> {
+    let sample = get_sample().to_rgb8();
+    let sample_jpeg =
+        std::fs::read("../samples/sample.jpg").expect("Failed to read sample JPEG file");
     let parallel_runner = ThreadsRunner::default();
     let mut encoder = encoder_builder()
         .parallel_runner(&parallel_runner)
@@ -91,10 +98,8 @@ fn multi_frames() -> Result<()> {
 }
 
 #[test]
-fn gray() -> Result<()> {
-    let sample = ImageReader::open("samples/sample.png")?
-        .decode()?
-        .to_luma8();
+fn gray() -> Result<(), EncodeError> {
+    let sample = get_sample().to_luma8();
     let parallel_runner = ThreadsRunner::default();
     let mut encoder = encoder_builder()
         .color_encoding(ColorEncoding::SRgbLuma)

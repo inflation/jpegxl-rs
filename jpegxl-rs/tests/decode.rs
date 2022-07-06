@@ -1,6 +1,5 @@
 use core::panic;
 
-use anyhow::{Context, Result};
 use image::ImageDecoder;
 use jpegxl_rs::{
     decode::{Data, DecoderResult},
@@ -8,8 +7,8 @@ use jpegxl_rs::{
 };
 
 #[test]
-fn simple() -> Result<()> {
-    let sample = std::fs::read("samples/sample.jxl")?;
+fn simple() -> Result<(), DecodeError> {
+    let sample = std::fs::read("../samples/sample.jxl")?;
     let parallel_runner = ThreadsRunner::default();
     let decoder = decoder_builder()
         .parallel_runner(&parallel_runner)
@@ -22,8 +21,7 @@ fn simple() -> Result<()> {
     {
         assert_eq!(data.len(), (info.width * info.height * 4) as usize);
         // Check if icc profile is valid
-        qcms::Profile::new_from_slice(&info.icc_profile)
-            .context("Failed to retrieve ICC profile")?;
+        qcms::Profile::new_from_slice(&info.icc_profile).expect("Failed to retrieve icc profile");
 
         Ok(())
     } else {
@@ -33,8 +31,8 @@ fn simple() -> Result<()> {
 
 #[test]
 #[allow(clippy::cast_possible_truncation)]
-fn container() -> Result<()> {
-    let sample = std::fs::read("samples/sample_jpg.jxl")?;
+fn container() -> Result<(), DecodeError> {
+    let sample = std::fs::read("../samples/sample_jpg.jxl")?;
     let parallel_runner = ThreadsRunner::default();
     let decoder = decoder_builder()
         .parallel_runner(&parallel_runner)
@@ -43,11 +41,13 @@ fn container() -> Result<()> {
 
     let (_, data) = decoder.decode_jpeg(&sample)?;
 
-    let jpeg = image::codecs::jpeg::JpegDecoder::new(data.as_slice())?;
+    let jpeg = image::codecs::jpeg::JpegDecoder::new(data.as_slice())
+        .expect("Failed to read the metadata of the reconstructed jpeg file");
     let mut v = vec![0; jpeg.total_bytes() as usize];
-    jpeg.read_image(&mut v)?;
+    jpeg.read_image(&mut v)
+        .expect("Failed to read the reconstructed jpeg");
 
-    let sample = std::fs::read("samples/sample.jxl")?;
+    let sample = std::fs::read("../samples/sample.jxl")?;
     assert!(matches!(
         decoder.decode_jpeg(&sample),
         Err(DecodeError::CannotReconstruct)
@@ -57,8 +57,8 @@ fn container() -> Result<()> {
 }
 
 #[test]
-fn builder() -> Result<()> {
-    let sample = std::fs::read("samples/sample.jxl")?;
+fn builder() -> Result<(), DecodeError> {
+    let sample = std::fs::read("../samples/sample.jxl")?;
     let parallel_runner = ThreadsRunner::default();
     let mut decoder = decoder_builder()
         .num_channels(3)

@@ -9,7 +9,7 @@ pub fn criterion_benchmark(c: &mut Criterion) {
     group.sample_size(10);
     group.measurement_time(std::time::Duration::new(15, 0));
 
-    let sample = ImageReader::open("samples/bench.png")
+    let sample = ImageReader::open("../samples/bench.png")
         .unwrap()
         .decode()
         .unwrap()

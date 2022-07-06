@@ -33,16 +33,6 @@ trait_impl!(NewUninit, [JxlBasicInfo, JxlPixelFormat, JxlColorEncoding]);
 
 /// Convenient function to just return a block of memory.
 /// You need to assign `basic_info.assume_init()` to use as a Rust struct after passing as a pointer.
-/// # Examples:
-/// ```
-/// # use jpegxl_sys::*;
-/// # unsafe {
-/// # let decoder = JxlDecoderCreate(std::ptr::null());
-/// let mut basic_info = JxlBasicInfo::new_uninit();
-/// JxlDecoderGetBasicInfo(decoder, basic_info.as_mut_ptr());
-/// let basic_info = basic_info.assume_init();
-/// }
-/// ```
 pub trait NewUninit {
     #[inline]
     #[must_use]
@@ -176,7 +166,7 @@ mod test {
             assert!(!dec.is_null());
 
             // Simple single thread runner
-            let sample = std::fs::read("test/sample.jxl").unwrap();
+            let sample = std::fs::read("../samples/sample.jxl").unwrap();
             decode(dec, &sample);
 
             JxlDecoderDestroy(dec);
@@ -199,7 +189,7 @@ mod test {
             let status = JxlDecoderSetParallelRunner(dec, JxlThreadParallelRunner, runner);
             jxl_dec_assert!(status, "Set Parallel Runner");
 
-            let sample = std::fs::read("test/sample.jxl").unwrap();
+            let sample = std::fs::read("../samples/sample.jxl").unwrap();
             decode(dec, &sample);
 
             JxlDecoderDestroy(dec);
@@ -230,7 +220,7 @@ mod test {
             let status = JxlDecoderSetParallelRunner(dec, JxlResizableParallelRunner, runner);
             jxl_dec_assert!(status, "Set Parallel Runner");
 
-            let sample = std::fs::read("test/sample.jxl").unwrap();
+            let sample = std::fs::read("../samples/sample.jxl").unwrap();
 
             // Stop after getting the basic info and decoding the image
             let mut status = JxlDecoderSubscribeEvents(
@@ -387,7 +377,7 @@ mod test {
     #[test]
     fn test_bindings_encoding() {
         || -> Result<(), ImageError> {
-            let img = ImageReader::open("test/sample.png")?.decode()?;
+            let img = ImageReader::open("../samples/sample.png")?.decode()?;
             let image_buffer = img.into_rgb8();
 
             let output = encode(

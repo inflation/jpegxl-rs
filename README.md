@@ -14,10 +14,11 @@ and the [bindings](https://github.com/inflation/jpegxl-sys).
 
 ## Building
 
-The library build `libjxl` and link to `libc++/libstdc++` by default.
-Optionally, you can use `system-jxl` feature to dynamically link to it.
-If you don't have it in the default include and library paths,
-set them with `DEP_JXL_INCLUDE` and `DEP_JXL_LIB` respectively.
+If you wish to specify a custom library path, set `DEP_JXL_LIB` environment variable.
+
+Building `libjxl` and statically linking can be enabled by using `vendored` feature.
+You can provide the source code with all third-party dependencies by `DEP_JXL_PATH`,
+or it would fetch the code by `git`.
 
 If you don't want to depend on C++ standard library, disable feature `threads`.
 
@@ -57,7 +58,7 @@ decoder.endianness = Endianness::Native;
 
 ```rust
 use image::io::Reader as ImageReader;
-let sample = ImageReader::open("test/sample.png")?.decode()?.to_rgba16();
+let sample = ImageReader::open("../samplessample.png")?.decode()?.to_rgba16();
 let mut encoder = encoder_builder().build()?;
 let buffer: EncoderResult<f32> = encoder.encode(&sample, sample.width(), sample.height())?;
 ```
@@ -83,7 +84,7 @@ use jpegxl_rs::image::ToDynamic;
 use jpegxl_rs::decoder_builder;
 use image::DynamicImage;
 
-let sample = std::fs::read("test/sample.jxl")?;
+let sample = std::fs::read("../samplessample.jxl")?;
 let decoder = decoder_builder().build()?;
 let img = decoder.decode(&sample)?.into_dynamic_image();
 ```

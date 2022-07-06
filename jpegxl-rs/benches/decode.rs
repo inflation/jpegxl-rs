@@ -8,7 +8,7 @@ pub fn criterion_benchmark(c: &mut Criterion) {
     group.sample_size(10);
     group.measurement_time(std::time::Duration::new(15, 0));
 
-    let sample = std::fs::read("samples/bench.jxl").unwrap();
+    let sample = std::fs::read("../samples/bench.jxl").unwrap();
     let decoder = decoder_builder().build().unwrap();
     group.bench_function("single thread", |b| {
         b.iter_with_large_drop(|| decoder.decode_to::<u8>(black_box(&sample)).unwrap())
