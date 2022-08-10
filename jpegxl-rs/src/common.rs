@@ -17,6 +17,7 @@ along with jpegxl-rs.  If not, see <https://www.gnu.org/licenses/>.
 
 //! Common types used across the crate
 
+use half::f16;
 use jpegxl_sys::JxlDataType;
 
 /// Endianness of the pixels
@@ -49,14 +50,6 @@ impl PixelType for u16 {
     }
 }
 
-// TODO: Upstream decoder does not support the type though listed as valid
-// impl PixelType for u32 {
-//     fn pixel_type() -> JxlDataType {
-//         JxlDataType::Uint32
-//     }
-// }
-
-// TODO: Upstream encoder does not support alpha channel
 impl PixelType for f32 {
     fn pixel_type() -> JxlDataType {
         JxlDataType::Float
@@ -65,5 +58,15 @@ impl PixelType for f32 {
     // Float representation needs exponential bits
     fn bits_per_sample() -> (u32, u32) {
         (32, 8)
+    }
+}
+
+impl PixelType for f16 {
+    fn pixel_type() -> JxlDataType {
+        JxlDataType::Float16
+    }
+
+    fn bits_per_sample() -> (u32, u32) {
+        (16, 4)
     }
 }

@@ -18,8 +18,6 @@ along with jpegxl-rs.  If not, see <https://www.gnu.org/licenses/>.
 #![warn(missing_docs)]
 #![deny(clippy::all)]
 #![warn(clippy::pedantic)]
-// #![allow(clippy::enum_glob_use)]
-// #![allow(clippy::default_trait_access)]
 
 //! [![Documentation](https://docs.rs/jpegxl-rs/badge.svg)](https://docs.rs/jpegxl-rs/)
 //! [![Crates.io](https://img.shields.io/crates/v/jpegxl-rs.svg)](https://crates.io/crates/jpegxl-rs)
@@ -85,7 +83,7 @@ along with jpegxl-rs.  If not, see <https://www.gnu.org/licenses/>.
 //! # use jpegxl_rs::{encoder_builder, encode::EncoderResult};
 //! # || -> Result<(), Box<dyn std::error::Error>> {
 //! use image::io::Reader as ImageReader;
-//! let sample = ImageReader::open("../samplessample.png")?.decode()?.to_rgba16();
+//! let sample = ImageReader::open("../samples/sample.png")?.decode()?.to_rgba16();
 //! let mut encoder = encoder_builder().build()?;
 //! let buffer: EncoderResult<f32> = encoder.encode(&sample, sample.width(), sample.height())?;
 //! # Ok(()) };
@@ -116,7 +114,7 @@ along with jpegxl-rs.  If not, see <https://www.gnu.org/licenses/>.
 //! use jpegxl_rs::decoder_builder;
 //! use image::DynamicImage;
 //!
-//! let sample = std::fs::read("../samplessample.jxl")?;
+//! let sample = std::fs::read("../samples/sample.jxl")?;
 //! let decoder = decoder_builder().build()?;
 //! let img = decoder.decode(&sample)?.into_dynamic_image();       
 //! # Ok(()) };

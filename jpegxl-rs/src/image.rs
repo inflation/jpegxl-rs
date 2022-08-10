@@ -53,9 +53,14 @@ macro_rules! impl_to_dynamic_for_bytes {
 impl ToDynamic for DecoderResult {
     fn into_dynamic_image(self) -> Option<DynamicImage> {
         match self.data {
-            Data::U8(data) => impl_to_dynamic_for_bytes!(self.info, data, 8),
-            Data::U16(data) => impl_to_dynamic_for_bytes!(self.info, data, 16),
-            _ => None,
+            Data::U8(data) => impl_to_dynamic_for_bytes!(self, data, 8),
+            Data::U16(data) => impl_to_dynamic_for_bytes!(self, data, 16),
+            Data::F32(data) => match self.num_channels {
+                3 => to_dynamic!(self, data, ImageRgb32F),
+                4 => to_dynamic!(self, data, ImageRgba32F),
+                _ => None,
+            },
+            Data::F16(_) => None,
         }
     }
 }
@@ -112,7 +117,7 @@ mod tests {
             .ok_or("Failed to create DynamicImage")?;
 
         let mut res = decoder.decode_to::<u8>(&sample)?;
-        res.info.num_channels = 0;
+        res.num_channels = 0;
         assert!(res.into_dynamic_image().is_none());
 
         Ok(())
