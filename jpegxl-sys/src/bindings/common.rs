@@ -15,8 +15,6 @@ You should have received a copy of the GNU General Public License
 along with jpegxl-sys.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-use std::{ffi::c_void, os::raw::c_int};
-
 #[repr(i32)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum JxlBool {
@@ -47,11 +45,13 @@ impl From<bool> for JxlBool {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum JxlDataType {
     Float = 0,
-    Boolean,
-    Uint8,
-    Uint16,
-    Uint32,
-    Float16,
+    #[deprecated(since = "0.7.0", note = "Use `JxlDataType::Uint8` instead")]
+    Boolean = 1,
+    Uint8 = 2,
+    Uint16 = 3,
+    #[deprecated(since = "0.7.0", note = "Use `JxlDataType::Float` instead")]
+    Uint32 = 4,
+    Float16 = 5,
 }
 
 #[repr(C)]
@@ -69,6 +69,20 @@ pub struct JxlPixelFormat {
     pub data_type: JxlDataType,
     pub endianness: JxlEndianness,
     pub align: usize,
+}
+
+#[repr(C)]
+pub struct JxlBoxType([u8; 4]);
+
+#[repr(C)]
+pub enum JxlProgressiveDetail {
+    Frames = 0,
+    DC = 1,
+    LastPasses = 2,
+    Passes = 3,
+    DCProgressive = 4,
+    DCGroups = 5,
+    Groups = 6,
 }
 
 #[repr(C)]
@@ -133,148 +147,6 @@ pub struct JxlColorEncoding {
     pub transfer_function: JxlTransferFunction,
     pub gamma: f64,
     pub rendering_intent: JxlRenderingIntent,
-}
-
-#[repr(C)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum JxlOrientation {
-    Identity = 1,
-    FlipHorizontal = 2,
-    Rotate180 = 3,
-    FlipVertical = 4,
-    Transpose = 5,
-    Rotate90Cw = 6,
-    AntiTranspose = 7,
-    Rotate90Ccw = 8,
-}
-
-#[repr(C)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum JxlExtraChannelType {
-    Alpha,
-    Depth,
-    SpotColor,
-    SelectionMask,
-    Black,
-    Cfa,
-    Thermal,
-    Reserved0,
-    Reserved1,
-    Reserved2,
-    Reserved3,
-    Reserved4,
-    Reserved5,
-    Reserved6,
-    Reserved7,
-    Unknown,
-    Optional,
-}
-
-#[repr(C)]
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct JxlPreviewHeader {
-    pub xsize: u32,
-    pub ysize: u32,
-}
-
-#[repr(C)]
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct JxlAnimationHeader {
-    pub tps_numerator: u32,
-    pub tps_denominator: u32,
-    pub num_loops: u32,
-    pub have_timecodes: JxlBool,
-}
-
-#[repr(C)]
-#[derive(Debug, Clone, PartialEq)]
-pub struct JxlBasicInfo {
-    pub have_container: JxlBool,
-    pub xsize: u32,
-    pub ysize: u32,
-    pub bits_per_sample: u32,
-    pub exponent_bits_per_sample: u32,
-    pub intensity_target: f32,
-    pub min_nits: f32,
-    pub relative_to_max_display: JxlBool,
-    pub linear_below: f32,
-    pub uses_original_profile: JxlBool,
-    pub have_preview: JxlBool,
-    pub have_animation: JxlBool,
-    pub orientation: JxlOrientation,
-    pub num_color_channels: u32,
-    pub num_extra_channels: u32,
-    pub alpha_bits: u32,
-    pub alpha_exponent_bits: u32,
-    pub alpha_premultiplied: JxlBool,
-    pub preview: JxlPreviewHeader,
-    pub animation: JxlAnimationHeader,
-    _padding: [u8; 108],
-}
-
-#[repr(C)]
-#[derive(Debug, Clone, PartialEq)]
-pub struct JxlExtraChannelInfo {
-    pub type_: JxlExtraChannelType,
-    pub bits_per_sample: u32,
-    pub exponent_bits_per_sample: u32,
-    pub dim_shift: u32,
-    pub name_length: u32,
-    pub alpha_associated: JxlBool,
-    pub spot_color: [f32; 4usize],
-    pub cfa_channel: u32,
-}
-
-#[repr(C)]
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct JxlHeaderExtensions {
-    pub extensions: u64,
-}
-
-#[repr(C)]
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct JxlFrameHeader {
-    pub duration: u32,
-    pub timecode: u32,
-    pub name_length: u32,
-    pub is_last: JxlBool,
-}
-
-pub type JpegxlAllocFunc = unsafe extern "C" fn(opaque: *mut c_void, size: usize) -> *mut c_void;
-pub type JpegxlFreeFunc = unsafe extern "C" fn(opaque: *mut c_void, address: *mut c_void);
-
-#[repr(C)]
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct JxlMemoryManager {
-    pub opaque: *mut c_void,
-    pub alloc: JpegxlAllocFunc,
-    pub free: JpegxlFreeFunc,
-}
-
-pub type JxlParallelRetCode = c_int;
-
-pub type JxlParallelRunInit =
-    unsafe extern "C" fn(jpegxl_opaque: *mut c_void, num_threads: usize) -> JxlParallelRetCode;
-
-pub type JxlParallelRunFunction =
-    unsafe extern "C" fn(jpegxl_opaque: *mut c_void, value: u32, thread_id: usize);
-
-pub type JxlParallelRunner = unsafe extern "C" fn(
-    runner_opaque: *mut c_void,
-    jpegxl_opaque: *mut c_void,
-    init: JxlParallelRunInit,
-    func: JxlParallelRunFunction,
-    start_range: u32,
-    end_range: u32,
-) -> JxlParallelRetCode;
-
-#[repr(C)]
-#[derive(Debug, PartialEq, Clone, Copy)]
-pub enum JxlSignature {
-    NotEnoughBytes = 0,
-    Invalid = 1,
-    Codestream = 2,
-    Container = 3,
 }
 
 #[repr(C)]

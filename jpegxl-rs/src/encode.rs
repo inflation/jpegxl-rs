@@ -22,8 +22,7 @@ use jpegxl_sys::*;
 use std::{marker::PhantomData, ops::Deref, ptr::null};
 
 use crate::{
-    common::PixelType, errors::check_enc_status, errors::EncodeError, memory::JxlMemoryManager,
-    parallel::JxlParallelRunner,
+    common::PixelType, errors::EncodeError, memory::JxlMemoryManager, parallel::JxlParallelRunner,
 };
 
 /// Encoding speed
@@ -59,32 +58,28 @@ impl std::default::Default for EncoderSpeed {
 #[derive(Clone, Copy)]
 pub enum ColorEncoding {
     /// SRGB, default for uint pixel types
-    SRgb,
+    Srgb,
     /// Linear SRGB, default for float pixel types
-    LinearSRgb,
+    LinearSrgb,
     /// SRGB, images with only luma channel
-    SRgbLuma,
+    SrgbLuma,
+    /// Linear SRGB with only luma channel
+    LinearSrgbLuma,
 }
 
 impl From<ColorEncoding> for JxlColorEncoding {
     fn from(val: ColorEncoding) -> Self {
-        use ColorEncoding::{LinearSRgb, SRgb, SRgbLuma};
+        use ColorEncoding::{LinearSrgb, LinearSrgbLuma, Srgb, SrgbLuma};
 
         let mut color_encoding = JxlColorEncoding::new_uninit();
 
         unsafe {
             match val {
-                SRgb => JxlColorEncodingSetToSRGB(color_encoding.as_mut_ptr(), false),
-                LinearSRgb => JxlColorEncodingSetToLinearSRGB(color_encoding.as_mut_ptr(), false),
-                SRgbLuma => {
-                    JxlColorEncodingSetToSRGB(color_encoding.as_mut_ptr(), true);
-
-                    // FIXME: Temp workaround, need to handle color_encoding more gracefully
-                    let c = &mut *color_encoding.as_mut_ptr();
-                    c.primaries = JxlPrimaries::SRgb;
-                    c.primaries_red_xy = [0.0; 2];
-                    c.primaries_green_xy = [0.0; 2];
-                    c.primaries_blue_xy = [0.0; 2];
+                Srgb => JxlColorEncodingSetToSRGB(color_encoding.as_mut_ptr(), false),
+                LinearSrgb => JxlColorEncodingSetToLinearSRGB(color_encoding.as_mut_ptr(), false),
+                SrgbLuma => JxlColorEncodingSetToSRGB(color_encoding.as_mut_ptr(), true),
+                LinearSrgbLuma => {
+                    JxlColorEncodingSetToLinearSRGB(color_encoding.as_mut_ptr(), true);
                 }
             }
             color_encoding.assume_init()
@@ -170,7 +165,7 @@ pub struct JxlEncoder<'prl, 'mm> {
     enc: *mut jpegxl_sys::JxlEncoder,
     /// Opaque pointer to the encoder options
     #[builder(setter(skip))]
-    options_ptr: *mut JxlEncoderOptions,
+    options_ptr: *mut JxlEncoderFrameSettings,
 
     /// Set alpha channel
     ///
@@ -201,7 +196,7 @@ pub struct JxlEncoder<'prl, 'mm> {
     /// Set the decoding speed tier
     ///
     /// Minimum is 0 (highest quality), and maximum is 4 (lowest quality). Default is 0.
-    pub decoding_speed: i32,
+    pub decoding_speed: i64,
     /// Set initial output buffer size in bytes
     ///
     /// Default: 1 MiB
@@ -238,7 +233,7 @@ impl<'prl, 'mm> JxlEncoderBuilder<'prl, 'mm> {
             return Err(EncodeError::CannotCreateEncoder);
         }
 
-        let options_ptr = unsafe { JxlEncoderOptionsCreate(enc, null()) };
+        let options_ptr = unsafe { JxlEncoderFrameSettingsCreate(enc, null()) };
 
         let encoder = JxlEncoder {
             enc,
@@ -250,7 +245,7 @@ impl<'prl, 'mm> JxlEncoderBuilder<'prl, 'mm> {
             use_container: self.use_container.unwrap_or_default(),
             decoding_speed: self.decoding_speed.unwrap_or_default(),
             init_buffer_size: self.init_buffer_size.unwrap_or(1024 * 1024),
-            color_encoding: self.color_encoding.unwrap_or(ColorEncoding::SRgb),
+            color_encoding: self.color_encoding.unwrap_or(ColorEncoding::Srgb),
             parallel_runner: self.parallel_runner.flatten(),
             _memory_manager: memory_manager,
         };
@@ -280,28 +275,48 @@ impl<'prl, 'mm> JxlEncoderBuilder<'prl, 'mm> {
 
 // Private helper functions
 impl JxlEncoder<'_, '_> {
+    // Error mapping from underlying C const to [`JxlEncoderStatus`] enum
+    fn check_enc_status(&self, status: JxlEncoderStatus) -> Result<(), EncodeError> {
+        match status {
+            JxlEncoderStatus::Success => Ok(()),
+            JxlEncoderStatus::Error => match unsafe { JxlEncoderGetError(self.enc) } {
+                JxlEncoderError::OK => unreachable!(),
+                JxlEncoderError::Generic => Err(EncodeError::GenericError),
+                JxlEncoderError::OutOfMemory => Err(EncodeError::OutOfMemory),
+                JxlEncoderError::Jbrd => Err(EncodeError::Jbrd),
+                JxlEncoderError::BadInput => Err(EncodeError::BadInput),
+                JxlEncoderError::NotSupported => Err(EncodeError::NotSupported),
+                JxlEncoderError::ApiUsage => Err(EncodeError::ApiUsage),
+            },
+            #[allow(deprecated)]
+            JxlEncoderStatus::NotSupported => Err(EncodeError::NotSupported),
+            JxlEncoderStatus::NeedMoreOutput => Err(EncodeError::NeedMoreOutput),
+        }
+    }
+
     // Set options
     fn set_options(&self) -> Result<(), EncodeError> {
-        check_enc_status(
-            unsafe { JxlEncoderUseContainer(self.enc, self.use_container) },
-            "If use container",
-        )?;
-        check_enc_status(
-            unsafe { JxlEncoderOptionsSetLossless(self.options_ptr, self.lossless) },
-            "Set lossless",
-        )?;
-        check_enc_status(
-            unsafe { JxlEncoderOptionsSetEffort(self.options_ptr, self.speed as _) },
-            "Set speed",
-        )?;
-        check_enc_status(
-            unsafe { JxlEncoderOptionsSetDistance(self.options_ptr, self.quality) },
-            "Set quality",
-        )?;
-        check_enc_status(
-            unsafe { JxlEncoderOptionsSetDecodingSpeed(self.options_ptr, self.decoding_speed) },
-            "Set decoding speed",
-        )?;
+        self.check_enc_status(unsafe { JxlEncoderUseContainer(self.enc, self.use_container) })?;
+        self.check_enc_status(unsafe {
+            JxlEncoderSetFrameLossless(self.options_ptr, self.lossless)
+        })?;
+        self.check_enc_status(unsafe {
+            JxlEncoderFrameSettingsSetOption(
+                self.options_ptr,
+                FrameSetting::Effort,
+                self.speed as _,
+            )
+        })?;
+        self.check_enc_status(unsafe {
+            JxlEncoderSetFrameDistance(self.options_ptr, self.quality)
+        })?;
+        self.check_enc_status(unsafe {
+            JxlEncoderFrameSettingsSetOption(
+                self.options_ptr,
+                FrameSetting::DecodingSpeed,
+                self.decoding_speed,
+            )
+        })?;
 
         Ok(())
     }
@@ -315,19 +330,22 @@ impl JxlEncoder<'_, '_> {
     ) -> Result<(), EncodeError> {
         if let Some(runner) = self.parallel_runner {
             unsafe {
-                check_enc_status(
-                    JxlEncoderSetParallelRunner(self.enc, runner.runner(), runner.as_opaque_ptr()),
-                    "Set parallel runner",
-                )?;
+                self.check_enc_status(JxlEncoderSetParallelRunner(
+                    self.enc,
+                    runner.runner(),
+                    runner.as_opaque_ptr(),
+                ))?;
             }
         }
 
         self.set_options()?;
 
-        unsafe { JxlEncoderSetColorEncoding(self.enc, &self.color_encoding.into()) };
+        let mut basic_info = unsafe {
+            let mut info = JxlBasicInfo::new_uninit();
+            JxlEncoderInitBasicInfo(info.as_mut_ptr());
+            info.assume_init()
+        };
 
-        let mut basic_info = unsafe { JxlBasicInfo::new_uninit().assume_init() };
-        unsafe { JxlEncoderInitBasicInfo(&mut basic_info) };
         basic_info.xsize = width;
         basic_info.ysize = height;
         basic_info.uses_original_profile = JxlBool::True;
@@ -341,48 +359,60 @@ impl JxlEncoder<'_, '_> {
             basic_info.num_extra_channels = 1;
             basic_info.alpha_bits = bits;
             basic_info.alpha_exponent_bits = exp;
+
+            // let mut alpha = unsafe {
+            //     let mut alpha = MaybeUninit::<JxlExtraChannelInfo>::uninit();
+            //     JxlEncoderInitExtraChannelInfo(JxlExtraChannelType::Alpha, alpha.as_mut_ptr());
+            //     alpha.assume_init()
+            // };
+            // alpha.bits_per_sample = bits;
+            // alpha.exponent_bits_per_sample = exp;
+
+            // self.check_enc_status(unsafe { JxlEncoderSetExtraChannelInfo(self.enc, 1, &alpha) })?;
         } else {
             basic_info.num_extra_channels = 0;
             basic_info.alpha_bits = 0;
             basic_info.alpha_exponent_bits = 0;
         }
-        check_enc_status(
-            unsafe { JxlEncoderSetBasicInfo(self.enc, &basic_info) },
-            "Set basic info",
-        )
+
+        match self.color_encoding {
+            ColorEncoding::SrgbLuma | ColorEncoding::LinearSrgbLuma => {
+                basic_info.num_color_channels = 1;
+            }
+            _ => (),
+        }
+
+        self.check_enc_status(unsafe { JxlEncoderSetBasicInfo(self.enc, &basic_info) })?;
+
+        self.check_enc_status(unsafe {
+            JxlEncoderSetColorEncoding(self.enc, &self.color_encoding.into())
+        })
     }
 
     // Add a frame
     fn add_frame<T: PixelType>(&self, frame: &EncoderFrame<T>) -> Result<(), EncodeError> {
-        check_enc_status(
-            unsafe {
-                JxlEncoderAddImageFrame(
-                    self.options_ptr,
-                    &frame.pixel_format(),
-                    frame.data.as_ptr().cast(),
-                    std::mem::size_of_val(frame.data),
-                )
-            },
-            "Add frame",
-        )
+        self.check_enc_status(unsafe {
+            JxlEncoderAddImageFrame(
+                self.options_ptr,
+                &frame.pixel_format(),
+                frame.data.as_ptr().cast(),
+                std::mem::size_of_val(frame.data),
+            )
+        })
     }
 
     // Add a frame from JPEG raw data
     fn add_jpeg_frame(&self, data: &[u8]) -> Result<(), EncodeError> {
-        check_enc_status(
-            unsafe {
-                JxlEncoderAddJPEGFrame(
-                    self.options_ptr,
-                    data.as_ptr().cast(),
-                    std::mem::size_of_val(data),
-                )
-            },
-            "Add JPEG frame",
-        )
+        self.check_enc_status(unsafe {
+            JxlEncoderAddJPEGFrame(
+                self.options_ptr,
+                data.as_ptr().cast(),
+                std::mem::size_of_val(data),
+            )
+        })
     }
 
     // Start encoding
-    #[allow(clippy::cast_sign_loss)]
     fn start_encoding<U: PixelType>(&mut self) -> Result<EncoderResult<U>, EncodeError> {
         unsafe { JxlEncoderCloseInput(self.enc) };
 
@@ -399,17 +429,17 @@ impl JxlEncoder<'_, '_> {
             }
 
             unsafe {
-                let offset = next_out.offset_from(buffer.as_ptr());
+                let offset = next_out as usize - buffer.as_ptr() as usize;
                 buffer.resize(buffer.len() * 2, 0);
-                next_out = (buffer.as_mut_ptr()).offset(offset);
-                avail_out = buffer.len() - offset as usize;
+                next_out = (buffer.as_mut_ptr()).add(offset);
+                avail_out = buffer.len() - offset;
             }
         }
-        unsafe { buffer.truncate(next_out.offset_from(buffer.as_ptr()) as usize) };
-        check_enc_status(status, "Process output")?;
+        buffer.truncate(next_out as usize - buffer.as_ptr() as usize);
+        self.check_enc_status(status)?;
 
         unsafe { JxlEncoderReset(self.enc) };
-        self.options_ptr = unsafe { JxlEncoderOptionsCreate(self.enc, null()) };
+        self.options_ptr = unsafe { JxlEncoderFrameSettingsCreate(self.enc, null()) };
 
         buffer.shrink_to_fit();
         Ok(EncoderResult {
@@ -421,6 +451,20 @@ impl JxlEncoder<'_, '_> {
 
 // Public interface
 impl<'prl, 'mm> JxlEncoder<'prl, 'mm> {
+    /// Set a specific encoder frame setting
+    ///
+    /// # Errors
+    /// Return [`EncodeError`] if it fails to set frame option
+    pub fn set_frame_option(
+        &mut self,
+        option: FrameSetting,
+        value: i64,
+    ) -> Result<(), EncodeError> {
+        self.check_enc_status(unsafe {
+            JxlEncoderFrameSettingsSetOption(self.options_ptr, option, value)
+        })
+    }
+
     /// Return a wrapper type for adding multiple frames to the encoder
     ///
     /// # Errors
@@ -442,17 +486,15 @@ impl<'prl, 'mm> JxlEncoder<'prl, 'mm> {
     /// Return [`EncodeError`] if the internal encoder fails to encode
     pub fn encode_jpeg(&mut self, data: &[u8]) -> Result<EncoderResult<u8>, EncodeError> {
         // If using container format, store JPEG reconstruction metadata
-        check_enc_status(
-            unsafe { JxlEncoderStoreJPEGMetadata(self.enc, true) },
-            "Set store jpeg metadata",
-        )?;
+        self.check_enc_status(unsafe { JxlEncoderStoreJPEGMetadata(self.enc, true) })?;
 
         if let Some(runner) = self.parallel_runner {
             unsafe {
-                check_enc_status(
-                    JxlEncoderSetParallelRunner(self.enc, runner.runner(), runner.as_opaque_ptr()),
-                    "Set parallel runner",
-                )?;
+                self.check_enc_status(JxlEncoderSetParallelRunner(
+                    self.enc,
+                    runner.runner(),
+                    runner.as_opaque_ptr(),
+                ))?;
             }
         }
 

@@ -51,16 +51,30 @@ pub enum EncodeError {
     /// Cannot create an encoder
     #[error("Cannot create an encoder")]
     CannotCreateEncoder,
-    /// Unknown Error
-    // TODO: underlying library is working on a way to retrieve error message
-    #[error("Encoder error: {0}")]
-    GenericError(&'static str),
+    /// Generic Error
+    #[error("Generic Error")]
+    GenericError,
     /// Not Supported
     #[error("Encoder does not support it (yet)")]
     NotSupported,
+    /// Need more output
+    #[error("Need more output")]
+    NeedMoreOutput,
+    /// Out of memory
+    #[error("Out of memory")]
+    OutOfMemory,
+    /// JPEG bitstream reconstruction data could not be represented (e.g. too much tail data)
+    #[error("JPEG bitstream reconstruction data could not be represented")]
+    Jbrd,
+    /// Input is invalid (e.g. corrupt JPEG file or ICC profile)
+    #[error("Input is invalid")]
+    BadInput,
+    /// The encoder API is used in an incorrect way. In this case, a debug build of libjxl should output a specific error message
+    #[error("The encoder API is used in an incorrect way")]
+    ApiUsage,
     /// Unknown status
     #[error("Unknown status: `{0:?}`")]
-    UnknownStatus(JxlEncoderStatus),
+    UnknownStatus(u32),
 }
 
 /// Error mapping from underlying C const to [`JxlDecoderStatus` enum
@@ -72,19 +86,6 @@ pub(crate) fn check_dec_status(
         JxlDecoderStatus::Success => Ok(()),
         JxlDecoderStatus::Error => Err(DecodeError::GenericError(msg)),
         _ => Err(DecodeError::UnknownStatus(status)),
-    }
-}
-
-/// Error mapping from underlying C const to [`JxlEncoderStatus`] enum
-pub(crate) fn check_enc_status(
-    status: JxlEncoderStatus,
-    msg: &'static str,
-) -> Result<(), EncodeError> {
-    match status {
-        JxlEncoderStatus::Success => Ok(()),
-        JxlEncoderStatus::Error => Err(EncodeError::GenericError(msg)),
-        JxlEncoderStatus::NotSupported => Err(EncodeError::NotSupported),
-        JxlEncoderStatus::NeedMoreOutput => Err(EncodeError::UnknownStatus(status)),
     }
 }
 
@@ -114,30 +115,12 @@ mod tests {
 
         assert!(matches!(
             encoder.encode::<u8, u8>(&[], 0, 0),
-            Err(EncodeError::GenericError("Set basic info"))
+            Err(EncodeError::ApiUsage)
         ));
 
         assert!(matches!(
             encoder.encode::<f32, f32>(&[1.0, 1.0, 1.0, 0.5], 1, 1),
-            Err(EncodeError::NotSupported)
-        ));
-    }
-
-    #[test]
-    fn mapping() {
-        assert!(matches!(
-            check_dec_status(JxlDecoderStatus::Error, "Testing"),
-            Err(DecodeError::GenericError("Testing"))
-        ));
-
-        assert!(matches!(
-            check_dec_status(JxlDecoderStatus::NeedMoreInput, "Testing"),
-            Err(DecodeError::UnknownStatus(JxlDecoderStatus::NeedMoreInput))
-        ));
-
-        assert!(matches!(
-            check_enc_status(JxlEncoderStatus::NeedMoreOutput, "Testing"),
-            Err(EncodeError::UnknownStatus(JxlEncoderStatus::NeedMoreOutput))
+            Err(EncodeError::ApiUsage)
         ));
     }
 }

@@ -45,7 +45,7 @@ fn jpeg() -> Result<(), EncodeError> {
 }
 
 #[test]
-fn builder() -> Result<(), EncodeError> {
+fn builder() {
     let sample = get_sample().to_rgba8();
     let parallel_runner = ThreadsRunner::default();
     let mut encoder = encoder_builder()
@@ -53,24 +53,30 @@ fn builder() -> Result<(), EncodeError> {
         .lossless(false)
         .speed(EncoderSpeed::Lightning)
         .quality(3.0)
-        .color_encoding(ColorEncoding::LinearSRgb)
+        .color_encoding(ColorEncoding::LinearSrgb)
         .decoding_speed(4)
         .init_buffer_size(64)
         .parallel_runner(&parallel_runner)
-        .build()?;
+        .build()
+        .unwrap();
 
-    let _res: EncoderResult<u8> = encoder.encode_frame(
-        &EncoderFrame::new(sample.as_raw()).num_channels(4),
-        sample.width(),
-        sample.height(),
-    )?;
+    let _res: EncoderResult<u8> = encoder
+        .encode_frame(
+            &EncoderFrame::new(sample.as_raw()).num_channels(4),
+            sample.width(),
+            sample.height(),
+        )
+        .unwrap();
 
     // Check encoder reset
     encoder.has_alpha = false;
-    let _res: EncoderResult<u8> =
-        encoder.encode(sample.as_raw(), sample.width(), sample.height())?;
-
-    Ok(())
+    let _res: EncoderResult<u8> = encoder
+        .encode(
+            get_sample().to_rgb8().as_raw(),
+            sample.width(),
+            sample.height(),
+        )
+        .unwrap();
 }
 
 #[test]
@@ -81,7 +87,7 @@ fn multi_frames() -> Result<(), EncodeError> {
     let parallel_runner = ThreadsRunner::default();
     let mut encoder = encoder_builder()
         .parallel_runner(&parallel_runner)
-        .color_encoding(ColorEncoding::SRgb)
+        .color_encoding(ColorEncoding::Srgb)
         .build()?;
 
     let frame = EncoderFrame::new(sample.as_raw())
@@ -98,24 +104,23 @@ fn multi_frames() -> Result<(), EncodeError> {
 }
 
 #[test]
-fn gray() -> Result<(), EncodeError> {
+fn gray() {
     let sample = get_sample().to_luma8();
     let parallel_runner = ThreadsRunner::default();
     let mut encoder = encoder_builder()
-        .color_encoding(ColorEncoding::SRgbLuma)
+        .color_encoding(ColorEncoding::SrgbLuma)
         .parallel_runner(&parallel_runner)
-        .build()?;
+        .build()
+        .unwrap();
 
-    let _res: EncoderResult<u8> = encoder.encode_frame(
-        &EncoderFrame::new(sample.as_raw()).num_channels(1),
-        sample.width(),
-        sample.height(),
-    )?;
+    let result: EncoderResult<u8> = encoder
+        .encode_frame(
+            &EncoderFrame::new(sample.as_raw()).num_channels(1),
+            sample.width(),
+            sample.height(),
+        )
+        .unwrap();
 
-    // Check encoder reset
-    encoder.has_alpha = false;
-    let _res: EncoderResult<u8> =
-        encoder.encode(sample.as_raw(), sample.width(), sample.height())?;
-
-    Ok(())
+    let decoder = decoder_builder().build().unwrap();
+    let _res = decoder.decode(&result).unwrap();
 }

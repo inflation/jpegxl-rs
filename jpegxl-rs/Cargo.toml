@@ -25,7 +25,7 @@ paste = "1.0.7"
 thiserror = "1.0.31"
 
 [dependencies.jpegxl-sys]
-version = "0.6.2-alpha0"
+version = "0.7.0"
 path = "../jpegxl-sys"
 
 [dev-dependencies]

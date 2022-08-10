@@ -33,8 +33,8 @@ pub trait JxlMemoryManager {
 
     /// Helper conversion function for C API
     #[must_use]
-    fn manager(&self) -> jpegxl_sys::JxlMemoryManager {
-        jpegxl_sys::JxlMemoryManager {
+    fn manager(&self) -> jpegxl_sys::memory_manager::JxlMemoryManager {
+        jpegxl_sys::memory_manager::JxlMemoryManager {
             opaque: self as *const Self as _,
             alloc: self.alloc(),
             free: self.free(),

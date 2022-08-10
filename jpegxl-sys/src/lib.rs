@@ -47,7 +47,7 @@ pub trait NewUninit {
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::parallel_runner::{
+    use crate::thread_parallel_runner::{
         JxlThreadParallelRunner, JxlThreadParallelRunnerCreate,
         JxlThreadParallelRunnerDefaultNumWorkerThreads, JxlThreadParallelRunnerDestroy,
     };
@@ -75,8 +75,8 @@ mod test {
     #[test]
     fn test_bindings_version() {
         unsafe {
-            assert_eq!(JxlDecoderVersion(), 6001);
-            assert_eq!(JxlEncoderVersion(), 6001);
+            assert_eq!(JxlDecoderVersion(), 7000);
+            assert_eq!(JxlEncoderVersion(), 7000);
         }
     }
 
@@ -339,12 +339,14 @@ mod test {
             jxl_enc_assert!(status, "Set Color Encoding");
 
             status = JxlEncoderAddImageFrame(
-                JxlEncoderOptionsCreate(enc, std::ptr::null()),
+                JxlEncoderFrameSettingsCreate(enc, std::ptr::null()),
                 &pixel_format,
                 pixels.as_ptr() as *mut std::ffi::c_void,
                 pixels.len(),
             );
             jxl_enc_assert!(status, "Add Image Frame");
+
+            JxlEncoderCloseInput(enc);
 
             let chunk_size = 1024 * 512; // 512 KB is a good initial value
             let mut buffer = vec![0u8; chunk_size];

@@ -23,7 +23,7 @@ use crate::{
 };
 
 extern "C" {
-    pub fn JxlResizableParallelRunner(
+    pub fn JxlThreadParallelRunner(
         runner_opaque: *mut c_void,
         jpegxl_opaque: *mut c_void,
         init: JxlParallelRunInit,
@@ -32,14 +32,12 @@ extern "C" {
         end_range: u32,
     ) -> JxlParallelRetCode;
 
-    pub fn JxlResizableParallelRunnerCreate(memory_manager: *const JxlMemoryManager)
-        -> *mut c_void;
+    pub fn JxlThreadParallelRunnerCreate(
+        memory_manager: *const JxlMemoryManager,
+        num_worker_threads: usize,
+    ) -> *mut c_void;
 
-    pub fn JxlResizableParallelRunnerSetThreads(runner_opaque: *mut c_void, num_threads: usize);
-
-    pub fn JxlResizableParallelRunnerSuggestThreads(xsize: u64, ysize: u64) -> u32;
-
-    pub fn JxlResizableParallelRunnerDestroy(runner_opaque: *mut c_void);
+    pub fn JxlThreadParallelRunnerDestroy(runner_opaque: *mut c_void);
 
     pub fn JxlThreadParallelRunnerDefaultNumWorkerThreads() -> usize;
 }

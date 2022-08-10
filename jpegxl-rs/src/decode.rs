@@ -304,7 +304,7 @@ impl<'pr, 'mm> JxlDecoder<'pr, 'mm> {
         )?;
 
         check_dec_status(
-            unsafe { JxlDecoderSetKeepOrientation(self.dec, self.keep_orientation) },
+            unsafe { JxlDecoderSetKeepOrientation(self.dec, self.keep_orientation.into()) },
             "Set if keep orientation",
         )?;
 
@@ -332,14 +332,14 @@ impl<'pr, 'mm> JxlDecoder<'pr, 'mm> {
         };
         let data_type = pixel_type.unwrap_or_else(|| match basic_info.bits_per_sample {
             8 => JxlDataType::Uint8,
-            16 => JxlDataType::Uint16,
-            32 => {
+            16 => {
                 if basic_info.exponent_bits_per_sample == 0 {
-                    JxlDataType::Uint32
+                    JxlDataType::Uint16
                 } else {
-                    JxlDataType::Float
+                    JxlDataType::Float16
                 }
             }
+            32 => JxlDataType::Float,
             _ => unreachable!(),
         });
 

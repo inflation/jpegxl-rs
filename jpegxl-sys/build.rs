@@ -7,7 +7,7 @@ use std::{
     process::Output,
 };
 
-const VERSION: &str = "0.6.1";
+const VERSION: &str = "0.7rc";
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     setup_jpegxl()?;
@@ -93,14 +93,16 @@ fn build() -> Result<(), Box<dyn std::error::Error>> {
 
     let mut config = Config::new(&source);
     config
+        .define("BUILD_SHARED_LIBS", "OFF")
+        .define("BUILD_TESTING", "OFF")
         .define("JPEGXL_ENABLE_TOOLS", "OFF")
+        .define("JPEGXL_ENABLE_DOXYGEN", "OFF")
         .define("JPEGXL_ENABLE_MANPAGES", "OFF")
         .define("JPEGXL_ENABLE_BENCHMARK", "OFF")
         .define("JPEGXL_ENABLE_EXAMPLES", "OFF")
         .define("JPEGXL_ENABLE_JNI", "OFF")
         .define("JPEGXL_ENABLE_SJPEG", "OFF")
-        .define("JPEGXL_ENABLE_OPENEXR", "OFF")
-        .define("JPEGXL_STATIC", "ON");
+        .define("JPEGXL_ENABLE_OPENEXR", "OFF");
 
     let mut prefix = config.build();
     println!("cargo:rustc-link-lib=static=jxl");

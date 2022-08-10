@@ -36,7 +36,7 @@ use std::ffi::c_void;
 pub use threads_runner::*;
 
 /// Parallel runner return code
-pub use jpegxl_sys::JxlParallelRetCode;
+pub use jpegxl_sys::parallel_runner::JxlParallelRetCode;
 /// Parallel runner initialization callback type
 pub type InitFn = unsafe extern "C" fn(*mut c_void, usize) -> i32;
 /// Parallel runner data processing callback type

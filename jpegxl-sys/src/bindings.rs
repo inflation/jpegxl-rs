@@ -15,15 +15,21 @@ You should have received a copy of the GNU General Public License
 along with jpegxl-sys.  If not, see <https://www.gnu.org/licenses/>.
 */
 
+#![allow(clippy::module_name_repetitions)]
+
 pub mod butteraugli;
+pub mod cms;
+pub mod codestream_header;
 pub mod common;
 pub mod decoder;
 pub mod encoder;
+pub mod memory_manager;
+pub mod parallel_runner;
 
-pub use {common::*, decoder::*, encoder::*};
+pub use {codestream_header::*, common::*, decoder::*, encoder::*};
 
 #[cfg(feature = "threads")]
-pub mod parallel_runner;
+pub mod thread_parallel_runner;
 
 #[cfg(feature = "threads")]
 pub mod resizable_parallel_runner;

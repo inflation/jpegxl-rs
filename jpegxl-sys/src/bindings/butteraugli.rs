@@ -17,7 +17,9 @@ along with jpegxl-sys.  If not, see <https://www.gnu.org/licenses/>.
 
 use std::ffi::c_void;
 
-use crate::common::{JxlMemoryManager, JxlParallelRunner, JxlPixelFormat};
+use crate::{
+    common::JxlPixelFormat, memory_manager::JxlMemoryManager, parallel_runner::JxlParallelRunner,
+};
 
 // Opaque type
 #[repr(C)]
