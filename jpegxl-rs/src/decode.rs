@@ -243,33 +243,27 @@ impl<'pr, 'mm> JxlDecoder<'pr, 'mm> {
                 }
 
                 // Get JPEG reconstruction buffer
-                JpegReconstruction => {
-                    if let Some(buf) = reconstruct_jpeg_buffer.as_deref_mut() {
-                        jpeg_reconstructed = true;
+                JpegReconstruction if reconstruct_jpeg_buffer.is_some() => {
+                    let buf = reconstruct_jpeg_buffer.as_deref_mut().unwrap();
+                    jpeg_reconstructed = true;
 
-                        check_dec_status(
-                            unsafe {
-                                JxlDecoderSetJPEGBuffer(self.dec, buf.as_mut_ptr(), buf.len())
-                            },
-                            "In JPEG reconstruction event",
-                        )?;
-                    }
+                    check_dec_status(
+                        unsafe { JxlDecoderSetJPEGBuffer(self.dec, buf.as_mut_ptr(), buf.len()) },
+                        "In JPEG reconstruction event",
+                    )?;
                 }
 
                 // JPEG buffer need more space
-                JpegNeedMoreOutput => {
-                    if let Some(buf) = reconstruct_jpeg_buffer.as_deref_mut() {
-                        let need_to_write = unsafe { JxlDecoderReleaseJPEGBuffer(self.dec) };
+                JpegNeedMoreOutput if reconstruct_jpeg_buffer.is_some() => {
+                    let buf = reconstruct_jpeg_buffer.as_deref_mut().unwrap();
+                    let need_to_write = unsafe { JxlDecoderReleaseJPEGBuffer(self.dec) };
 
-                        let old_len = buf.len();
-                        buf.resize(old_len + need_to_write, 0);
-                        check_dec_status(
-                            unsafe {
-                                JxlDecoderSetJPEGBuffer(self.dec, buf.as_mut_ptr(), buf.len())
-                            },
-                            "In JPEG need more output event, set without releasing",
-                        )?;
-                    }
+                    let old_len = buf.len();
+                    buf.resize(old_len + need_to_write, 0);
+                    check_dec_status(
+                        unsafe { JxlDecoderSetJPEGBuffer(self.dec, buf.as_mut_ptr(), buf.len()) },
+                        "In JPEG need more output event, set without releasing",
+                    )?;
                 }
 
                 // Get the output buffer

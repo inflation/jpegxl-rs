@@ -205,7 +205,7 @@ pub struct JxlEncoder<'prl, 'mm> {
     /// Set color encoding
     ///
     /// Default: SRGB
-    color_encoding: ColorEncoding,
+    pub color_encoding: ColorEncoding,
 
     /// Set parallel runner
     ///

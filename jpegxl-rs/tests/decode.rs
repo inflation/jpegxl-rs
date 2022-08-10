@@ -34,6 +34,19 @@ fn simple() {
 
     let DecoderResult { data, .. } = decoder.decode_to::<f32>(&sample).unwrap();
     let _data = data.as_f32().unwrap();
+
+    // Check different pixel format but failed
+    let DecoderResult { data, .. } = decoder.decode(&sample).unwrap();
+    assert!(data.as_u8().is_none());
+
+    let DecoderResult { data, .. } = decoder.decode_to::<u8>(&sample).unwrap();
+    assert!(data.as_u16().is_none());
+
+    let DecoderResult { data, .. } = decoder.decode_to::<u8>(&sample).unwrap();
+    assert!(data.as_f16().is_none());
+
+    let DecoderResult { data, .. } = decoder.decode_to::<u8>(&sample).unwrap();
+    assert!(data.as_f32().is_none());
 }
 
 #[test]

@@ -67,6 +67,8 @@ impl ToDynamic for DecoderResult {
 
 #[cfg(test)]
 mod tests {
+    use half::f16;
+
     use crate::{decoder_builder, ThreadsRunner};
 
     use super::*;
@@ -91,35 +93,78 @@ mod tests {
     }
 
     #[test]
-    fn channels() -> Result<(), Box<dyn std::error::Error>> {
-        let sample = std::fs::read("../samples/sample_grey.jxl")?;
+    fn channels() {
+        let sample = std::fs::read("../samples/sample_grey.jxl").unwrap();
         let parallel_runner = ThreadsRunner::default();
         let mut decoder = decoder_builder()
             .parallel_runner(&parallel_runner)
             .num_channels(1)
-            .build()?;
+            .build()
+            .unwrap();
 
         decoder
-            .decode_to::<u8>(&sample)?
+            .decode_to::<u8>(&sample)
+            .unwrap()
             .into_dynamic_image()
-            .ok_or("Failed to create DynamicImage")?;
+            .unwrap();
 
         decoder.num_channels = 2;
         decoder
-            .decode_to::<u8>(&sample)?
+            .decode_to::<u8>(&sample)
+            .unwrap()
             .into_dynamic_image()
-            .ok_or("Failed to create DynamicImage")?;
+            .unwrap();
 
         decoder.num_channels = 3;
         decoder
-            .decode_to::<u8>(&sample)?
+            .decode_to::<u8>(&sample)
+            .unwrap()
             .into_dynamic_image()
-            .ok_or("Failed to create DynamicImage")?;
+            .unwrap();
 
-        let mut res = decoder.decode_to::<u8>(&sample)?;
+        let mut res = decoder.decode_to::<u8>(&sample).unwrap();
         res.num_channels = 0;
         assert!(res.into_dynamic_image().is_none());
+    }
 
-        Ok(())
+    #[test]
+    fn pixels() {
+        let sample = std::fs::read("../samples/sample.jxl").unwrap();
+        let parallel_runner = ThreadsRunner::default();
+        let decoder = decoder_builder()
+            .parallel_runner(&parallel_runner)
+            .build()
+            .unwrap();
+
+        decoder
+            .decode_to::<u8>(&sample)
+            .unwrap()
+            .into_dynamic_image()
+            .unwrap();
+
+        decoder
+            .decode_to::<u16>(&sample)
+            .unwrap()
+            .into_dynamic_image()
+            .unwrap();
+
+        assert!(decoder
+            .decode_to::<f16>(&sample)
+            .unwrap()
+            .into_dynamic_image()
+            .is_none());
+
+        decoder
+            .decode_to::<f32>(&sample)
+            .unwrap()
+            .into_dynamic_image()
+            .unwrap();
+
+        let sample = std::fs::read("../samples/sample_grey.jxl").unwrap();
+        assert!(decoder
+            .decode_to::<f32>(&sample)
+            .unwrap()
+            .into_dynamic_image()
+            .is_none());
     }
 }

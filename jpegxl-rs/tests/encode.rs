@@ -1,3 +1,4 @@
+use half::f16;
 use jpegxl_rs::{
     decoder_builder,
     encode::{ColorEncoding, EncoderFrame, EncoderResult, EncoderSpeed},
@@ -14,19 +15,18 @@ fn get_sample() -> DynamicImage {
 }
 
 #[test]
-fn simple() -> Result<(), EncodeError> {
+fn simple() {
     let sample = get_sample().to_rgb8();
-    let mut encoder = encoder_builder().build()?;
+    let mut encoder = encoder_builder().build().unwrap();
 
-    let result: EncoderResult<u16> =
-        encoder.encode(sample.as_raw(), sample.width(), sample.height())?;
+    let result: EncoderResult<u16> = encoder
+        .encode(sample.as_raw(), sample.width(), sample.height())
+        .unwrap();
 
     let decoder = decoder_builder().build().expect("Failed to build decoder");
     let _res = decoder
         .decode(&result)
         .expect("Failed to decode the encoded image");
-
-    Ok(())
 }
 
 #[test]
@@ -70,17 +70,28 @@ fn builder() {
 
     // Check encoder reset
     encoder.has_alpha = false;
+    let sample = get_sample().to_rgb8();
+
     let _res: EncoderResult<u8> = encoder
-        .encode(
-            get_sample().to_rgb8().as_raw(),
-            sample.width(),
-            sample.height(),
-        )
+        .encode(sample.as_raw(), sample.width(), sample.height())
+        .unwrap();
+
+    // Check different pixel format
+    let _res: EncoderResult<u16> = encoder
+        .encode(sample.as_raw(), sample.width(), sample.height())
+        .unwrap();
+
+    let _res: EncoderResult<f16> = encoder
+        .encode(sample.as_raw(), sample.width(), sample.height())
+        .unwrap();
+
+    let _res: EncoderResult<f32> = encoder
+        .encode(sample.as_raw(), sample.width(), sample.height())
         .unwrap();
 }
 
 #[test]
-fn multi_frames() -> Result<(), EncodeError> {
+fn multi_frames() {
     let sample = get_sample().to_rgb8();
     let sample_jpeg =
         std::fs::read("../samples/sample.jpg").expect("Failed to read sample JPEG file");
@@ -88,19 +99,25 @@ fn multi_frames() -> Result<(), EncodeError> {
     let mut encoder = encoder_builder()
         .parallel_runner(&parallel_runner)
         .color_encoding(ColorEncoding::Srgb)
-        .build()?;
+        .build()
+        .unwrap();
 
     let frame = EncoderFrame::new(sample.as_raw())
         .endianness(Endianness::Native)
         .align(0);
 
-    let _res: EncoderResult<u8> = encoder
-        .multiple(sample.width(), sample.height())?
-        .add_frame(&frame)?
-        .add_jpeg_frame(&sample_jpeg)?
-        .encode()?;
+    let result: EncoderResult<f32> = encoder
+        .multiple(sample.width(), sample.height())
+        .unwrap()
+        .add_frame(&frame)
+        .unwrap()
+        .add_jpeg_frame(&sample_jpeg)
+        .unwrap()
+        .encode()
+        .unwrap();
 
-    Ok(())
+    let decoder = decoder_builder().build().unwrap();
+    let _res = decoder.decode(&result).unwrap();
 }
 
 #[test]
@@ -113,7 +130,7 @@ fn gray() {
         .build()
         .unwrap();
 
-    let result: EncoderResult<u8> = encoder
+    let result: EncoderResult<f16> = encoder
         .encode_frame(
             &EncoderFrame::new(sample.as_raw()).num_channels(1),
             sample.width(),
@@ -122,5 +139,16 @@ fn gray() {
         .unwrap();
 
     let decoder = decoder_builder().build().unwrap();
+    let _res = decoder.decode(&result).unwrap();
+
+    encoder.color_encoding = ColorEncoding::LinearSrgbLuma;
+    let result: EncoderResult<f16> = encoder
+        .encode_frame(
+            &EncoderFrame::new(sample.as_raw()).num_channels(1),
+            sample.width(),
+            sample.height(),
+        )
+        .unwrap();
+
     let _res = decoder.decode(&result).unwrap();
 }
