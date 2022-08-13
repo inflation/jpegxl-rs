@@ -116,7 +116,7 @@ along with jpegxl-rs.  If not, see <https://www.gnu.org/licenses/>.
 //! let sample = std::fs::read("../samples/sample.jxl")?;
 //! let decoder = decoder_builder().build()?;
 //! let img = decoder.decode(&sample)?.into_dynamic_image();       
-//! # Ok(())
+//! # Ok::<(), Box<dyn std::error::Error>>(())
 //! ```
 
 #![cfg_attr(docsrs, feature(doc_cfg))]
