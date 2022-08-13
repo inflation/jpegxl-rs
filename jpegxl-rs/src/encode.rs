@@ -19,7 +19,7 @@ along with jpegxl-rs.  If not, see <https://www.gnu.org/licenses/>.
 
 #[allow(clippy::wildcard_imports)]
 use jpegxl_sys::*;
-use std::{marker::PhantomData, ops::Deref, ptr::null};
+use std::{marker::PhantomData, mem::MaybeUninit, ops::Deref, ptr::null};
 
 use crate::{
     common::PixelType, errors::EncodeError, memory::JxlMemoryManager, parallel::JxlParallelRunner,
@@ -71,7 +71,7 @@ impl From<ColorEncoding> for JxlColorEncoding {
     fn from(val: ColorEncoding) -> Self {
         use ColorEncoding::{LinearSrgb, LinearSrgbLuma, Srgb, SrgbLuma};
 
-        let mut color_encoding = JxlColorEncoding::new_uninit();
+        let mut color_encoding = MaybeUninit::uninit();
 
         unsafe {
             match val {
@@ -341,7 +341,7 @@ impl JxlEncoder<'_, '_> {
         self.set_options()?;
 
         let mut basic_info = unsafe {
-            let mut info = JxlBasicInfo::new_uninit();
+            let mut info = MaybeUninit::uninit();
             JxlEncoderInitBasicInfo(info.as_mut_ptr());
             info.assume_init()
         };

@@ -1,0 +1,36 @@
+[package]
+authors = ["Inflation <hypernovagama@gmail.com>"]
+description = "Source of libjxl and logic to build it."
+edition = "2021"
+license = "BSD-3-Clause"
+name = "jpegxl-src"
+readme = "README.md"
+repository = "https://github.com/inflation/jpegxl-rs"
+version = "0.7.0-rc.0"
+exclude = [
+    "libjxl/third_party/libpng",
+    "libjxl/third_party/sjpeg",
+    "libjxl/third_party/lcms",
+    "libjxl/third_party/googletest",
+    "libjxl/third_party/brotli/tests",
+    "libjxl/third_party/brotli/java",
+    "libjxl/third_party/brotli/csharp",
+    "libjxl/third_party/brotli/research",
+    "libjxl/third_party/highway/g3doc",
+    "libjxl/third_party/skcms/profiles",
+    "libjxl/third_party/zlib/contrib",
+    "libjxl/testdata",
+    "libjxl/examples",
+    "libjxl/experimental",
+    "libjxl/docker",
+    "libjxl/doc",
+    "libjxl/.github",
+    "libjxl/debian",
+    "libjxl/plugins",
+]
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+num_cpus = "1.13.1"
+cmake = "0.1.48"

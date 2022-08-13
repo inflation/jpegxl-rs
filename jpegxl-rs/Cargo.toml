@@ -8,7 +8,7 @@ license = "GPL-3.0-or-later"
 name = "jpegxl-rs"
 readme = "README.md"
 repository = "https://github.com/inflation/jpegxl-rs"
-version = "0.6.2-alpha0"
+version = "0.7.0-alpha0"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -26,7 +26,7 @@ thiserror = "1.0.31"
 half = "2.1.0"
 
 [dependencies.jpegxl-sys]
-version = "0.7.0"
+version = "0.7.0-alpha.0"
 path = "../jpegxl-sys"
 
 [dev-dependencies]

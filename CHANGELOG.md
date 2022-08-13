@@ -1,11 +1,18 @@
 # Changelog
 
-<a name="0.6.2-alpha0"></a>
-## 0.6.2-alpha0 (2022-07-06)
+<a name="0.7.0-alpha0"></a>
+## 0.7.0-alpha0 (2022-08-13)
+
+### Added
+
+- ✅ Add more coverage tests [[e015a26](https://github.com/inflation/jpegxl-rs/commit/e015a2619020c45e471c7f4cb8c9ad868acf9c26)]
 
 ### Changed
 
-- ♻️ Move jpegxl-sys into workspace [[79050a8](https://github.com/inflation/jpegxl-rs/commit/79050a8b0ea1a178f498e71909679d3989c2ca17)]
+- ♻️ Separate source to a separate crate [[c4fe778](https://github.com/inflation/jpegxl-rs/commit/c4fe778c9fbe19ec3d4e3c8c5ba0c197198afb8b)]
+- ♻️ Make DecoderResult more convenient [[8bbe231](https://github.com/inflation/jpegxl-rs/commit/8bbe2312fc92570c766b22ebdaba4171fc7530d5)]
+- ⬆️ Upgrade to 0.7rc [[46e9b0c](https://github.com/inflation/jpegxl-rs/commit/46e9b0c16b8e17d07f2203fec051c4d9b82a39a2)]
+- ♻️ Move jpegxl-sys into workspace [[d7a8716](https://github.com/inflation/jpegxl-rs/commit/d7a8716bf2e8eea618474793fba2e171e3aa8248)]
 - ♻️ Accept a mut ref to buffer in decode_internal [[6319836](https://github.com/inflation/jpegxl-rs/commit/6319836c679e7d90a79aaa2061de3bfd699cd94f)]
 - 🏗️ Use system &#x60;libjxl&#x60; by default [[6756788](https://github.com/inflation/jpegxl-rs/commit/6756788b043c5a5ef1ea742cc33195aa2a1d1249)]
 - ⬆️ Update deps and rust versions [[0cc189a](https://github.com/inflation/jpegxl-rs/commit/0cc189aae3034c1f3abe5ef28f70aba126552bcf)]

@@ -8,20 +8,23 @@ license = "GPL-3.0-or-later"
 links = "jxl"
 name = "jpegxl-sys"
 readme = "README.md"
-repository = "https://github.com/inflation/jpegxl-sys"
-version = "0.7.0"
+repository = "https://github.com/inflation/jpegxl-rs"
+version = "0.7.0-alpha.0"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [build-dependencies]
 pkg-config = "0.3.25"
-cmake = "0.1.48"
-num_cpus = "1.13.1"
+
+[build-dependencies.jpegxl-src]
+version = "0.7.0-rc.0"
+path = "../jpegxl-src"
+optional = true
 
 [dev-dependencies]
 image = { version = "0.24.2", default-features = false, features = ["png"] }
 
 [features]
 default = ["threads"]
-vendored = []
+vendored = ["jpegxl-src"]
 threads = []

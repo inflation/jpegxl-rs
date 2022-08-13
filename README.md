@@ -58,7 +58,7 @@ decoder.endianness = Endianness::Native;
 
 ```rust
 use image::io::Reader as ImageReader;
-let sample = ImageReader::open("../samplessample.png")?.decode()?.to_rgba16();
+let sample = ImageReader::open("../samples/sample.png")?.decode()?.to_rgba16();
 let mut encoder = encoder_builder().build()?;
 let buffer: EncoderResult<f32> = encoder.encode(&sample, sample.width(), sample.height())?;
 ```
@@ -84,7 +84,7 @@ use jpegxl_rs::image::ToDynamic;
 use jpegxl_rs::decoder_builder;
 use image::DynamicImage;
 
-let sample = std::fs::read("../samplessample.jxl")?;
+let sample = std::fs::read("../samples/sample.jxl")?;
 let decoder = decoder_builder().build()?;
 let img = decoder.decode(&sample)?.into_dynamic_image();
 ```

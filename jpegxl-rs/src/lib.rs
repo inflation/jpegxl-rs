@@ -29,7 +29,7 @@ along with jpegxl-rs.  If not, see <https://www.gnu.org/licenses/>.
 //! https://github.com/inflation/jpegxl-rs/blob/master/LICENSE)
 //!
 //! A safe JPEGXL wrapper over `libjxl` library. Check out the original [library](https://github.com/libjxl/libjxl)
-//! and the [bindings](https://github.com/inflation/jpegxl-sys).
+//! and the [bindings](https://github.com/inflation/jpegxl-rs/tree/master/jpegxl-sys).
 //!
 //! # Building
 //!
@@ -106,10 +106,9 @@ along with jpegxl-rs.  If not, see <https://www.gnu.org/licenses/>.
 //!
 //! ## [`image`](https://crates.io/crates/image) crate integration
 //!
-//! The integration is enabled by default. If you don't need it, disable `image-support` feature.
+//! The integration is enabled by default. If you don't need it, disable `image` feature.
 //!
 //! ```
-//! # || -> Result<(), Box<dyn std::error::Error>> {
 //! use jpegxl_rs::image::ToDynamic;
 //! use jpegxl_rs::decoder_builder;
 //! use image::DynamicImage;
@@ -117,7 +116,7 @@ along with jpegxl-rs.  If not, see <https://www.gnu.org/licenses/>.
 //! let sample = std::fs::read("../samples/sample.jxl")?;
 //! let decoder = decoder_builder().build()?;
 //! let img = decoder.decode(&sample)?.into_dynamic_image();       
-//! # Ok(()) };
+//! # Ok(())
 //! ```
 
 #![cfg_attr(docsrs, feature(doc_cfg))]

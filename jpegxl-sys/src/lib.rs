@@ -16,33 +16,24 @@ along with jpegxl-sys.  If not, see <https://www.gnu.org/licenses/>.
 */
 
 #![warn(clippy::pedantic)]
+#![allow(clippy::module_name_repetitions)]
 
-pub mod bindings;
+pub mod butteraugli;
+pub mod cms;
+pub mod codestream_header;
+pub mod common;
+pub mod decoder;
+pub mod encoder;
+pub mod memory_manager;
+pub mod parallel_runner;
 
-pub use bindings::*;
+pub use {codestream_header::*, common::*, decoder::*, encoder::*};
 
-macro_rules! trait_impl {
-    ($x:ty, [$($struct_:ident ),*]) => {
-        $(
-            impl $x for $struct_ {}
-        )*
-    };
-}
+#[cfg(feature = "threads")]
+pub mod thread_parallel_runner;
 
-trait_impl!(NewUninit, [JxlBasicInfo, JxlPixelFormat, JxlColorEncoding]);
-
-/// Convenient function to just return a block of memory.
-/// You need to assign `basic_info.assume_init()` to use as a Rust struct after passing as a pointer.
-pub trait NewUninit {
-    #[inline]
-    #[must_use]
-    fn new_uninit() -> std::mem::MaybeUninit<Self>
-    where
-        Self: std::marker::Sized,
-    {
-        std::mem::MaybeUninit::<Self>::uninit()
-    }
-}
+#[cfg(feature = "threads")]
+pub mod resizable_parallel_runner;
 
 #[cfg(test)]
 mod test {
@@ -51,10 +42,9 @@ mod test {
         JxlThreadParallelRunner, JxlThreadParallelRunnerCreate,
         JxlThreadParallelRunnerDefaultNumWorkerThreads, JxlThreadParallelRunnerDestroy,
     };
-    use std::ptr;
+    use std::{mem::MaybeUninit, ptr};
 
     use image::io::Reader as ImageReader;
-    use image::ImageError;
 
     macro_rules! jxl_dec_assert {
         ($val:expr, $desc:expr) => {
@@ -106,7 +96,7 @@ mod test {
             align: 0,
         };
 
-        let mut basic_info = JxlBasicInfo::new_uninit().assume_init();
+        let mut basic_info;
         let mut buffer: Vec<f32> = Vec::new();
         let mut x_size = 0;
         let mut y_size = 0;
@@ -125,8 +115,13 @@ mod test {
 
                 // Get the basic info
                 BasicInfo => {
-                    status = JxlDecoderGetBasicInfo(decoder, &mut basic_info);
-                    jxl_dec_assert!(status, "BasicInfo");
+                    basic_info = {
+                        let mut info = MaybeUninit::uninit();
+                        status = JxlDecoderGetBasicInfo(decoder, info.as_mut_ptr());
+                        jxl_dec_assert!(status, "BasicInfo");
+                        info.assume_init()
+                    };
+
                     x_size = basic_info.xsize;
                     y_size = basic_info.ysize;
                     assert_eq!(basic_info.xsize, 40, "Width");
@@ -243,7 +238,7 @@ mod test {
                 align: 0,
             };
 
-            let mut basic_info = JxlBasicInfo::new_uninit().assume_init();
+            let mut basic_info;
             let mut buffer: Vec<f32> = Vec::new();
             let mut x_size = 0;
             let mut y_size = 0;
@@ -262,8 +257,12 @@ mod test {
 
                     // Get the basic info
                     BasicInfo => {
-                        status = JxlDecoderGetBasicInfo(dec, &mut basic_info);
-                        jxl_dec_assert!(status, "BasicInfo");
+                        basic_info = {
+                            let mut info = MaybeUninit::uninit();
+                            status = JxlDecoderGetBasicInfo(dec, info.as_mut_ptr());
+                            jxl_dec_assert!(status, "BasicInfo");
+                            info.assume_init()
+                        };
                         x_size = basic_info.xsize;
                         y_size = basic_info.ysize;
 
@@ -319,8 +318,11 @@ mod test {
             let mut status = JxlEncoderSetParallelRunner(enc, JxlThreadParallelRunner, runner);
             jxl_enc_assert!(status, "Set Parallel Runner");
 
-            let mut basic_info = JxlBasicInfo::new_uninit().assume_init();
-            JxlEncoderInitBasicInfo(&mut basic_info);
+            let mut basic_info = {
+                let mut basic_info = MaybeUninit::uninit();
+                JxlEncoderInitBasicInfo(basic_info.as_mut_ptr());
+                basic_info.assume_init()
+            };
             basic_info.xsize = x_size;
             basic_info.ysize = ysize;
 
@@ -333,9 +335,9 @@ mod test {
                 endianness: JxlEndianness::Native,
                 align: 0,
             };
-            let mut color_encoding = JxlColorEncoding::new_uninit().assume_init();
-            JxlColorEncodingSetToSRGB(&mut color_encoding, false);
-            status = JxlEncoderSetColorEncoding(enc, &color_encoding);
+            let mut color_encoding = MaybeUninit::uninit();
+            JxlColorEncodingSetToSRGB(color_encoding.as_mut_ptr(), false);
+            status = JxlEncoderSetColorEncoding(enc, color_encoding.as_ptr());
             jxl_enc_assert!(status, "Set Color Encoding");
 
             status = JxlEncoderAddImageFrame(
@@ -378,36 +380,34 @@ mod test {
 
     #[test]
     fn test_bindings_encoding() {
-        || -> Result<(), ImageError> {
-            let img = ImageReader::open("../samples/sample.png")?.decode()?;
-            let image_buffer = img.into_rgb8();
+        let img = ImageReader::open("../samples/sample.png")
+            .unwrap()
+            .decode()
+            .unwrap();
+        let image_buffer = img.into_rgb8();
 
-            let output = encode(
-                image_buffer.as_raw(),
-                image_buffer.width(),
-                image_buffer.height(),
+        let output = encode(
+            image_buffer.as_raw(),
+            image_buffer.width(),
+            image_buffer.height(),
+        );
+
+        unsafe {
+            let runner = JxlThreadParallelRunnerCreate(
+                std::ptr::null(),
+                JxlThreadParallelRunnerDefaultNumWorkerThreads(),
             );
 
-            unsafe {
-                let runner = JxlThreadParallelRunnerCreate(
-                    std::ptr::null(),
-                    JxlThreadParallelRunnerDefaultNumWorkerThreads(),
-                );
+            let dec = JxlDecoderCreate(ptr::null()); // Default memory manager
+            assert!(!dec.is_null());
 
-                let dec = JxlDecoderCreate(ptr::null()); // Default memory manager
-                assert!(!dec.is_null());
+            let status = JxlDecoderSetParallelRunner(dec, JxlThreadParallelRunner, runner);
+            jxl_dec_assert!(status, "Set Parallel Runner");
 
-                let status = JxlDecoderSetParallelRunner(dec, JxlThreadParallelRunner, runner);
-                jxl_dec_assert!(status, "Set Parallel Runner");
+            decode(dec, &output);
 
-                decode(dec, &output);
-
-                JxlDecoderDestroy(dec);
-                JxlThreadParallelRunnerDestroy(runner);
-            }
-
-            Ok(())
-        }()
-        .unwrap();
+            JxlDecoderDestroy(dec);
+            JxlThreadParallelRunnerDestroy(runner);
+        }
     }
 }
