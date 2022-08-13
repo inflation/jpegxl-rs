@@ -55,7 +55,7 @@ impl std::default::Default for EncoderSpeed {
 }
 
 /// Encoding color profile
-#[derive(Clone, Copy)]
+#[derive(Debug, Clone, Copy)]
 pub enum ColorEncoding {
     /// SRGB, default for uint pixel types
     Srgb,
@@ -275,7 +275,7 @@ impl<'prl, 'mm> JxlEncoderBuilder<'prl, 'mm> {
 
 // Private helper functions
 impl JxlEncoder<'_, '_> {
-    // Error mapping from underlying C const to [`JxlEncoderStatus`] enum
+    /// Error mapping from underlying C const to [`EncodeError`] enum
     fn check_enc_status(&self, status: JxlEncoderStatus) -> Result<(), EncodeError> {
         match status {
             JxlEncoderStatus::Success => Ok(()),

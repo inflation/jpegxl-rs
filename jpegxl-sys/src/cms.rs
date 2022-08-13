@@ -20,14 +20,12 @@ use std::ffi::c_void;
 use crate::{JxlBool, JxlColorEncoding};
 
 #[repr(C)]
-#[derive(Debug, Clone)]
 pub struct JxlColorProfileIcc {
     pub data: *const u8,
     pub size: usize,
 }
 
 #[repr(C)]
-#[derive(Debug, Clone)]
 pub struct JxlColorProfile {
     pub icc: JxlColorProfileIcc,
     pub color_encoding: JxlColorEncoding,
@@ -56,7 +54,6 @@ pub type JpegXlCmsRunFunc = extern "C" fn(
 pub type JpegXlCmsDestroyFun = extern "C" fn(user_data: *mut c_void);
 
 #[repr(C)]
-#[derive(Debug, Clone)]
 pub struct JxlCmsInterface {
     pub init_data: *mut c_void,
     pub init: JpegXlCmsInitFunc,

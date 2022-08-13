@@ -31,9 +31,8 @@ pub enum DecodeError {
     #[error("Cannot create a decoder")]
     CannotCreateDecoder,
     /// Unknown Error
-    // TODO: underlying library is working on a way to retrieve error message
-    #[error("Decoder error: {0}")]
-    GenericError(&'static str),
+    #[error("Generic Error")]
+    GenericError,
     /// Invalid file format
     #[error("The file does not contain a valid codestream or container")]
     InvalidFileFormat,
@@ -77,14 +76,11 @@ pub enum EncodeError {
     UnknownStatus(u32),
 }
 
-/// Error mapping from underlying C const to [`JxlDecoderStatus` enum
-pub(crate) fn check_dec_status(
-    status: JxlDecoderStatus,
-    msg: &'static str,
-) -> Result<(), DecodeError> {
+/// Error mapping from underlying C const to [`DecodeError`] enum
+pub(crate) fn check_dec_status(status: JxlDecoderStatus) -> Result<(), DecodeError> {
     match status {
         JxlDecoderStatus::Success => Ok(()),
-        JxlDecoderStatus::Error => Err(DecodeError::GenericError(msg)),
+        JxlDecoderStatus::Error => Err(DecodeError::GenericError),
         _ => Err(DecodeError::UnknownStatus(status)),
     }
 }
@@ -102,7 +98,7 @@ mod tests {
             .expect("Failed to create decoder");
         assert!(matches!(
             decoder.decode_to::<u8>(&sample),
-            Err(DecodeError::UnknownStatus(JxlDecoderStatus::NeedMoreInput))
+            Err(DecodeError::InvalidFileFormat)
         ));
     }
 

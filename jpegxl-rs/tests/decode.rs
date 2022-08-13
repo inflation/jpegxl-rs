@@ -5,11 +5,7 @@ use jpegxl_rs::{decode::DecoderResult, decoder_builder, DecodeError, Endianness,
 #[test]
 fn simple() {
     let sample = std::fs::read("../samples/sample.jxl").unwrap();
-    let parallel_runner = ThreadsRunner::default();
-    let decoder = decoder_builder()
-        .parallel_runner(&parallel_runner)
-        .build()
-        .unwrap();
+    let decoder = decoder_builder().build().unwrap();
 
     let DecoderResult {
         width,
@@ -24,6 +20,12 @@ fn simple() {
     assert_eq!(data.len(), (width * height * 4) as usize);
     // Check if icc profile is valid
     qcms::Profile::new_from_slice(&icc_profile).expect("Failed to retrieve icc profile");
+}
+
+#[test]
+fn pixel_types() {
+    let sample = std::fs::read("../samples/sample.jxl").unwrap();
+    let decoder = decoder_builder().build().unwrap();
 
     // Check different pixel types
     let DecoderResult { data, .. } = decoder.decode_to::<u8>(&sample).unwrap();
@@ -52,12 +54,7 @@ fn simple() {
 #[test]
 fn container() {
     let sample = std::fs::read("../samples/sample_jpg.jxl").unwrap();
-    let parallel_runner = ThreadsRunner::default();
-    let decoder = decoder_builder()
-        .parallel_runner(&parallel_runner)
-        .init_jpeg_buffer(512)
-        .build()
-        .unwrap();
+    let decoder = decoder_builder().init_jpeg_buffer(512).build().unwrap();
 
     let (_, data) = decoder.decode_jpeg(&sample).unwrap();
 

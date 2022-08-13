@@ -13,9 +13,6 @@ pub fn build() {
     use cmake::Config;
 
     let source = source_dir();
-    if !source.exists() {
-        panic!("libjxl source not found at: {}", source.display());
-    }
 
     env::set_var("CMAKE_BUILD_PARALLEL_LEVEL", format!("{}", num_cpus::get()));
 

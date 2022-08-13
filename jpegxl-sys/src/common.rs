@@ -16,19 +16,9 @@ along with jpegxl-sys.  If not, see <https://www.gnu.org/licenses/>.
 */
 
 #[repr(i32)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum JxlBool {
     True = 1,
     False = 0,
-}
-
-impl From<JxlBool> for bool {
-    fn from(b: JxlBool) -> Self {
-        match b {
-            JxlBool::True => true,
-            JxlBool::False => false,
-        }
-    }
 }
 
 impl From<bool> for JxlBool {
@@ -135,7 +125,7 @@ pub enum JxlRenderingIntent {
 }
 
 #[repr(C)]
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug)]
 pub struct JxlColorEncoding {
     pub color_space: JxlColorSpace,
     pub white_point: JxlWhitePoint,

@@ -58,8 +58,6 @@ pub trait JxlParallelRunner {
     /// Check `jpeg-xl` header files for more explanations.
     fn runner(&self) -> RunnerFn;
 
-    /// Helper function to get an opaque pointer
-    fn as_opaque_ptr(&self) -> *mut c_void {
-        (self as *const _ as *mut Self).cast()
-    }
+    /// Get an opaque pointer to the runner.
+    fn as_opaque_ptr(&self) -> *mut c_void;
 }

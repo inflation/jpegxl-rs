@@ -4,7 +4,6 @@ pub type JpegxlAllocFunc = unsafe extern "C" fn(opaque: *mut c_void, size: usize
 pub type JpegxlFreeFunc = unsafe extern "C" fn(opaque: *mut c_void, address: *mut c_void);
 
 #[repr(C)]
-#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct JxlMemoryManager {
     pub opaque: *mut c_void,
     pub alloc: JpegxlAllocFunc,

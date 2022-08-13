@@ -211,22 +211,23 @@ impl<'pr, 'mm> JxlDecoder<'pr, 'mm> {
         let next_in = data.as_ptr();
         let avail_in = std::mem::size_of_val(data) as _;
 
-        check_dec_status(
-            unsafe { JxlDecoderSetInput(self.dec, next_in, avail_in) },
-            "Set input",
-        )?;
+        check_dec_status(unsafe { JxlDecoderSetInput(self.dec, next_in, avail_in) })?;
 
         let mut status;
         loop {
             use JxlDecoderStatus::{
                 BasicInfo, ColorEncoding, Error, FullImage, JpegNeedMoreOutput, JpegReconstruction,
-                NeedImageOutBuffer, Success,
+                NeedImageOutBuffer, NeedMoreInput, Success,
             };
 
             status = unsafe { JxlDecoderProcessInput(self.dec) };
 
             match status {
-                Error => return Err(DecodeError::GenericError("Process input")),
+                Error => return Err(DecodeError::GenericError),
+
+                NeedMoreInput => {
+                    return Err(DecodeError::InvalidFileFormat);
+                }
 
                 // Get the basic info
                 BasicInfo => {
@@ -247,10 +248,9 @@ impl<'pr, 'mm> JxlDecoder<'pr, 'mm> {
                     let buf = reconstruct_jpeg_buffer.as_deref_mut().unwrap();
                     jpeg_reconstructed = true;
 
-                    check_dec_status(
-                        unsafe { JxlDecoderSetJPEGBuffer(self.dec, buf.as_mut_ptr(), buf.len()) },
-                        "In JPEG reconstruction event",
-                    )?;
+                    check_dec_status(unsafe {
+                        JxlDecoderSetJPEGBuffer(self.dec, buf.as_mut_ptr(), buf.len())
+                    })?;
                 }
 
                 // JPEG buffer need more space
@@ -260,10 +260,9 @@ impl<'pr, 'mm> JxlDecoder<'pr, 'mm> {
 
                     let old_len = buf.len();
                     buf.resize(old_len + need_to_write, 0);
-                    check_dec_status(
-                        unsafe { JxlDecoderSetJPEGBuffer(self.dec, buf.as_mut_ptr(), buf.len()) },
-                        "In JPEG need more output event, set without releasing",
-                    )?;
+                    check_dec_status(unsafe {
+                        JxlDecoderSetJPEGBuffer(self.dec, buf.as_mut_ptr(), buf.len())
+                    })?;
                 }
 
                 // Get the output buffer
@@ -303,12 +302,9 @@ impl<'pr, 'mm> JxlDecoder<'pr, 'mm> {
 
     fn setup_decoder(&self, reconstruct_jpeg: bool) -> Result<(), DecodeError> {
         if let Some(runner) = self.parallel_runner {
-            check_dec_status(
-                unsafe {
-                    JxlDecoderSetParallelRunner(self.dec, runner.runner(), runner.as_opaque_ptr())
-                },
-                "Set parallel runner",
-            )?;
+            check_dec_status(unsafe {
+                JxlDecoderSetParallelRunner(self.dec, runner.runner(), runner.as_opaque_ptr())
+            })?;
         }
 
         let events = {
@@ -322,15 +318,11 @@ impl<'pr, 'mm> JxlDecoder<'pr, 'mm> {
 
             events
         };
-        check_dec_status(
-            unsafe { JxlDecoderSubscribeEvents(self.dec, events) },
-            "Subscribe events",
-        )?;
+        check_dec_status(unsafe { JxlDecoderSubscribeEvents(self.dec, events) })?;
 
-        check_dec_status(
-            unsafe { JxlDecoderSetKeepOrientation(self.dec, self.keep_orientation.into()) },
-            "Set if keep orientation",
-        )?;
+        check_dec_status(unsafe {
+            JxlDecoderSetKeepOrientation(self.dec, self.keep_orientation.into())
+        })?;
 
         Ok(())
     }
@@ -342,10 +334,7 @@ impl<'pr, 'mm> JxlDecoder<'pr, 'mm> {
         pixel_format: *mut JxlPixelFormat,
     ) -> Result<(), DecodeError> {
         unsafe {
-            check_dec_status(
-                JxlDecoderGetBasicInfo(self.dec, basic_info),
-                "Get basic info",
-            )?;
+            check_dec_status(JxlDecoderGetBasicInfo(self.dec, basic_info))?;
         }
 
         let basic_info = unsafe { &*basic_info };
@@ -382,32 +371,26 @@ impl<'pr, 'mm> JxlDecoder<'pr, 'mm> {
     fn get_icc_profile(&self, format: &JxlPixelFormat) -> Result<Vec<u8>, DecodeError> {
         let mut icc_size = 0;
 
-        check_dec_status(
-            unsafe {
-                JxlDecoderGetICCProfileSize(
-                    self.dec,
-                    format,
-                    JxlColorProfileTarget::Data,
-                    &mut icc_size,
-                )
-            },
-            "Get ICC profile size",
-        )?;
+        check_dec_status(unsafe {
+            JxlDecoderGetICCProfileSize(
+                self.dec,
+                format,
+                JxlColorProfileTarget::Data,
+                &mut icc_size,
+            )
+        })?;
 
         let mut icc_profile = vec![0; icc_size];
 
-        check_dec_status(
-            unsafe {
-                JxlDecoderGetColorAsICCProfile(
-                    self.dec,
-                    format,
-                    JxlColorProfileTarget::Data,
-                    icc_profile.as_mut_ptr(),
-                    icc_size,
-                )
-            },
-            "Get ICC profile",
-        )?;
+        check_dec_status(unsafe {
+            JxlDecoderGetColorAsICCProfile(
+                self.dec,
+                format,
+                JxlColorProfileTarget::Data,
+                icc_profile.as_mut_ptr(),
+                icc_size,
+            )
+        })?;
 
         icc_profile.shrink_to_fit();
 
@@ -421,10 +404,12 @@ impl<'pr, 'mm> JxlDecoder<'pr, 'mm> {
             size: usize,
         ) -> Result<Vec<T>, DecodeError> {
             let mut buffer = vec![T::default(); size / std::mem::size_of::<T>()];
-            check_dec_status(
-                JxlDecoderSetImageOutBuffer(dec, f, buffer.as_mut_ptr().cast(), size),
-                "Set output buffer",
-            )?;
+            check_dec_status(JxlDecoderSetImageOutBuffer(
+                dec,
+                f,
+                buffer.as_mut_ptr().cast(),
+                size,
+            ))?;
 
             buffer.shrink_to_fit();
 
@@ -432,10 +417,9 @@ impl<'pr, 'mm> JxlDecoder<'pr, 'mm> {
         }
 
         let mut size = 0;
-        check_dec_status(
-            unsafe { JxlDecoderImageOutBufferSize(self.dec, pixel_format, &mut size) },
-            "Get output buffer size",
-        )?;
+        check_dec_status(unsafe {
+            JxlDecoderImageOutBufferSize(self.dec, pixel_format, &mut size)
+        })?;
 
         Ok(unsafe {
             match pixel_format.data_type {
