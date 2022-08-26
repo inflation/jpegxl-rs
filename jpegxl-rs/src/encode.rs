@@ -382,6 +382,10 @@ impl JxlEncoder<'_, '_> {
             _ => (),
         }
 
+        if let Some(pr) = self.parallel_runner {
+            pr.callback_basic_info(&basic_info);
+        }
+
         self.check_enc_status(unsafe { JxlEncoderSetBasicInfo(self.enc, &basic_info) })?;
 
         self.check_enc_status(unsafe {

@@ -236,6 +236,10 @@ impl<'pr, 'mm> JxlDecoder<'pr, 'mm> {
                         basic_info.as_mut_ptr(),
                         pixel_format.as_mut_ptr(),
                     )?;
+
+                    if let Some(pr) = self.parallel_runner {
+                        pr.callback_basic_info(unsafe { &*basic_info.as_ptr() });
+                    }
                 }
 
                 // Get color encoding
@@ -258,8 +262,7 @@ impl<'pr, 'mm> JxlDecoder<'pr, 'mm> {
                     let buf = reconstruct_jpeg_buffer.as_deref_mut().unwrap();
                     let need_to_write = unsafe { JxlDecoderReleaseJPEGBuffer(self.dec) };
 
-                    let old_len = buf.len();
-                    buf.resize(old_len + need_to_write, 0);
+                    buf.resize(buf.len() + need_to_write, 0);
                     check_dec_status(unsafe {
                         JxlDecoderSetJPEGBuffer(self.dec, buf.as_mut_ptr(), buf.len())
                     })?;

@@ -1,5 +1,5 @@
 fn main() {
-    #[cfg(not(feature = "vendored"))]
+    #[cfg(all(not(feature = "vendored"), not(feature = "docs")))]
     {
         use std::env;
         const VERSION: &str = "0.7rc";

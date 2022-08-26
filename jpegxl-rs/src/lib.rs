@@ -140,4 +140,6 @@ pub use encode::encoder_builder;
 pub use errors::{DecodeError, EncodeError};
 
 #[cfg(feature = "threads")]
-pub use parallel::ThreadsRunner;
+pub use parallel::resizable_runner::ResizableRunner;
+#[cfg(feature = "threads")]
+pub use parallel::threads_runner::ThreadsRunner;

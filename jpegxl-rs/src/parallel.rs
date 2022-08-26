@@ -27,16 +27,17 @@ along with jpegxl-rs.  If not, see <https://www.gnu.org/licenses/>.
 //! # };
 //! ```
 
-#[cfg(feature = "threads")]
-pub mod threads_runner;
-
 use std::ffi::c_void;
 
 #[cfg(feature = "threads")]
-pub use threads_runner::*;
+pub mod resizable_runner;
+#[cfg(feature = "threads")]
+pub mod threads_runner;
 
 /// Parallel runner return code
 pub use jpegxl_sys::parallel_runner::JxlParallelRetCode;
+
+use crate::decode::BasicInfo;
 /// Parallel runner initialization callback type
 pub type InitFn = unsafe extern "C" fn(*mut c_void, usize) -> i32;
 /// Parallel runner data processing callback type
@@ -60,4 +61,8 @@ pub trait JxlParallelRunner {
 
     /// Get an opaque pointer to the runner.
     fn as_opaque_ptr(&self) -> *mut c_void;
+
+    /// Callback function after getting basic info
+    #[allow(unused_variables)]
+    fn callback_basic_info(&self, basic_info: &BasicInfo) {}
 }

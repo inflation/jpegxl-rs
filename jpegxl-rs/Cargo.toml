@@ -17,6 +17,7 @@ default = ["image", "threads"]
 image = ["dep:image"]
 threads = ["jpegxl-sys/threads"]
 vendored = ["jpegxl-sys/vendored"]
+docs = ["jpegxl-sys/docs"]
 
 [dependencies]
 derive_builder = "0.11.2"
@@ -40,6 +41,7 @@ features = ["jpeg", "png"]
 
 [package.metadata.docs.rs]
 rustdoc-args = ["--cfg", "docsrs"]
+features = ["docs"]
 
 [lib]
 bench = false
