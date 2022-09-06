@@ -76,6 +76,7 @@ fn container() {
 #[test]
 fn builder() {
     let sample = std::fs::read("../samples/sample.jxl").unwrap();
+    let threads_runner = ThreadsRunner::default();
     let parallel_runner = ResizableRunner::default();
     let mut decoder = decoder_builder()
         .num_channels(3)
@@ -100,6 +101,7 @@ fn builder() {
     decoder.endianness = Endianness::Native;
     decoder.num_channels = 4;
     decoder.keep_orientation = true;
+    decoder.parallel_runner = Some(&threads_runner);
 
     decoder.decode(&sample).unwrap();
 }
