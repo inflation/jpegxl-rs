@@ -32,5 +32,4 @@ exclude = [
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-num_cpus = "1.13.1"
 cmake = "0.1.48"

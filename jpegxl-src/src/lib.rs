@@ -1,5 +1,6 @@
 use std::{
     env,
+    num::NonZeroUsize,
     path::{Path, PathBuf},
 };
 
@@ -14,7 +15,15 @@ pub fn build() {
 
     let source = source_dir();
 
-    env::set_var("CMAKE_BUILD_PARALLEL_LEVEL", format!("{}", num_cpus::get()));
+    env::set_var(
+        "CMAKE_BUILD_PARALLEL_LEVEL",
+        format!(
+            "{}",
+            std::thread::available_parallelism()
+                .map(NonZeroUsize::get)
+                .unwrap_or(1)
+        ),
+    );
 
     let mut config = Config::new(&source);
     config
