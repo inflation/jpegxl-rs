@@ -10,7 +10,7 @@ https://coveralls.io/github/inflation/jpegxl-rs?branch=master)
 https://github.com/inflation/jpegxl-rs/blob/master/LICENSE)
 
 A safe JPEGXL wrapper over `libjxl` library. Check out the original [library](https://github.com/libjxl/libjxl)
-and the [bindings](https://github.com/inflation/jpegxl-sys).
+and the [bindings](https://github.com/inflation/jpegxl-rs/tree/master/jpegxl-sys).
 
 ## Building
 
@@ -77,7 +77,7 @@ encoder.quality = 3.0;
 
 ### [`image`](https://crates.io/crates/image) crate integration
 
-The integration is enabled by default. If you don't need it, disable `image-support` feature.
+The integration is enabled by default. If you don't need it, disable `image` feature.
 
 ```rust
 use jpegxl_rs::image::ToDynamic;

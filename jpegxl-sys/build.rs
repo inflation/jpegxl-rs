@@ -2,7 +2,11 @@ fn main() {
     #[cfg(all(not(feature = "vendored"), not(feature = "docs")))]
     {
         use std::env;
-        const VERSION: &str = "0.7rc";
+        let mut version = env!("CARGO_PKG_VERSION")
+            .split('+')
+            .nth(1)
+            .and_then(|s| s.split('-').nth(1))
+            .unwrap();
 
         if let Ok(path) = env::var("DEP_JXL_LIB") {
             println!("cargo:rustc-link-search=native={}", path);
@@ -10,13 +14,17 @@ fn main() {
             println!("cargo:rustc-link-lib=jxl_threads");
         } else {
             pkg_config::Config::new()
-                .atleast_version(VERSION)
+                .atleast_version(version)
                 .probe("libjxl")
-                .expect(&format!("Cannot find `libjxl` with version >= {}", VERSION));
+                .expect(&format!("Cannot find `libjxl` with version >= {}", version));
+            #[cfg(feature = "threads")]
             pkg_config::Config::new()
-                .atleast_version(VERSION)
+                .atleast_version(version)
                 .probe("libjxl_threads")
-                .expect(&format!("Cannot find `libjxl` with version >= {}", VERSION));
+                .expect(&format!(
+                    "Cannot find `libjxl_threads` with version >= {}",
+                    version
+                ));
         }
     }
 

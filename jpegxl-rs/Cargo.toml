@@ -8,7 +8,7 @@ license = "GPL-3.0-or-later"
 name = "jpegxl-rs"
 readme = "README.md"
 repository = "https://github.com/inflation/jpegxl-rs"
-version = "0.7.0-alpha0"
+version = "0.7.0+libjxl-0.7.0"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -21,21 +21,21 @@ docs = ["jpegxl-sys/docs"]
 
 [dependencies]
 derive_builder = "0.11.2"
-image = { version = "0.24.2", optional = true, default-features = false }
-paste = "1.0.7"
-thiserror = "1.0.31"
+image = { version = "0.24.3", optional = true, default-features = false }
+paste = "1.0.9"
+thiserror = "1.0.35"
 half = "2.1.0"
 
 [dependencies.jpegxl-sys]
-version = "0.7.0-alpha.0"
+version = "0.7.0"
 path = "../jpegxl-sys"
 
 [dev-dependencies]
-criterion = { version = "0.3.5", features = ["html_reports"] }
+criterion = { version = "0.4.0", features = ["html_reports"] }
 qcms = { git = "https://github.com/FirefoxGraphics/qcms" }
 
 [dev-dependencies.image]
-version = "0.24.2"
+version = "0.24.3"
 default-features = false
 features = ["jpeg", "png"]
 

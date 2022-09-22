@@ -15,7 +15,7 @@ You should have received a copy of the GNU General Public License
 along with jpegxl-rs.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-//! Wrapper for resizable threadpool implementation with C++ standard library
+//! Wrapper for resizable thread pool implementation with C++ standard library
 
 #![cfg_attr(docsrs, doc(cfg(feature = "threads")))]
 
@@ -28,7 +28,7 @@ use super::{JxlParallelRunner, RunnerFn};
 
 use crate::{decode::BasicInfo, memory::JxlMemoryManager};
 
-/// Wrapper for resizable threadpool implementation with C++ standard library
+/// Wrapper for resizable thread pool implementation with C++ standard library
 pub struct ResizableRunner<'mm> {
     runner_ptr: *mut c_void,
     _memory_manager: Option<&'mm dyn JxlMemoryManager>,
@@ -53,8 +53,8 @@ impl<'mm> ResizableRunner<'mm> {
     }
 
     /// Set number of threads depending on the size of the image
-    pub fn set_num_threads(&self, xsize: u64, ysize: u64) {
-        let num = unsafe { JxlResizableParallelRunnerSuggestThreads(xsize, ysize) };
+    pub fn set_num_threads(&self, width: u64, height: u64) {
+        let num = unsafe { JxlResizableParallelRunnerSuggestThreads(width, height) };
         unsafe { JxlResizableParallelRunnerSetThreads(self.runner_ptr, num as usize) };
     }
 }

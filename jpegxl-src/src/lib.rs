@@ -5,9 +5,10 @@ use std::{
 };
 
 fn source_dir() -> PathBuf {
-    env::var("DEP_JXL_PATH")
-        .map(PathBuf::from)
-        .unwrap_or_else(|_| Path::new(env!("CARGO_MANIFEST_DIR")).join("libjxl"))
+    env::var("DEP_JXL_PATH").map_or_else(
+        |_| Path::new(env!("CARGO_MANIFEST_DIR")).join("libjxl"),
+        PathBuf::from,
+    )
 }
 
 pub fn build() {

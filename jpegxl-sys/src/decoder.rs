@@ -27,7 +27,7 @@ use crate::{
 };
 
 #[repr(C)]
-#[derive(Debug, PartialEq, Clone, Copy)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum JxlSignature {
     NotEnoughBytes = 0,
     Invalid = 1,
@@ -42,7 +42,7 @@ pub struct JxlDecoder {
 }
 
 #[repr(C)]
-#[derive(Debug, PartialEq, Clone, Copy)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum JxlDecoderStatus {
     Success = 0,
     Error = 1,

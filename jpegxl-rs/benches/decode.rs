@@ -19,7 +19,7 @@ pub fn criterion_benchmark(c: &mut Criterion) {
         .parallel_runner(&parallel_runner)
         .build()
         .unwrap();
-    group.bench_function("c++ threadpool", |b| {
+    group.bench_function("c++ thread pool", |b| {
         b.iter_with_large_drop(|| decoder.decode_to::<u8>(black_box(&sample)).unwrap())
     });
 
