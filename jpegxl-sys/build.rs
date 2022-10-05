@@ -2,7 +2,7 @@ fn main() {
     #[cfg(all(not(feature = "vendored"), not(feature = "docs")))]
     {
         use std::env;
-        let mut version = env!("CARGO_PKG_VERSION")
+        let version = env!("CARGO_PKG_VERSION")
             .split('+')
             .nth(1)
             .and_then(|s| s.split('-').nth(1))

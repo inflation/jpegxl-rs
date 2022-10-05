@@ -4,17 +4,17 @@
 
 ## Building
 
-If you wish to specify a custom library path, set `DEP_JXL_LIB` environment variable.
+If you wish to specify a custom library path, set the `DEP_JXL_LIB` environment variable.
 
-Building `libjxl` and statically linking can be enabled by using `vendored` feature.
-You can provide modified source code with all third-party dependencies by `DEP_JXL_PATH`.
+Building `libjxl` and statically linking can be enabled by using the `vendored` feature.
 
 ## Usage
 
 Check out testing units in `src/lib.rs` for some examples.
 
-### Multithread
+### Multi-thread
 
 Because `libjxl_threads` uses `std::thread`, if you build and statically link `libjxl`, you need to
 dynamically link to `libc++` or `libstdc++`.
+
 Using dynamic library doesn't need this requirement.

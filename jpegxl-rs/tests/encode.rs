@@ -11,7 +11,7 @@ fn get_sample() -> DynamicImage {
     ImageReader::open("../samples/sample.png")
         .ok()
         .and_then(|i| i.decode().ok())
-        .expect(&format!("Failed to get sample file"))
+        .unwrap_or_else(|| panic!("Failed to get sample file"))
 }
 
 #[test]
@@ -60,13 +60,17 @@ fn builder() {
         .build()
         .unwrap();
 
-    let _res: EncoderResult<u8> = encoder
+    let res: EncoderResult<u8> = encoder
         .encode_frame(
             &EncoderFrame::new(sample.as_raw()).num_channels(4),
             sample.width(),
             sample.height(),
         )
         .unwrap();
+
+    let decoder = decoder_builder().build().unwrap();
+    let dec_res = decoder.decode(&res).unwrap();
+    assert!(dec_res.num_channels == 4);
 
     // Check encoder reset
     encoder.has_alpha = false;

@@ -33,27 +33,31 @@ along with jpegxl-rs.  If not, see <https://www.gnu.org/licenses/>.
 //!
 //! # Building
 //!
-//! If you wish to specify a custom library path, set `DEP_JXL_LIB` environment variable.
+//! If you wish to specify a custom library path, set the `DEP_JXL_LIB` environment variable.
 //!
-//! Building `libjxl` and statically linking can be enabled by using `vendored` feature.
-//! You can provide the source code with all third-party dependencies by `DEP_JXL_PATH`,
-//! or it would fetch the code by `git`.
+//! Building `libjxl` and statically linking can be enabled by using the `vendored` feature.
 //!
-//! If you don't want to depend on C++ standard library, disable feature `threads`.
+//! If you don't want to depend on C++ standard library, disable the feature `threads`.
 //!
 //! # Usage
 //!
-//! Currently, `u8`, `u16` and `f32`(partial) are supported as pixel types. `u32` is in the header but not implemented.
-//!
-//! Note: `f32` with alpha channel is not supported in encoder.
+//! Currently, `u8`, `u16`, `f16` and `f32` are supported as pixel types.
 //!
 //! ## Decoding
 //!
 //! ```
 //! # use jpegxl_rs::*;
+//! # use jpegxl_rs::decode::{DecoderResult, Data};
 //! # || -> Result<(), Box<dyn std::error::Error>> {
 //! # let sample = [];
 //! let mut decoder = decoder_builder().build()?;
+//! let DecoderResult { width, height, data ,..} = decoder.decode(&sample)?;
+//! match data {
+//!     Data::U8(data) => { /* do something with Vec<u8> data */ },
+//!     Data::U16(data) => { /* do something with Vec<u16> data */ },
+//!     Data::F16(data) => { /* do something with Vec<f16> data */ },
+//!     Data::F32(data) => { /* do something with Vec<f32> data */ },
+//! }
 //!
 //! // Multi-threading
 //! use jpegxl_rs::ThreadsRunner;

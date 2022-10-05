@@ -368,7 +368,7 @@ impl JxlEncoder<'_, '_> {
             // alpha.bits_per_sample = bits;
             // alpha.exponent_bits_per_sample = exp;
 
-            // self.check_enc_status(unsafe { JxlEncoderSetExtraChannelInfo(self.enc, 1, &alpha) })?;
+            // self.check_enc_status(unsafe { JxlEncoderSetExtraChannelInfo(self.enc, 0, &alpha) })?;
         } else {
             basic_info.num_extra_channels = 0;
             basic_info.alpha_bits = 0;

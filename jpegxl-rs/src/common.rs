@@ -24,8 +24,7 @@ use jpegxl_sys::JxlDataType;
 pub type Endianness = jpegxl_sys::JxlEndianness;
 
 // Pixel data type.
-// Currently `u8`, `u16` and `f32`(partial) are supported.
-// Notes: The encoder does not support f32 with alpha channel
+// Currently `u8`, `u16`, `f16` and `f32` are supported.
 pub trait PixelType: Clone + Default + 'static {
     /// Return the C const
     fn pixel_type() -> JxlDataType;
