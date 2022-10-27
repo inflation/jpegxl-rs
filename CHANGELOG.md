@@ -1,7 +1,7 @@
 # Changelog
 
 <a name="0.7.1"></a>
-## 0.7.1 (2022-09-26)
+## 0.7.1 (2022-10-05)
 
 ### Added
 
@@ -22,6 +22,7 @@
 
 ### Miscellaneous
 
+- 📝 Update several docs [[5ad25fc](https://github.com/inflation/jpegxl-rs/commit/5ad25fc5213c42b1e9b0e6576940f88517375b4b)]
 - 🔨 Automate commit instructions [[fe0b065](https://github.com/inflation/jpegxl-rs/commit/fe0b0656a923cb3484ed009889255bad6da318a3)]
 - 📝 Update threads pool runner docs [[d1b6c34](https://github.com/inflation/jpegxl-rs/commit/d1b6c3467fb01f5678032398d1015f96109ce017)]
 
