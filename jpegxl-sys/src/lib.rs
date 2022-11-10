@@ -17,6 +17,7 @@ along with jpegxl-sys.  If not, see <https://www.gnu.org/licenses/>.
 
 #![warn(clippy::pedantic)]
 #![allow(clippy::module_name_repetitions)]
+#![cfg_attr(coverage_nightly, feature(no_coverage))]
 
 pub mod butteraugli;
 pub mod cms;
@@ -46,6 +47,18 @@ mod test {
 
     use image::io::Reader as ImageReader;
 
+    macro_rules! jxl_dec_events {
+        ( $( $x: expr ),* ) => {
+            {
+                let mut tmp = 0;
+                $(
+                    tmp |= $x as i32;
+                )*
+                tmp
+            }
+        };
+    }
+
     macro_rules! jxl_dec_assert {
         ($val:expr, $desc:expr) => {
             if $val != JxlDecoderStatus::Success as _ {
@@ -70,6 +83,7 @@ mod test {
         }
     }
 
+    #[cfg_attr(coverage_nightly, no_coverage)]
     unsafe fn decode(decoder: *mut JxlDecoder, sample: &[u8]) {
         use JxlDecoderStatus::{
             BasicInfo, Error, FullImage, NeedImageOutBuffer, NeedMoreInput, Success,
@@ -84,7 +98,7 @@ mod test {
 
         // Read everything in memory
         let signature = JxlSignatureCheck(sample.as_ptr(), 2);
-        assert_eq!(signature, JxlSignature::Codestream, "Signature");
+        assert_eq!(signature, JxlSignature::Codestream);
 
         let next_in = sample.as_ptr();
         let avail_in = sample.len();
@@ -124,8 +138,8 @@ mod test {
 
                     x_size = basic_info.xsize;
                     y_size = basic_info.ysize;
-                    assert_eq!(basic_info.xsize, 40, "Width");
-                    assert_eq!(basic_info.ysize, 50, "Height");
+                    assert_eq!(basic_info.xsize, 40);
+                    assert_eq!(basic_info.ysize, 50);
                 }
 
                 // Get the output buffer
@@ -134,7 +148,7 @@ mod test {
                     status = JxlDecoderImageOutBufferSize(decoder, &pixel_format, &mut size);
                     jxl_dec_assert!(status, "BufferSize");
 
-                    buffer.resize(size as usize, 0f32);
+                    buffer.resize(size, 0f32);
                     status = JxlDecoderSetImageOutBuffer(
                         decoder,
                         &pixel_format,
@@ -149,7 +163,7 @@ mod test {
                     assert_eq!(buffer.len(), (x_size * y_size * 3) as usize);
                     return;
                 }
-                _ => panic!("Unknown decoder status: {:#?}", status),
+                _ => panic!("Unknown decoder status: {status:#?}"),
             }
         }
     }
@@ -194,6 +208,7 @@ mod test {
 
     #[test]
     #[cfg(feature = "threads")]
+    #[cfg_attr(coverage_nightly, no_coverage)]
     fn test_bindings_resizable() {
         use JxlDecoderStatus::{
             BasicInfo, Error, FullImage, NeedImageOutBuffer, NeedMoreInput, Success,
@@ -226,7 +241,7 @@ mod test {
 
             // Read everything in memory
             let signature = JxlSignatureCheck(sample.as_ptr(), 2);
-            assert_eq!(signature, JxlSignature::Codestream, "Signature");
+            assert_eq!(signature, JxlSignature::Codestream);
 
             let next_in = sample.as_ptr();
             let avail_in = sample.len();
@@ -272,8 +287,8 @@ mod test {
                         );
                         JxlResizableParallelRunnerSetThreads(runner, num_threads as usize);
 
-                        assert_eq!(basic_info.xsize, 40, "Width");
-                        assert_eq!(basic_info.ysize, 50, "Height");
+                        assert_eq!(basic_info.xsize, 40);
+                        assert_eq!(basic_info.ysize, 50);
                     }
 
                     // Get the output buffer
@@ -282,7 +297,7 @@ mod test {
                         status = JxlDecoderImageOutBufferSize(dec, &pixel_format, &mut size);
                         jxl_dec_assert!(status, "BufferSize");
 
-                        buffer.resize(size as usize, 0f32);
+                        buffer.resize(size, 0f32);
                         status = JxlDecoderSetImageOutBuffer(
                             dec,
                             &pixel_format,
@@ -297,7 +312,7 @@ mod test {
                         assert_eq!(buffer.len(), (x_size * y_size * 3) as usize);
                         break;
                     }
-                    _ => panic!("Unknown decoder status: {:#?}", status),
+                    _ => panic!("Unknown decoder status: {status:#?}"),
                 }
             }
 
@@ -306,6 +321,7 @@ mod test {
         }
     }
 
+    #[cfg_attr(coverage_nightly, no_coverage)]
     fn encode(pixels: &[u8], x_size: u32, ysize: u32) -> Vec<u8> {
         unsafe {
             let enc = JxlEncoderCreate(std::ptr::null());

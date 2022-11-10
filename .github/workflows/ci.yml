@@ -15,30 +15,27 @@ jobs:
       - uses: actions/checkout@v3
         with:
           submodules: recursive
-      - uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-          toolchain: stable
-          override: true
+      - name: Install Rust
+        run: rustup update stable
       - name: Build
         uses: actions-rs/cargo@v1
         with:
           command: build
-          args: -F vendored
+          args: --all-features
 
-  test:
-    name: Unit Tests
+  coverage:
+    name: Code Coverage
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
         with:
           submodules: recursive
       - name: Install Rust
-        run: rustup update stable
+        run: rustup update nightly
       - name: Install cargo-llvm-cov
         uses: taiki-e/install-action@cargo-llvm-cov
       - name: Generate code coverage
-        run: cargo llvm-cov --all-features --workspace --lcov --output-path lcov.info
+        run: cargo +nightly llvm-cov --all-features --workspace --lcov --output-path lcov.info
       - name: Coveralls upload
         uses: coverallsapp/github-action@v1.1.2
         with:
@@ -57,6 +54,7 @@ jobs:
       - name: Address Sanitizer
         uses: actions-rs/cargo@v1
         with:
+          toolchain: nightly
           command: test
           args: -Z build-std --target=x86_64-unknown-linux-gnu --all-features
         env:
@@ -73,7 +71,7 @@ jobs:
       - name: Install Rust
         run: rustup update stable
       - name: Clippy
-        uses: actions-rs-plus/clippy-check@v1
+        uses: actions-rs-plus/clippy-check@v1.0.7
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           args: --all-features -- -D warnings

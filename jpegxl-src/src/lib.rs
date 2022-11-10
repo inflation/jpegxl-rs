@@ -1,3 +1,5 @@
+#![cfg_attr(coverage_nightly, feature(no_coverage))]
+
 use std::{
     env,
     num::NonZeroUsize,
@@ -11,6 +13,7 @@ fn source_dir() -> PathBuf {
     )
 }
 
+#[cfg_attr(coverage_nightly, no_coverage)]
 pub fn build() {
     use cmake::Config;
 
@@ -26,7 +29,7 @@ pub fn build() {
         ),
     );
 
-    let mut config = Config::new(&source);
+    let mut config = Config::new(source);
     config
         .define("BUILD_SHARED_LIBS", "OFF")
         .define("BUILD_TESTING", "OFF")
@@ -62,4 +65,18 @@ pub fn build() {
     println!("cargo:rustc-link-lib=c++");
     #[cfg(not(any(target_os = "macos", target_os = "ios", target_os = "freebsd")))]
     println!("cargo:rustc-link-lib=stdc++");
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_source_dir() {
+        let mut path = source_dir();
+        assert!(path.is_dir());
+
+        path.push("lib/include/jxl/codestream_header.h");
+        assert!(path.exists());
+    }
 }

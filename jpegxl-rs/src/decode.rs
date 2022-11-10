@@ -313,7 +313,7 @@ impl<'pr, 'mm> JxlDecoder<'pr, 'mm> {
         let events = {
             use JxlDecoderStatus::{BasicInfo, ColorEncoding, FullImage, JpegReconstruction};
 
-            let mut events = jxl_dec_events!(BasicInfo, ColorEncoding, FullImage);
+            let mut events = BasicInfo as i32 | ColorEncoding as i32 | FullImage as i32;
 
             if reconstruct_jpeg {
                 events |= JpegReconstruction as i32;

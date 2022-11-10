@@ -2,7 +2,7 @@ use half::f16;
 use jpegxl_rs::{
     decoder_builder,
     encode::{ColorEncoding, EncoderFrame, EncoderResult, EncoderSpeed},
-    encoder_builder, EncodeError, Endianness, ThreadsRunner,
+    encoder_builder, EncodeError, Endianness, ResizableRunner, ThreadsRunner,
 };
 
 use image::{io::Reader as ImageReader, DynamicImage};
@@ -99,7 +99,7 @@ fn multi_frames() {
     let sample = get_sample().to_rgb8();
     let sample_jpeg =
         std::fs::read("../samples/sample.jpg").expect("Failed to read sample JPEG file");
-    let parallel_runner = ThreadsRunner::default();
+    let parallel_runner = ResizableRunner::default();
     let mut encoder = encoder_builder()
         .parallel_runner(&parallel_runner)
         .color_encoding(ColorEncoding::Srgb)

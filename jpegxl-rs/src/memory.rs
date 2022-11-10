@@ -35,7 +35,7 @@ pub trait JxlMemoryManager {
     #[must_use]
     fn manager(&self) -> jpegxl_sys::memory_manager::JxlMemoryManager {
         jpegxl_sys::memory_manager::JxlMemoryManager {
-            opaque: self as *const Self as _,
+            opaque: self as *const _ as *mut _,
             alloc: self.alloc(),
             free: self.free(),
         }

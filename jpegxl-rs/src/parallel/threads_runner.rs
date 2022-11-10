@@ -28,7 +28,7 @@ use super::{JxlParallelRunner, RunnerFn};
 
 use crate::memory::JxlMemoryManager;
 
-/// Wrapper for default threadpool implementation with C++ standard library
+/// Wrapper for default thread pool implementation with C++ standard library
 pub struct ThreadsRunner<'mm> {
     runner_ptr: *mut c_void,
     _memory_manager: Option<&'mm dyn JxlMemoryManager>,
@@ -103,7 +103,7 @@ mod tests {
         assert!(parallel_runner.is_none());
 
         let memory_manager = BumpManager::<1024>::default();
-        let parallel_runner = ThreadsRunner::new(Some(&memory_manager), None);
+        let parallel_runner = ThreadsRunner::new(Some(&memory_manager), Some(10));
         assert!(parallel_runner.is_some());
     }
 }

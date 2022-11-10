@@ -64,19 +64,6 @@ pub enum JxlDecoderStatus {
     FrameProgression = 0x8000,
 }
 
-#[macro_export]
-macro_rules! jxl_dec_events {
-    ( $( $x: expr ),* ) => {
-        {
-            let mut tmp = 0;
-            $(
-                tmp |= $x as i32;
-            )*
-            tmp
-        }
-    };
-}
-
 pub type JxlImageOutCallback = extern "C" fn(
     opaque: *mut c_void,
     x: usize,

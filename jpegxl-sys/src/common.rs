@@ -16,6 +16,7 @@ along with jpegxl-sys.  If not, see <https://www.gnu.org/licenses/>.
 */
 
 #[repr(i32)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum JxlBool {
     True = 1,
     False = 0,
@@ -65,6 +66,7 @@ pub struct JxlPixelFormat {
 pub struct JxlBoxType([u8; 4]);
 
 #[repr(C)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum JxlProgressiveDetail {
     Frames = 0,
     DC = 1,
@@ -144,4 +146,15 @@ pub struct JxlColorEncoding {
 pub enum JxlColorProfileTarget {
     Original,
     Data,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_jxl_bool() {
+        assert_eq!(JxlBool::from(true), JxlBool::True);
+        assert_eq!(JxlBool::from(false), JxlBool::False);
+    }
 }

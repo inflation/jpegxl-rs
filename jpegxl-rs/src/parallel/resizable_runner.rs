@@ -37,18 +37,14 @@ pub struct ResizableRunner<'mm> {
 impl<'mm> ResizableRunner<'mm> {
     /// Construct with number of threads
     #[must_use]
-    pub fn new(memory_manager: Option<&'mm dyn JxlMemoryManager>) -> Option<Self> {
+    pub fn new(memory_manager: Option<&'mm dyn JxlMemoryManager>) -> Self {
         let mm = memory_manager.map(JxlMemoryManager::manager);
         let runner_ptr =
             unsafe { JxlResizableParallelRunnerCreate(mm.as_ref().map_or(null_mut(), |mm| mm)) };
 
-        if runner_ptr.is_null() {
-            None
-        } else {
-            Some(Self {
-                runner_ptr,
-                _memory_manager: memory_manager,
-            })
+        Self {
+            runner_ptr,
+            _memory_manager: memory_manager,
         }
     }
 
@@ -85,19 +81,5 @@ impl JxlParallelRunner for ResizableRunner<'_> {
 impl Drop for ResizableRunner<'_> {
     fn drop(&mut self) {
         unsafe { JxlResizableParallelRunnerDestroy(self.runner_ptr) };
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use crate::memory::tests::BumpManager;
-
-    use super::*;
-
-    #[test]
-    fn test_construction() {
-        let memory_manager = BumpManager::<1024>::default();
-        let parallel_runner = ResizableRunner::new(Some(&memory_manager));
-        assert!(parallel_runner.is_some());
     }
 }

@@ -17,7 +17,7 @@ version = "0.7.1+libjxl-0.7.0"
 features = ["docs"]
 
 [build-dependencies]
-pkg-config = "0.3.25"
+pkg-config = "0.3.26"
 
 [build-dependencies.jpegxl-src]
 version = "0.7.0"

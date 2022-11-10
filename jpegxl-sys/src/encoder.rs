@@ -24,7 +24,6 @@ use crate::{
 };
 
 // Opaque type
-#[allow(clippy::module_name_repetitions)]
 #[repr(C)]
 pub struct JxlEncoder {
     _unused: [u8; 0],
@@ -56,6 +55,7 @@ pub enum JxlEncoderStatus {
 }
 
 #[repr(C)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum JxlEncoderError {
     OK = 0,
     Generic = 1,
@@ -67,6 +67,7 @@ pub enum JxlEncoderError {
 }
 
 #[repr(C)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum FrameSetting {
     Effort = 0,
     DecodingSpeed = 1,
