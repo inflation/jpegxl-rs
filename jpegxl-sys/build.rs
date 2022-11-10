@@ -21,8 +21,9 @@ fn main() {
             pkg_config::Config::new()
                 .atleast_version(version)
                 .probe("libjxl_threads")
-                .unwrap_or_else(|_| panic!("Cannot find `libjxl_threads` with version >= {}",
-                    version));
+                .unwrap_or_else(|_| {
+                    panic!("Cannot find `libjxl_threads` with version >= {}", version)
+                });
         }
     }
 

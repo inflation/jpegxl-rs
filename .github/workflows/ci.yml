@@ -51,6 +51,8 @@ jobs:
           submodules: recursive
       - name: Install Rust
         run: rustup update nightly 
+      - name: Add rust-src
+        run: rustup +nightly component add rust-src
       - name: Address Sanitizer
         uses: actions-rs/cargo@v1
         with:
