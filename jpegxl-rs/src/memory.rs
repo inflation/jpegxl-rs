@@ -49,7 +49,10 @@ pub(crate) mod tests {
         sync::atomic::{AtomicUsize, Ordering},
     };
 
-    use crate::{decoder_builder, encoder_builder, DecodeError, EncodeError, ThreadsRunner};
+    use crate::{decoder_builder, encoder_builder, DecodeError, EncodeError};
+
+    #[cfg(feature = "threads")]
+    use crate::ThreadsRunner;
 
     use super::*;
 
@@ -136,6 +139,7 @@ pub(crate) mod tests {
     }
 
     #[test]
+    #[cfg(feature = "threads")]
     fn test_bump_manager() -> Result<(), DecodeError> {
         let sample = std::fs::read("../samples/sample.jxl")?;
         let mm = BumpManager::<{ 1024 * 5 }>::default();

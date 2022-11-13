@@ -138,6 +138,9 @@ pub mod parallel;
 #[cfg(feature = "image")]
 pub mod image;
 
+#[cfg(test)]
+mod tests;
+
 pub use common::Endianness;
 pub use decode::decoder_builder;
 pub use encode::encoder_builder;

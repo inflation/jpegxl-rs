@@ -1,8 +1,9 @@
 use half::f16;
 use image::ImageDecoder;
-use jpegxl_rs::{
-    decode::DecoderResult, decoder_builder, DecodeError, Endianness, ResizableRunner, ThreadsRunner,
-};
+
+use crate::{decode::DecoderResult, decoder_builder, DecodeError};
+#[cfg(feature = "threads")]
+use crate::{Endianness, ResizableRunner, ThreadsRunner};
 
 #[test]
 fn simple() {
@@ -74,16 +75,17 @@ fn container() {
 }
 
 #[test]
+#[cfg(feature = "threads")]
 fn builder() {
     let sample = std::fs::read("../samples/sample.jxl").unwrap();
     let threads_runner = ThreadsRunner::default();
-    let parallel_runner = ResizableRunner::default();
+    let resizable_runner = ResizableRunner::default();
     let mut decoder = decoder_builder()
         .num_channels(3)
         .endianness(Endianness::Big)
         .align(2)
         .keep_orientation(true)
-        .parallel_runner(&parallel_runner)
+        .parallel_runner(&resizable_runner)
         .build()
         .unwrap();
 

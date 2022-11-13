@@ -1,11 +1,13 @@
 use half::f16;
-use jpegxl_rs::{
-    decoder_builder,
-    encode::{ColorEncoding, EncoderFrame, EncoderResult, EncoderSpeed},
-    encoder_builder, EncodeError, Endianness, ResizableRunner, ThreadsRunner,
-};
-
 use image::{io::Reader as ImageReader, DynamicImage};
+
+use crate::{
+    decoder_builder,
+    encode::{ColorEncoding, EncoderFrame, EncoderResult},
+    encoder_builder, EncodeError, Endianness,
+};
+#[cfg(feature = "threads")]
+use crate::{encode::EncoderSpeed, ResizableRunner, ThreadsRunner};
 
 fn get_sample() -> DynamicImage {
     ImageReader::open("../samples/sample.png")
@@ -33,11 +35,7 @@ fn simple() {
 fn jpeg() -> Result<(), EncodeError> {
     let sample = std::fs::read("../samples/sample.jpg").expect("Failed to read sample image file");
 
-    let parallel_runner = ThreadsRunner::default();
-    let mut encoder = encoder_builder()
-        .use_container(true)
-        .parallel_runner(&parallel_runner)
-        .build()?;
+    let mut encoder = encoder_builder().use_container(true).build()?;
 
     let _res = encoder.encode_jpeg(&sample)?;
 
@@ -45,9 +43,12 @@ fn jpeg() -> Result<(), EncodeError> {
 }
 
 #[test]
+#[cfg(feature = "threads")]
 fn builder() {
     let sample = get_sample().to_rgba8();
-    let parallel_runner = ThreadsRunner::default();
+    let threads_runner = ThreadsRunner::default();
+    let resizable_runner = ResizableRunner::default();
+
     let mut encoder = encoder_builder()
         .has_alpha(true)
         .lossless(false)
@@ -56,7 +57,7 @@ fn builder() {
         .color_encoding(ColorEncoding::LinearSrgb)
         .decoding_speed(4)
         .init_buffer_size(64)
-        .parallel_runner(&parallel_runner)
+        .parallel_runner(&threads_runner)
         .build()
         .unwrap();
 
@@ -92,6 +93,12 @@ fn builder() {
     let _res: EncoderResult<f32> = encoder
         .encode(sample.as_raw(), sample.width(), sample.height())
         .unwrap();
+
+    // Check resizable runner
+    encoder.parallel_runner = Some(&resizable_runner);
+    let _res: EncoderResult<u8> = encoder
+        .encode(sample.as_raw(), sample.width(), sample.height())
+        .unwrap();
 }
 
 #[test]
@@ -99,9 +106,7 @@ fn multi_frames() {
     let sample = get_sample().to_rgb8();
     let sample_jpeg =
         std::fs::read("../samples/sample.jpg").expect("Failed to read sample JPEG file");
-    let parallel_runner = ResizableRunner::default();
     let mut encoder = encoder_builder()
-        .parallel_runner(&parallel_runner)
         .color_encoding(ColorEncoding::Srgb)
         .build()
         .unwrap();
@@ -127,10 +132,8 @@ fn multi_frames() {
 #[test]
 fn gray() {
     let sample = get_sample().to_luma8();
-    let parallel_runner = ThreadsRunner::default();
     let mut encoder = encoder_builder()
         .color_encoding(ColorEncoding::SrgbLuma)
-        .parallel_runner(&parallel_runner)
         .build()
         .unwrap();
 

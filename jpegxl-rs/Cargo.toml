@@ -31,7 +31,9 @@ version = "0.7.0"
 path = "../jpegxl-sys"
 
 [dev-dependencies]
-criterion = { version = "0.4.0", features = ["html_reports"] }
+criterion = { version = "0.4.0", default-features = false, features = [
+    "html_reports",
+] }
 qcms = { git = "https://github.com/FirefoxGraphics/qcms" }
 
 [dev-dependencies.image]
