@@ -21,7 +21,7 @@ docs = ["jpegxl-sys/docs"]
 
 [dependencies]
 derive_builder = "0.11.2"
-image = { version = "0.24.4", optional = true, default-features = false }
+image = { version = "0.24.5", optional = true, default-features = false }
 paste = "1.0.9"
 thiserror = "1.0.37"
 half = "2.1.0"
@@ -34,10 +34,10 @@ path = "../jpegxl-sys"
 criterion = { version = "0.4.0", default-features = false, features = [
     "html_reports",
 ] }
-qcms = { git = "https://github.com/FirefoxGraphics/qcms" }
+qcms = { git = "https://github.com/FirefoxGraphics/qcms", rev = "c118d51f" }
 
 [dev-dependencies.image]
-version = "0.24.4"
+version = "0.24.5"
 default-features = false
 features = ["jpeg", "png"]
 

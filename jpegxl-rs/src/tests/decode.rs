@@ -22,7 +22,7 @@ fn simple() {
 
     assert_eq!(data.len(), (width * height * 4) as usize);
     // Check if icc profile is valid
-    qcms::Profile::new_from_slice(&icc_profile).expect("Failed to retrieve icc profile");
+    qcms::Profile::new_from_slice(&icc_profile, false).expect("Failed to retrieve icc profile");
 }
 
 #[test]

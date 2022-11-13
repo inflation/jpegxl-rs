@@ -11,7 +11,7 @@
 
 ### Changed
 
-- ♻️ Move tests into a single module [[9c4692f](https://github.com/inflation/jpegxl-rs/commit/9c4692f0fdc26e8399a10f054a49bfa5d2f262ec)]
+- ♻️ Move tests into a single module [[8cb48f7](https://github.com/inflation/jpegxl-rs/commit/8cb48f773e71d28fbf85113d7d772e0afc7fbd77)]
 - ♻️ Fix more clippy lints [[c776464](https://github.com/inflation/jpegxl-rs/commit/c776464821bcc9248ada613f081ec11dd888bdfd)]
 - ⬆️ Upgrade &#x60;libjxl&#x60; to v0.7 [[a334081](https://github.com/inflation/jpegxl-rs/commit/a334081ac70ae84597c4872c15d957dfc1b90a9e)]
 
