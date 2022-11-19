@@ -69,32 +69,35 @@ impl ToDynamic for DecoderResult {
 mod tests {
     use half::f16;
 
-    use crate::{decoder_builder, ThreadsRunner};
+    use crate::{
+        decoder_builder,
+        tests::{SAMPLE_JXL, SAMPLE_JXL_GRAY, SAMPLE_PNG},
+        ThreadsRunner,
+    };
 
     use super::*;
 
     #[test]
-    fn simple() -> Result<(), Box<dyn std::error::Error>> {
-        let sample = std::fs::read("../samples/sample.jxl")?;
+    fn simple() {
         let parallel_runner = ThreadsRunner::default();
         let decoder = decoder_builder()
             .parallel_runner(&parallel_runner)
-            .build()?;
+            .build()
+            .unwrap();
 
         let img = decoder
-            .decode_to::<u16>(&sample)?
+            .decode_to::<u16>(SAMPLE_JXL)
+            .unwrap()
             .into_dynamic_image()
-            .ok_or("Failed to create DynamicImage")?;
-        let sample_png = image::io::Reader::open("../samples/sample.png")?.decode()?;
+            .expect("Failed to create DynamicImage");
+        let sample_png =
+            image::load_from_memory_with_format(SAMPLE_PNG, image::ImageFormat::Png).unwrap();
 
         assert_eq!(img.to_rgba16(), sample_png.to_rgba16());
-
-        Ok(())
     }
 
     #[test]
     fn channels() {
-        let sample = std::fs::read("../samples/sample_grey.jxl").unwrap();
         let parallel_runner = ThreadsRunner::default();
         let mut decoder = decoder_builder()
             .parallel_runner(&parallel_runner)
@@ -103,33 +106,32 @@ mod tests {
             .unwrap();
 
         decoder
-            .decode_to::<u8>(&sample)
+            .decode_to::<u8>(SAMPLE_JXL_GRAY)
             .unwrap()
             .into_dynamic_image()
             .unwrap();
 
         decoder.num_channels = 2;
         decoder
-            .decode_to::<u8>(&sample)
+            .decode_to::<u8>(SAMPLE_JXL_GRAY)
             .unwrap()
             .into_dynamic_image()
             .unwrap();
 
         decoder.num_channels = 3;
         decoder
-            .decode_to::<u8>(&sample)
+            .decode_to::<u8>(SAMPLE_JXL_GRAY)
             .unwrap()
             .into_dynamic_image()
             .unwrap();
 
-        let mut res = decoder.decode_to::<u8>(&sample).unwrap();
+        let mut res = decoder.decode_to::<u8>(SAMPLE_JXL_GRAY).unwrap();
         res.num_channels = 0;
         assert!(res.into_dynamic_image().is_none());
     }
 
     #[test]
     fn pixels() {
-        let sample = std::fs::read("../samples/sample.jxl").unwrap();
         let parallel_runner = ThreadsRunner::default();
         let decoder = decoder_builder()
             .parallel_runner(&parallel_runner)
@@ -137,32 +139,31 @@ mod tests {
             .unwrap();
 
         decoder
-            .decode_to::<u8>(&sample)
+            .decode_to::<u8>(SAMPLE_JXL)
             .unwrap()
             .into_dynamic_image()
             .unwrap();
 
         decoder
-            .decode_to::<u16>(&sample)
+            .decode_to::<u16>(SAMPLE_JXL)
             .unwrap()
             .into_dynamic_image()
             .unwrap();
 
         assert!(decoder
-            .decode_to::<f16>(&sample)
+            .decode_to::<f16>(SAMPLE_JXL)
             .unwrap()
             .into_dynamic_image()
             .is_none());
 
         decoder
-            .decode_to::<f32>(&sample)
+            .decode_to::<f32>(SAMPLE_JXL)
             .unwrap()
             .into_dynamic_image()
             .unwrap();
 
-        let sample = std::fs::read("../samples/sample_grey.jxl").unwrap();
         assert!(decoder
-            .decode_to::<f32>(&sample)
+            .decode_to::<f32>(SAMPLE_JXL_GRAY)
             .unwrap()
             .into_dynamic_image()
             .is_none());

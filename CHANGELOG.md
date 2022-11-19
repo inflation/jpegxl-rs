@@ -1,16 +1,18 @@
 # Changelog
 
 <a name="0.7.1"></a>
-## 0.7.1 (2022-11-13)
+## 0.7.1 (2022-11-19)
 
 ### Added
 
+- ✅ Embedding test images [[57b04fe](https://github.com/inflation/jpegxl-rs/commit/57b04fe966a547a34ddf7be0325324932fc969a1)]
 - 👷‍♂️ Use llvm-cov for code coverage [[c52e199](https://github.com/inflation/jpegxl-rs/commit/c52e199e79d101b861282ee2c63105159de11466)]
 - ✨ Add resizable threads parallel runner [[a65af2a](https://github.com/inflation/jpegxl-rs/commit/a65af2a7ca8cf6f792725724de32f3b8560c3db6)]
 - ✅ Add more test coverage [[a71fcd0](https://github.com/inflation/jpegxl-rs/commit/a71fcd055f8325a596746b76c2978f101a108030)]
 
 ### Changed
 
+- 📌 Pin qcms to specific rev [[a3f1753](https://github.com/inflation/jpegxl-rs/commit/a3f1753a0ce660fa6da6da8f95f35853e83c46ac)]
 - ♻️ Move tests into a single module [[8cb48f7](https://github.com/inflation/jpegxl-rs/commit/8cb48f773e71d28fbf85113d7d772e0afc7fbd77)]
 - ♻️ Fix more clippy lints [[c776464](https://github.com/inflation/jpegxl-rs/commit/c776464821bcc9248ada613f081ec11dd888bdfd)]
 - ⬆️ Upgrade &#x60;libjxl&#x60; to v0.7 [[a334081](https://github.com/inflation/jpegxl-rs/commit/a334081ac70ae84597c4872c15d957dfc1b90a9e)]

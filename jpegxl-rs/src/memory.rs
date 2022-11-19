@@ -141,7 +141,6 @@ pub(crate) mod tests {
     #[test]
     #[cfg(feature = "threads")]
     fn test_bump_manager() -> Result<(), DecodeError> {
-        let sample = std::fs::read("../samples/sample.jxl")?;
         let mm = BumpManager::<{ 1024 * 5 }>::default();
         let parallel_runner =
             ThreadsRunner::new(Some(&mm), Some(64)).expect("Failed to create ThreadsRunner");
@@ -149,7 +148,7 @@ pub(crate) mod tests {
             .parallel_runner(&parallel_runner)
             .build_with(&mm)?;
 
-        decoder.decode(&sample)?;
+        decoder.decode(crate::tests::SAMPLE_JXL)?;
 
         Ok(())
     }

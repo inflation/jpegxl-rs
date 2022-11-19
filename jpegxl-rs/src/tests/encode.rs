@@ -1,5 +1,5 @@
 use half::f16;
-use image::{io::Reader as ImageReader, DynamicImage};
+use image::DynamicImage;
 
 use crate::{
     decoder_builder,
@@ -9,11 +9,11 @@ use crate::{
 #[cfg(feature = "threads")]
 use crate::{encode::EncoderSpeed, ResizableRunner, ThreadsRunner};
 
+use super::SAMPLE_JPEG;
+
 fn get_sample() -> DynamicImage {
-    ImageReader::open("../samples/sample.png")
-        .ok()
-        .and_then(|i| i.decode().ok())
-        .unwrap_or_else(|| panic!("Failed to get sample file"))
+    image::load_from_memory_with_format(super::SAMPLE_PNG, image::ImageFormat::Png)
+        .expect("Failed to get sample file")
 }
 
 #[test]
@@ -33,11 +33,9 @@ fn simple() {
 
 #[test]
 fn jpeg() -> Result<(), EncodeError> {
-    let sample = std::fs::read("../samples/sample.jpg").expect("Failed to read sample image file");
-
     let mut encoder = encoder_builder().use_container(true).build()?;
 
-    let _res = encoder.encode_jpeg(&sample)?;
+    let _res = encoder.encode_jpeg(super::SAMPLE_JPEG)?;
 
     Ok(())
 }
@@ -104,8 +102,6 @@ fn builder() {
 #[test]
 fn multi_frames() {
     let sample = get_sample().to_rgb8();
-    let sample_jpeg =
-        std::fs::read("../samples/sample.jpg").expect("Failed to read sample JPEG file");
     let mut encoder = encoder_builder()
         .color_encoding(ColorEncoding::Srgb)
         .build()
@@ -120,7 +116,7 @@ fn multi_frames() {
         .unwrap()
         .add_frame(&frame)
         .unwrap()
-        .add_jpeg_frame(&sample_jpeg)
+        .add_jpeg_frame(SAMPLE_JPEG)
         .unwrap()
         .encode()
         .unwrap();

@@ -7,7 +7,6 @@ use crate::{Endianness, ResizableRunner, ThreadsRunner};
 
 #[test]
 fn simple() {
-    let sample = std::fs::read("../samples/sample.jxl").unwrap();
     let decoder = decoder_builder().build().unwrap();
 
     let DecoderResult {
@@ -16,7 +15,7 @@ fn simple() {
         icc_profile,
         data,
         ..
-    } = decoder.decode(&sample).unwrap();
+    } = decoder.decode(super::SAMPLE_JXL).unwrap();
 
     let data = data.as_u16().unwrap();
 
@@ -27,39 +26,37 @@ fn simple() {
 
 #[test]
 fn pixel_types() {
-    let sample = std::fs::read("../samples/sample.jxl").unwrap();
     let decoder = decoder_builder().build().unwrap();
 
     // Check different pixel types
-    let DecoderResult { data, .. } = decoder.decode_to::<u8>(&sample).unwrap();
+    let DecoderResult { data, .. } = decoder.decode_to::<u8>(super::SAMPLE_JXL).unwrap();
     let _data = data.as_u8().unwrap();
 
-    let DecoderResult { data, .. } = decoder.decode_to::<f16>(&sample).unwrap();
+    let DecoderResult { data, .. } = decoder.decode_to::<f16>(super::SAMPLE_JXL).unwrap();
     let _data = data.as_f16().unwrap();
 
-    let DecoderResult { data, .. } = decoder.decode_to::<f32>(&sample).unwrap();
+    let DecoderResult { data, .. } = decoder.decode_to::<f32>(super::SAMPLE_JXL).unwrap();
     let _data = data.as_f32().unwrap();
 
     // Check different pixel format but failed
-    let DecoderResult { data, .. } = decoder.decode(&sample).unwrap();
+    let DecoderResult { data, .. } = decoder.decode(super::SAMPLE_JXL).unwrap();
     assert!(data.as_u8().is_none());
 
-    let DecoderResult { data, .. } = decoder.decode_to::<u8>(&sample).unwrap();
+    let DecoderResult { data, .. } = decoder.decode_to::<u8>(super::SAMPLE_JXL).unwrap();
     assert!(data.as_u16().is_none());
 
-    let DecoderResult { data, .. } = decoder.decode_to::<u8>(&sample).unwrap();
+    let DecoderResult { data, .. } = decoder.decode_to::<u8>(super::SAMPLE_JXL).unwrap();
     assert!(data.as_f16().is_none());
 
-    let DecoderResult { data, .. } = decoder.decode_to::<u8>(&sample).unwrap();
+    let DecoderResult { data, .. } = decoder.decode_to::<u8>(super::SAMPLE_JXL).unwrap();
     assert!(data.as_f32().is_none());
 }
 
 #[test]
 fn container() {
-    let sample = std::fs::read("../samples/sample_jpg.jxl").unwrap();
     let decoder = decoder_builder().init_jpeg_buffer(512).build().unwrap();
 
-    let (_, data) = decoder.decode_jpeg(&sample).unwrap();
+    let (_, data) = decoder.decode_jpeg(super::SAMPLE_JXL_JPEG).unwrap();
 
     let jpeg = image::codecs::jpeg::JpegDecoder::new(data.as_slice())
         .expect("Failed to read the metadata of the reconstructed jpeg file");
@@ -67,9 +64,8 @@ fn container() {
     jpeg.read_image(&mut v)
         .expect("Failed to read the reconstructed jpeg");
 
-    let sample = std::fs::read("../samples/sample.jxl").unwrap();
     assert!(matches!(
-        decoder.decode_jpeg(&sample),
+        decoder.decode_jpeg(super::SAMPLE_JXL),
         Err(DecodeError::CannotReconstruct)
     ));
 }
@@ -77,7 +73,6 @@ fn container() {
 #[test]
 #[cfg(feature = "threads")]
 fn builder() {
-    let sample = std::fs::read("../samples/sample.jxl").unwrap();
     let threads_runner = ThreadsRunner::default();
     let resizable_runner = ResizableRunner::default();
     let mut decoder = decoder_builder()
@@ -94,7 +89,7 @@ fn builder() {
         height,
         data,
         ..
-    } = decoder.decode_to::<f32>(&sample).unwrap();
+    } = decoder.decode_to::<f32>(super::SAMPLE_JXL).unwrap();
 
     let data = data.as_f32().unwrap();
     assert_eq!(data.len(), (width * height * 3) as usize);
@@ -105,5 +100,5 @@ fn builder() {
     decoder.keep_orientation = true;
     decoder.parallel_runner = Some(&threads_runner);
 
-    decoder.decode(&sample).unwrap();
+    decoder.decode(super::SAMPLE_JXL).unwrap();
 }

@@ -1,4 +1,4 @@
-default: test doc commit
+default: test commit doc append-commit
 
 test:
     cargo nextest run -F vendored
@@ -10,5 +10,7 @@ doc:
     mv jpegxl-rs/CHANGELOG.md .
 
 commit:
-    git add .
-    git commit
+    git commit -a
+
+append-commit:
+    git commit -a --amend --no-edit

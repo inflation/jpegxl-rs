@@ -18,6 +18,7 @@ image = ["dep:image"]
 threads = ["jpegxl-sys/threads"]
 vendored = ["jpegxl-sys/vendored"]
 docs = ["jpegxl-sys/docs"]
+bench = []
 
 [dependencies]
 derive_builder = "0.11.2"
@@ -31,15 +32,15 @@ version = "0.7.0"
 path = "../jpegxl-sys"
 
 [dev-dependencies]
-criterion = { version = "0.4.0", default-features = false, features = [
-    "html_reports",
-] }
 qcms = { git = "https://github.com/FirefoxGraphics/qcms", rev = "c118d51f" }
+image = { version = "0.24.5", default-features = false, features = [
+    "jpeg",
+    "png",
+] }
 
-[dev-dependencies.image]
-version = "0.24.5"
-default-features = false
-features = ["jpeg", "png"]
+[target.'cfg(not(target_family = "wasm"))'.dev-dependencies]
+criterion = "0.4.0"
+
 
 [package.metadata.docs.rs]
 rustdoc-args = ["--cfg", "docsrs"]
@@ -52,7 +53,9 @@ path = "src/lib.rs"
 [[bench]]
 harness = false
 name = "decode"
+required-features = ["bench"]
 
 [[bench]]
 harness = false
 name = "encode"
+required-features = ["bench"]

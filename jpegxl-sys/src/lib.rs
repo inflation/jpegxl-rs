@@ -45,7 +45,8 @@ mod test {
     };
     use std::{mem::MaybeUninit, ptr};
 
-    use image::io::Reader as ImageReader;
+    const SAMPLE_PNG: &[u8] = include_bytes!("../../samples/sample.png");
+    const SAMPLE_JXL: &[u8] = include_bytes!("../../samples/sample.jxl");
 
     macro_rules! jxl_dec_events {
         ( $( $x: expr ),* ) => {
@@ -175,8 +176,7 @@ mod test {
             assert!(!dec.is_null());
 
             // Simple single thread runner
-            let sample = std::fs::read("../samples/sample.jxl").unwrap();
-            decode(dec, &sample);
+            decode(dec, SAMPLE_JXL);
 
             JxlDecoderDestroy(dec);
         }
@@ -198,8 +198,7 @@ mod test {
             let status = JxlDecoderSetParallelRunner(dec, JxlThreadParallelRunner, runner);
             jxl_dec_assert!(status, "Set Parallel Runner");
 
-            let sample = std::fs::read("../samples/sample.jxl").unwrap();
-            decode(dec, &sample);
+            decode(dec, SAMPLE_JXL);
 
             JxlDecoderDestroy(dec);
             JxlThreadParallelRunnerDestroy(runner);
@@ -230,8 +229,6 @@ mod test {
             let status = JxlDecoderSetParallelRunner(dec, JxlResizableParallelRunner, runner);
             jxl_dec_assert!(status, "Set Parallel Runner");
 
-            let sample = std::fs::read("../samples/sample.jxl").unwrap();
-
             // Stop after getting the basic info and decoding the image
             let mut status = JxlDecoderSubscribeEvents(
                 dec,
@@ -240,11 +237,11 @@ mod test {
             jxl_dec_assert!(status, "Subscribe Events");
 
             // Read everything in memory
-            let signature = JxlSignatureCheck(sample.as_ptr(), 2);
+            let signature = JxlSignatureCheck(SAMPLE_JXL.as_ptr(), 2);
             assert_eq!(signature, JxlSignature::Codestream);
 
-            let next_in = sample.as_ptr();
-            let avail_in = sample.len();
+            let next_in = SAMPLE_JXL.as_ptr();
+            let avail_in = SAMPLE_JXL.len();
 
             let pixel_format = JxlPixelFormat {
                 num_channels: 3,
@@ -396,10 +393,7 @@ mod test {
 
     #[test]
     fn test_bindings_encoding() {
-        let img = ImageReader::open("../samples/sample.png")
-            .unwrap()
-            .decode()
-            .unwrap();
+        let img = image::load_from_memory_with_format(SAMPLE_PNG, image::ImageFormat::Png).unwrap();
         let image_buffer = img.into_rgb8();
 
         let output = encode(

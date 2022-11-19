@@ -11,6 +11,7 @@ fn main() {
         if let Ok(path) = env::var("DEP_JXL_LIB") {
             println!("cargo:rustc-link-search=native={}", path);
             println!("cargo:rustc-link-lib=jxl");
+            #[cfg(feature = "threads")]
             println!("cargo:rustc-link-lib=jxl_threads");
         } else {
             pkg_config::Config::new()
