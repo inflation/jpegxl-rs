@@ -23,8 +23,8 @@ along with jpegxl-rs.  If not, see <https://www.gnu.org/licenses/>.
 //! [![Crates.io](https://img.shields.io/crates/v/jpegxl-rs.svg)](https://crates.io/crates/jpegxl-rs)
 //! [![CI](https://github.com/inflation/jpegxl-rs/workflows/CI/badge.svg)](
 //! https://github.com/inflation/jpegxl-rs/actions?query=workflow%3ACI)
-//! [![Coverage Status](https://coveralls.io/repos/github/inflation/jpegxl-rs/badge.svg?branch=master)](
-//! https://coveralls.io/github/inflation/jpegxl-rs?branch=master)
+//! [![codecov](https://codecov.io/gh/inflation/jpegxl-rs/branch/master/graph/badge.svg?token=3WMRUQ816H)](
+//! https://codecov.io/gh/inflation/jpegxl-rs)
 //! [![License: GPL-3.0-or-later](https://img.shields.io/crates/l/jpegxl-rs)](
 //! https://github.com/inflation/jpegxl-rs/blob/master/LICENSE)
 //!

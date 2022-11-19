@@ -5,7 +5,8 @@
 
 ### Added
 
-- ✅ Embedding test images [[57b04fe](https://github.com/inflation/jpegxl-rs/commit/57b04fe966a547a34ddf7be0325324932fc969a1)]
+- 👷‍♂️ Use codecov [[d7da574](https://github.com/inflation/jpegxl-rs/commit/d7da5745c5f26f4c3fc8d0e7abff4c49e5576508)]
+- ✅ Embedding test images [[c75b565](https://github.com/inflation/jpegxl-rs/commit/c75b5656acefa59a65f9e53cb231a1b13f2ff2e5)]
 - 👷‍♂️ Use llvm-cov for code coverage [[c52e199](https://github.com/inflation/jpegxl-rs/commit/c52e199e79d101b861282ee2c63105159de11466)]
 - ✨ Add resizable threads parallel runner [[a65af2a](https://github.com/inflation/jpegxl-rs/commit/a65af2a7ca8cf6f792725724de32f3b8560c3db6)]
 - ✅ Add more test coverage [[a71fcd0](https://github.com/inflation/jpegxl-rs/commit/a71fcd055f8325a596746b76c2978f101a108030)]

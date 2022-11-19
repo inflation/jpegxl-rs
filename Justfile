@@ -1,4 +1,4 @@
-default: test commit doc append-commit
+default: test doc commit
 
 test:
     cargo nextest run -F vendored
@@ -11,6 +11,3 @@ doc:
 
 commit:
     git commit -a
-
-append-commit:
-    git commit -a --amend --no-edit
