@@ -6,8 +6,9 @@ test:
 
 doc:
     cargo readme -r jpegxl-rs > README.md
-    cd jpegxl-rs && gitmoji-changelog --preset cargo
-    mv jpegxl-rs/CHANGELOG.md .
 
 commit:
     git commit -a
+
+release: test doc commit
+    cd jpegxl-rs && gitmoji-changelog --preset cargo --output ../CHANGELOG.md
