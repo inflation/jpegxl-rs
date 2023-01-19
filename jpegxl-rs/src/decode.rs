@@ -34,6 +34,7 @@ use crate::{
 pub type BasicInfo = JxlBasicInfo;
 
 /// Result of decoding
+#[derive(Debug)]
 pub struct DecoderResult {
     /// Width of the image
     pub width: u32,
@@ -59,6 +60,17 @@ pub enum Data {
     F16(Vec<f16>),
     /// `f32`
     F32(Vec<f32>),
+}
+
+impl std::fmt::Debug for Data {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::U8(_) => f.write_str("U8 pixels"),
+            Self::U16(_) => f.write_str("U16 pixels"),
+            Self::F16(_) => f.write_str("F16 pixels"),
+            Self::F32(_) => f.write_str("F32 pixels"),
+        }
+    }
 }
 
 impl Data {
@@ -200,8 +212,6 @@ impl<'pr, 'mm> JxlDecoder<'pr, 'mm> {
         let mut result = Data::U8(vec![]);
         let mut icc_profile = vec![];
 
-        let mut jpeg_reconstructed = false;
-
         if let Some(buf) = reconstruct_jpeg_buffer.as_deref_mut() {
             buf.resize(self.init_jpeg_buffer, 0);
         }
@@ -248,24 +258,24 @@ impl<'pr, 'mm> JxlDecoder<'pr, 'mm> {
                 }
 
                 // Get JPEG reconstruction buffer
-                JpegReconstruction if reconstruct_jpeg_buffer.is_some() => {
-                    let buf = reconstruct_jpeg_buffer.as_deref_mut().unwrap();
-                    jpeg_reconstructed = true;
-
-                    check_dec_status(unsafe {
-                        JxlDecoderSetJPEGBuffer(self.dec, buf.as_mut_ptr(), buf.len())
-                    })?;
+                JpegReconstruction => {
+                    if let Some(buf) = reconstruct_jpeg_buffer.as_deref_mut() {
+                        check_dec_status(unsafe {
+                            JxlDecoderSetJPEGBuffer(self.dec, buf.as_mut_ptr(), buf.len())
+                        })?;
+                    }
                 }
 
                 // JPEG buffer need more space
-                JpegNeedMoreOutput if reconstruct_jpeg_buffer.is_some() => {
-                    let buf = reconstruct_jpeg_buffer.as_deref_mut().unwrap();
-                    let need_to_write = unsafe { JxlDecoderReleaseJPEGBuffer(self.dec) };
+                JpegNeedMoreOutput => {
+                    if let Some(buf) = reconstruct_jpeg_buffer.as_deref_mut() {
+                        let need_to_write = unsafe { JxlDecoderReleaseJPEGBuffer(self.dec) };
 
-                    buf.resize(buf.len() + need_to_write, 0);
-                    check_dec_status(unsafe {
-                        JxlDecoderSetJPEGBuffer(self.dec, buf.as_mut_ptr(), buf.len())
-                    })?;
+                        buf.resize(buf.len() + need_to_write, 0);
+                        check_dec_status(unsafe {
+                            JxlDecoderSetJPEGBuffer(self.dec, buf.as_mut_ptr(), buf.len())
+                        })?;
+                    }
                 }
 
                 // Get the output buffer
@@ -276,10 +286,6 @@ impl<'pr, 'mm> JxlDecoder<'pr, 'mm> {
                 FullImage => continue,
                 Success => {
                     if let Some(buf) = reconstruct_jpeg_buffer.as_deref_mut() {
-                        if !jpeg_reconstructed {
-                            return Err(DecodeError::CannotReconstruct);
-                        }
-
                         let remaining = unsafe { JxlDecoderReleaseJPEGBuffer(self.dec) };
 
                         buf.truncate(buf.len() - remaining);

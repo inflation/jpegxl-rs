@@ -1,7 +1,7 @@
 use half::f16;
 use image::ImageDecoder;
 
-use crate::{decode::DecoderResult, decoder_builder, DecodeError};
+use crate::{decode::DecoderResult, decoder_builder};
 #[cfg(feature = "threads")]
 use crate::{Endianness, ResizableRunner, ThreadsRunner};
 
@@ -53,7 +53,7 @@ fn pixel_types() {
 }
 
 #[test]
-fn container() {
+fn jpeg() {
     let decoder = decoder_builder().init_jpeg_buffer(512).build().unwrap();
 
     let (_, data) = decoder.decode_jpeg(super::SAMPLE_JXL_JPEG).unwrap();
@@ -64,10 +64,8 @@ fn container() {
     jpeg.read_image(&mut v)
         .expect("Failed to read the reconstructed jpeg");
 
-    assert!(matches!(
-        decoder.decode_jpeg(super::SAMPLE_JXL),
-        Err(DecodeError::CannotReconstruct)
-    ));
+    let (res, _) = decoder.decode_jpeg(super::SAMPLE_JXL).unwrap();
+    let _ = res.data.as_u16().unwrap();
 }
 
 #[test]
