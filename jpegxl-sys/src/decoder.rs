@@ -21,9 +21,10 @@ use std::{
 };
 
 use crate::{
-    memory_manager::JxlMemoryManager, parallel_runner::JxlParallelRunner, JxlBasicInfo,
-    JxlBlendInfo, JxlBool, JxlBoxType, JxlColorEncoding, JxlColorProfileTarget,
-    JxlExtraChannelInfo, JxlFrameHeader, JxlPixelFormat, JxlProgressiveDetail,
+    cms::JxlCmsInterface, memory_manager::JxlMemoryManager, parallel_runner::JxlParallelRunner,
+    JxlBasicInfo, JxlBitDepth, JxlBlendInfo, JxlBool, JxlBoxType, JxlColorEncoding,
+    JxlColorProfileTarget, JxlExtraChannelInfo, JxlFrameHeader, JxlPixelFormat,
+    JxlProgressiveDetail,
 };
 
 #[repr(C)]
@@ -48,7 +49,6 @@ pub enum JxlDecoderStatus {
     Error = 1,
     NeedMoreInput = 2,
     NeedPreviewOutBuffer = 3,
-    NeedDcOutBuffer = 4,
     NeedImageOutBuffer = 5,
     JpegNeedMoreOutput = 6,
     BoxNeedMoreOutput = 7,
@@ -57,7 +57,6 @@ pub enum JxlDecoderStatus {
     ColorEncoding = 0x100,
     PreviewImage = 0x200,
     Frame = 0x400,
-    DcImage = 0x800,
     FullImage = 0x1000,
     JpegReconstruction = 0x2000,
     Box = 0x4000,
@@ -191,6 +190,15 @@ extern "C" {
         desired_intensity_target: f32,
     ) -> JxlDecoderStatus;
 
+    pub fn JxlDecoderSetOutputColorProfile(
+        dec: *mut JxlDecoder,
+        color_encoding: *const JxlColorEncoding,
+        icc_data: *const u8,
+        icc_size: usize,
+    ) -> JxlDecoderStatus;
+
+    pub fn JxlDecoderSetCms(dec: *mut JxlDecoder, cms: JxlCmsInterface);
+
     pub fn JxlDecoderPreviewOutBufferSize(
         dec: *const JxlDecoder,
         format: *const JxlPixelFormat,
@@ -220,27 +228,6 @@ extern "C" {
         index: usize,
         blend_info: *mut JxlBlendInfo,
     );
-
-    #[deprecated(
-        since = "0.5.0",
-        note = "please use `JxlDecoderSetImageOutCallback` instead"
-    )]
-    pub fn JxlDecoderDCOutBufferSize(
-        dec: *const JxlDecoder,
-        format: *const JxlPixelFormat,
-        size: *mut usize,
-    ) -> JxlDecoderStatus;
-
-    #[deprecated(
-        since = "0.5.0",
-        note = "please use `JxlDecoderSetImageOutCallback` instead"
-    )]
-    pub fn JxlDecoderSetDCOutBuffer(
-        dec: *mut JxlDecoder,
-        format: *const JxlPixelFormat,
-        buffer: *mut c_void,
-        size: usize,
-    ) -> JxlDecoderStatus;
 
     pub fn JxlDecoderImageOutBufferSize(
         dec: *const JxlDecoder,
@@ -309,7 +296,7 @@ extern "C" {
 
     pub fn JxlDecoderGetBoxType(
         dec: *mut JxlDecoder,
-        box_type: JxlBoxType,
+        box_type: &mut JxlBoxType,
         decompressed: JxlBool,
     ) -> JxlDecoderStatus;
 
@@ -323,4 +310,9 @@ extern "C" {
     pub fn JxlDecoderGetIntendedDownsamplingRatio(dec: *const JxlDecoder) -> usize;
 
     pub fn JxlDecoderFlushImage(dec: *mut JxlDecoder) -> JxlDecoderStatus;
+
+    pub fn JxlDecoderSetImageOutBitDepth(
+        dec: *mut JxlDecoder,
+        bit_depth: *const JxlBitDepth,
+    ) -> JxlDecoderStatus;
 }

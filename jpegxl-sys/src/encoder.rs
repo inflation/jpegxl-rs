@@ -19,8 +19,8 @@ use std::ffi::c_void;
 
 use crate::{
     cms::JxlCmsInterface, memory_manager::JxlMemoryManager, parallel_runner::JxlParallelRunner,
-    JxlBasicInfo, JxlBlendInfo, JxlBool, JxlBoxType, JxlColorEncoding, JxlExtraChannelInfo,
-    JxlExtraChannelType, JxlFrameHeader, JxlPixelFormat,
+    JxlBasicInfo, JxlBitDepth, JxlBlendInfo, JxlBool, JxlBoxType, JxlColorEncoding,
+    JxlExtraChannelInfo, JxlExtraChannelType, JxlFrameHeader, JxlPixelFormat,
 };
 
 // Opaque type
@@ -102,6 +102,7 @@ pub enum FrameSetting {
     JpegReconCfl = 30,
     IndexBox = 31,
     BrotliEffort = 32,
+    JpegCompressBoxes = 33,
     FillEnum = 65535,
 }
 
@@ -147,6 +148,11 @@ extern "C" {
         frame_name: *const u8,
     ) -> JxlEncoderStatus;
 
+    pub fn JxlEncoderSetFrameBitDepth(
+        frame_settings: *mut JxlEncoderFrameSettings,
+        bit_depth: *const JxlBitDepth,
+    ) -> JxlEncoderStatus;
+
     pub fn JxlEncoderAddJPEGFrame(
         options: *const JxlEncoderFrameSettings,
         buffer: *const u8,
@@ -170,7 +176,7 @@ extern "C" {
 
     pub fn JxlEncoderAddBox(
         enc: *mut JxlEncoder,
-        box_type: JxlBoxType,
+        box_type: &mut JxlBoxType,
         contents: *const u8,
         size: usize,
         compress_box: JxlBool,
@@ -301,4 +307,6 @@ extern "C" {
     pub fn JxlColorEncodingSetToSRGB(color_encoding: *mut JxlColorEncoding, is_gray: bool);
 
     pub fn JxlColorEncodingSetToLinearSRGB(color_encoding: *mut JxlColorEncoding, is_gray: bool);
+
+    pub fn JxlEncoderAllowExpertOptions(enc: *mut JxlEncoder);
 }

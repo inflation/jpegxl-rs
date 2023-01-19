@@ -1,6 +1,7 @@
 use crate::JxlBool;
 
 #[repr(C)]
+#[derive(Debug)]
 pub enum JxlOrientation {
     Identity = 1,
     FlipHorizontal = 2,
@@ -35,12 +36,6 @@ pub enum JxlExtraChannelType {
 
 #[repr(C)]
 pub struct JxlPreviewHeader {
-    pub xsize: u32,
-    pub ysize: u32,
-}
-
-#[repr(C)]
-pub struct JxlIntrinsicSizeHeader {
     pub xsize: u32,
     pub ysize: u32,
 }

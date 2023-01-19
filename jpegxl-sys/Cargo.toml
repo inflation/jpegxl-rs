@@ -9,7 +9,7 @@ links = "jxl"
 name = "jpegxl-sys"
 readme = "README.md"
 repository = "https://github.com/inflation/jpegxl-rs"
-version = "0.7.1+libjxl-0.7.0"
+version = "0.8.0+libjxl-0.8.0"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -20,7 +20,7 @@ features = ["docs"]
 pkg-config = "0.3.26"
 
 [build-dependencies.jpegxl-src]
-version = "0.7.0"
+version = "0.8.0"
 path = "../jpegxl-src"
 optional = true
 

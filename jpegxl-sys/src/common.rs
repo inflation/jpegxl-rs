@@ -15,6 +15,8 @@ You should have received a copy of the GNU General Public License
 along with jpegxl-sys.  If not, see <https://www.gnu.org/licenses/>.
 */
 
+use std::ffi::c_char;
+
 #[repr(i32)]
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum JxlBool {
@@ -63,7 +65,22 @@ pub struct JxlPixelFormat {
 }
 
 #[repr(C)]
-pub struct JxlBoxType([u8; 4]);
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum JxlBitDepthType {
+    BitDepthFromPixelFormat = 0,
+    BitDepthFromCodestream = 1,
+    BitDepthCustom = 2,
+}
+
+#[repr(C)]
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct JxlBitDepth {
+    type_: JxlBitDepthType,
+    bits_per_sample: u32,
+    exponent_bits_per_sample: u32,
+}
+
+pub type JxlBoxType = [c_char; 4];
 
 #[repr(C)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
