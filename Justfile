@@ -1,4 +1,4 @@
-default: test doc commit
+default: test doc 
 
 test:
     cargo nextest run -F vendored
@@ -7,8 +7,5 @@ test:
 doc:
     cargo readme -r jpegxl-rs > README.md
 
-commit:
-    git commit -a
-
-release: test doc commit
+release: test doc 
     cd jpegxl-rs && gitmoji-changelog --preset cargo --output ../CHANGELOG.md

@@ -1,5 +1,18 @@
 # Changelog
 
+<a name="0.8.0"></a>
+
+## 0.8.0 (2023-01-19)
+
+### Added
+
+- ✨ Add utils for checking signature
+
+### Changed
+
+- 🚸 Don't return error if JPEG reconstruction fails
+- ⬆️ Upgrade `libjxl` to 0.8.0
+
 <a name="0.7.1"></a>
 
 ## 0.7.1 (2022-11-20)
