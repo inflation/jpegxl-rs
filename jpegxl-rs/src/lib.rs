@@ -134,6 +134,7 @@ pub mod encode;
 mod errors;
 pub mod memory;
 pub mod parallel;
+pub mod utils;
 
 #[cfg(feature = "image")]
 pub mod image;
