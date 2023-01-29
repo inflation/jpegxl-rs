@@ -134,6 +134,12 @@ pub struct JxlDecoder<'pr, 'mm> {
     /// [`ProgressiveDetail::DC`]
     pub progressive_detail: Option<JxlProgressiveDetail>,
 
+    /// Set if need ICC profile
+    ///
+    /// # Default
+    /// `false`
+    pub icc_profile: bool,
+
     /// Set initial buffer for JPEG reconstruction
     /// Larger buffer could make reconstruction faster by doing fewer reallocations
     ///
@@ -176,6 +182,7 @@ impl<'pr, 'mm> JxlDecoderBuilder<'pr, 'mm> {
             desired_intensity_target: self.desired_intensity_target.flatten(),
             decompress: self.decompress.flatten(),
             progressive_detail: self.progressive_detail.flatten(),
+            icc_profile: self.icc_profile.unwrap_or_default(),
             init_jpeg_buffer: self.init_jpeg_buffer.unwrap_or(512 * 1024),
             parallel_runner: self.parallel_runner.flatten(),
             memory_manager: mm,
@@ -191,7 +198,7 @@ impl<'pr, 'mm> JxlDecoder<'pr, 'mm> {
         data_type: Option<JxlDataType>,
         with_icc_profile: bool,
         reconstruct_jpeg_buffer: Option<&mut Vec<u8>>,
-        pixels: Option<(*mut JxlPixelFormat, &mut Vec<u8>)>,
+        (format, pixels): (*mut JxlPixelFormat, &mut Vec<u8>),
     ) -> Result<Metadata, DecodeError> {
         let Some(sig) = check_valid_signature(data) else { return Err(DecodeError::InvalidInput) };
         if !sig {
@@ -200,8 +207,6 @@ impl<'pr, 'mm> JxlDecoder<'pr, 'mm> {
 
         let mut basic_info = MaybeUninit::uninit();
         let mut icc = if with_icc_profile { Some(vec![]) } else { None };
-        let (format, pixels) = pixels.unzip();
-        let mut reconstructed = false;
 
         self.setup_decoder(with_icc_profile, reconstruct_jpeg_buffer.is_some())?;
 
@@ -247,8 +252,8 @@ impl<'pr, 'mm> JxlDecoder<'pr, 'mm> {
 
                 // Get JPEG reconstruction buffer
                 JpegReconstruction => {
-                    reconstructed = true;
                     if let Some(&mut ref mut buf) = reconstruct_jpeg_buffer {
+                        buf.resize(self.init_jpeg_buffer, 0);
                         check_dec_status(unsafe {
                             JxlDecoderSetJPEGBuffer(self.dec, buf.as_mut_ptr(), buf.len())
                         })?;
@@ -269,16 +274,7 @@ impl<'pr, 'mm> JxlDecoder<'pr, 'mm> {
 
                 // Get the output buffer
                 NeedImageOutBuffer => {
-                    if let Some(format) = format {
-                        if let Some(&mut ref mut pixels) = pixels {
-                            self.output(
-                                unsafe { &*basic_info.as_ptr() },
-                                data_type,
-                                format,
-                                pixels,
-                            )?;
-                        }
-                    }
+                    self.output(unsafe { &*basic_info.as_ptr() }, data_type, format, pixels)?;
                 }
 
                 FullImage => continue,
@@ -288,14 +284,6 @@ impl<'pr, 'mm> JxlDecoder<'pr, 'mm> {
 
                         buf.truncate(buf.len() - remaining);
                         buf.shrink_to_fit();
-                    }
-
-                    if let Some(&mut ref mut buf) = reconstruct_jpeg_buffer {
-                        if !reconstructed && pixels.is_none() {
-                            return Err(DecodeError::CannotReconstruct);
-                        } else if !reconstructed {
-                            buf.clear();
-                        }
                     }
 
                     unsafe { JxlDecoderReset(self.dec) };
@@ -429,20 +417,84 @@ impl<'pr, 'mm> JxlDecoder<'pr, 'mm> {
         Ok(())
     }
 
-    /// Reconstruct jpeg
-    pub fn jpeg(&mut self) -> DecodingIntermediateJpeg {
-        DecodingIntermediateJpeg {
-            dec: self,
-            with_icc_profile: false,
-        }
+    /// Decode a JPEG XL image
+    ///
+    /// # Errors
+    /// Return a [`DecodeError`] when internal decoder fails
+    pub fn decode(&self, data: &[u8]) -> Result<(Metadata, Pixels), DecodeError> {
+        let mut buffer = vec![];
+        let mut pixel_format = MaybeUninit::uninit();
+        let metadata = self.decode_internal(
+            data,
+            None,
+            self.icc_profile,
+            None,
+            (pixel_format.as_mut_ptr(), &mut buffer),
+        )?;
+        Ok((
+            metadata,
+            Pixels::new(buffer, unsafe { &pixel_format.assume_init() }),
+        ))
     }
 
-    /// Decode to pixels
-    pub fn pixels(&mut self) -> DecodingIntermediate {
-        DecodingIntermediate {
-            dec: self,
-            with_icc_profile: false,
-        }
+    /// Decode a JPEG XL image to a specific pixel type
+    ///
+    /// # Errors
+    /// Return a [`DecodeError`] when internal decoder fails
+    pub fn decode_to<T: PixelType>(&self, data: &[u8]) -> Result<(Metadata, Vec<T>), DecodeError> {
+        let mut buffer = vec![];
+        let mut pixel_format = MaybeUninit::uninit();
+        let metadata = self.decode_internal(
+            data,
+            Some(T::pixel_type()),
+            self.icc_profile,
+            None,
+            (pixel_format.as_mut_ptr(), &mut buffer),
+        )?;
+
+        // Safety: type `T` is set by user
+        let buf = unsafe {
+            let pixel_format = pixel_format.assume_init();
+            debug_assert!(T::pixel_type() == pixel_format.data_type);
+
+            match T::pixel_type() {
+                JxlDataType::Float => std::mem::transmute(to_f32(&buffer, &pixel_format)),
+                JxlDataType::Uint8 => std::mem::transmute(buffer),
+                JxlDataType::Uint16 => std::mem::transmute(to_u16(&buffer, &pixel_format)),
+                JxlDataType::Float16 => std::mem::transmute(to_f16(&buffer, &pixel_format)),
+            }
+        };
+
+        Ok((metadata, buf))
+    }
+
+    /// Reconstruct JPEG data. Fallback to pixels if JPEG reconstruction fails
+    ///
+    /// # Note
+    /// You can reconstruct JPEG data or get pixels in one go
+    ///
+    /// # Errors
+    /// Return a [`DecodeError`] when internal decoder fails
+    pub fn reconstruct(&self, data: &[u8]) -> Result<(Metadata, Data), DecodeError> {
+        let mut buffer = vec![];
+        let mut pixel_format = MaybeUninit::uninit();
+        let mut jpeg_buf = vec![];
+        let metadata = self.decode_internal(
+            data,
+            None,
+            self.icc_profile,
+            Some(&mut jpeg_buf),
+            (pixel_format.as_mut_ptr(), &mut buffer),
+        )?;
+
+        Ok((
+            metadata,
+            if jpeg_buf.is_empty() {
+                Data::Pixels(Pixels::new(buffer, unsafe { &pixel_format.assume_init() }))
+            } else {
+                Data::Jpeg(jpeg_buf)
+            },
+        ))
     }
 }
 
@@ -456,132 +508,4 @@ impl<'prl, 'mm> Drop for JxlDecoder<'prl, 'mm> {
 #[must_use]
 pub fn decoder_builder<'prl, 'mm>() -> JxlDecoderBuilder<'prl, 'mm> {
     JxlDecoderBuilder::default()
-}
-
-/// Intermediate step for decoding to pixels
-pub struct DecodingIntermediate<'dec, 'pr, 'mm> {
-    pub(crate) dec: &'dec JxlDecoder<'pr, 'mm>,
-    pub(crate) with_icc_profile: bool,
-}
-
-impl<'dec, 'pr, 'mm> DecodingIntermediate<'dec, 'pr, 'mm> {
-    /// Need ICC profile or not
-    pub fn with_icc_profile(&mut self) -> &mut Self {
-        self.with_icc_profile = true;
-        self
-    }
-
-    /// Decode a JPEG XL image
-    ///
-    /// # Errors
-    /// Return a [`DecodeError`] when internal decoder fails
-    pub fn decode(&self, data: &[u8]) -> Result<(Metadata, Data), DecodeError> {
-        let mut buffer = vec![];
-        let mut pixel_format = MaybeUninit::uninit();
-        let metadata = self.dec.decode_internal(
-            data,
-            None,
-            self.with_icc_profile,
-            None,
-            Some((pixel_format.as_mut_ptr(), &mut buffer)),
-        )?;
-        Ok((
-            metadata,
-            Data::new(buffer, unsafe { &pixel_format.assume_init() }),
-        ))
-    }
-
-    /// Decode a JPEG XL image to a specific pixel type
-    ///
-    /// # Errors
-    /// Return a [`DecodeError`] when internal decoder fails
-    pub fn decode_to<T: PixelType>(&self, data: &[u8]) -> Result<(Metadata, Vec<T>), DecodeError> {
-        let mut buffer = vec![];
-        let mut pixel_format = MaybeUninit::uninit();
-        let metadata = self.dec.decode_internal(
-            data,
-            Some(T::pixel_type()),
-            self.with_icc_profile,
-            None,
-            Some((pixel_format.as_mut_ptr(), &mut buffer)),
-        )?;
-
-        // Safety: type `T` is set by user
-        let buf = unsafe {
-            let pixel_format = pixel_format.assume_init();
-            debug_assert!(T::pixel_type() == pixel_format.data_type);
-
-            match T::pixel_type() {
-                JxlDataType::Float => {
-                    std::mem::transmute::<_, Vec<T>>(to_f32(&buffer, &pixel_format))
-                }
-                JxlDataType::Uint8 => std::mem::transmute::<_, Vec<T>>(buffer),
-                JxlDataType::Uint16 => {
-                    std::mem::transmute::<_, Vec<T>>(to_u16(&buffer, &pixel_format))
-                }
-                JxlDataType::Float16 => {
-                    std::mem::transmute::<_, Vec<T>>(to_f16(&buffer, &pixel_format))
-                }
-            }
-        };
-
-        Ok((metadata, buf))
-    }
-}
-
-/// Intermediate step for reconstruct JPEG
-pub struct DecodingIntermediateJpeg<'dec, 'pr, 'mm> {
-    dec: &'dec JxlDecoder<'pr, 'mm>,
-    with_icc_profile: bool,
-}
-
-impl<'dec, 'pr, 'mm> DecodingIntermediateJpeg<'dec, 'pr, 'mm> {
-    /// Need ICC profile or not
-    pub fn with_icc_profile(&mut self) -> &mut Self {
-        self.with_icc_profile = true;
-        self
-    }
-
-    /// Reconstruct JPEG data
-    ///
-    /// # Errors
-    /// Return a [`DecodeError::CannotReconstruct`] when there is no JPEG data
-    pub fn reconstruct(&self, data: &[u8]) -> Result<(Metadata, Vec<u8>), DecodeError> {
-        let mut buf = vec![0; self.dec.init_jpeg_buffer];
-        let metadata =
-            self.dec
-                .decode_internal(data, None, self.with_icc_profile, Some(&mut buf), None)?;
-
-        Ok((metadata, buf))
-    }
-
-    /// Reconstruct JPEG data with pixels output when failed
-    ///
-    /// # Errors
-    /// Return a [`DecodeError`] when internal decoder fails
-    pub fn reconstruct_with_pixels(
-        &self,
-        data: &[u8],
-    ) -> Result<(Metadata, Option<Vec<u8>>, Data), DecodeError> {
-        let mut jpeg_buf = vec![0; self.dec.init_jpeg_buffer];
-        let mut buffer = vec![];
-        let mut pixel_format = MaybeUninit::uninit();
-        let metadata = self.dec.decode_internal(
-            data,
-            None,
-            self.with_icc_profile,
-            Some(&mut jpeg_buf),
-            Some((pixel_format.as_mut_ptr(), &mut buffer)),
-        )?;
-
-        Ok((
-            metadata,
-            if jpeg_buf.is_empty() {
-                None
-            } else {
-                Some(jpeg_buf)
-            },
-            Data::new(buffer, unsafe { &pixel_format.assume_init() }),
-        ))
-    }
 }

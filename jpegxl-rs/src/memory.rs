@@ -148,12 +148,12 @@ pub(crate) mod tests {
         let mm = BumpManager::<{ 1024 * 5 }>::default();
         let parallel_runner =
             ThreadsRunner::new(Some(&mm), Some(64)).expect("Failed to create ThreadsRunner");
-        let mut decoder = decoder_builder()
+        let decoder = decoder_builder()
             .parallel_runner(&parallel_runner)
             .memory_manager(&mm)
             .build()?;
 
-        decoder.pixels().decode(crate::tests::SAMPLE_JXL)?;
+        decoder.decode(crate::tests::SAMPLE_JXL)?;
 
         Ok(())
     }

@@ -33,9 +33,6 @@ pub enum DecodeError {
     /// Invalid input
     #[error("The input does not contain a valid codestream or container")]
     InvalidInput,
-    /// Cannot reconstruct JPEG
-    #[error("Cannot reconstruct JPEG data from the image")]
-    CannotReconstruct,
     /// Unknown status
     #[error("Unknown status: `{0:?}`")]
     UnknownStatus(JxlDecoderStatus),
@@ -90,11 +87,11 @@ mod tests {
     fn decode_invalid_data() {
         let sample = Vec::new();
 
-        let mut decoder = crate::decoder_builder()
+        let decoder = crate::decoder_builder()
             .build()
             .expect("Failed to create decoder");
         assert!(matches!(
-            decoder.pixels().decode_to::<u8>(&sample),
+            decoder.decode_to::<u8>(&sample),
             Err(DecodeError::InvalidInput)
         ));
     }

@@ -25,22 +25,22 @@ use image::{DynamicImage, ImageBuffer};
 use jpegxl_sys::JxlDataType;
 
 use crate::{
-    decode::{to_f32, to_u16, DecodingIntermediate, Metadata},
+    decode::{to_f32, to_u16, JxlDecoder, Metadata},
     DecodeError,
 };
 
-/// Extension trait for [`DecodingIntermediate`]
+/// Extension trait for [`JxlDecoder`]
 pub trait ToDynamic {
     /// Decode the JPEG XL image to a [`DynamicImage`]
     ///
     /// # Errors
     /// Return a [`DecodeError`] when internal decoding fails. Return `Ok(None)` when the image is not
     /// representable as a [`DynamicImage`]
-    fn decode_to_dynamic_image(self, data: &[u8]) -> Result<Option<DynamicImage>, DecodeError>;
+    fn decode_to_dynamic_image(&self, data: &[u8]) -> Result<Option<DynamicImage>, DecodeError>;
 }
 
-impl<'dec, 'pr, 'mm> ToDynamic for DecodingIntermediate<'dec, 'pr, 'mm> {
-    fn decode_to_dynamic_image(self, data: &[u8]) -> Result<Option<DynamicImage>, DecodeError> {
+impl<'pr, 'mm> ToDynamic for JxlDecoder<'pr, 'mm> {
+    fn decode_to_dynamic_image(&self, data: &[u8]) -> Result<Option<DynamicImage>, DecodeError> {
         let mut buffer = vec![];
         let mut pixel_format = MaybeUninit::uninit();
         let Metadata {
@@ -49,12 +49,12 @@ impl<'dec, 'pr, 'mm> ToDynamic for DecodingIntermediate<'dec, 'pr, 'mm> {
             num_color_channels,
             has_alpha_channel,
             ..
-        } = self.dec.decode_internal(
+        } = self.decode_internal(
             data,
             None,
-            self.with_icc_profile,
+            self.icc_profile,
             None,
-            Some((pixel_format.as_mut_ptr(), &mut buffer)),
+            (pixel_format.as_mut_ptr(), &mut buffer),
         )?;
 
         let pixel_format = unsafe { pixel_format.assume_init() };
@@ -129,13 +129,12 @@ mod tests {
     #[test]
     fn simple() {
         let parallel_runner = ThreadsRunner::default();
-        let mut decoder = decoder_builder()
+        let decoder = decoder_builder()
             .parallel_runner(&parallel_runner)
             .build()
             .unwrap();
 
         let img = decoder
-            .pixels()
             .decode_to_dynamic_image(SAMPLE_JXL)
             .unwrap()
             .expect("Failed to create DynamicImage");
@@ -157,7 +156,6 @@ mod tests {
             .build()
             .unwrap();
         decoder
-            .pixels()
             .decode_to_dynamic_image(SAMPLE_JXL_GRAY)
             .unwrap()
             .unwrap();
@@ -167,7 +165,6 @@ mod tests {
             ..PixelFormat::default()
         });
         decoder
-            .pixels()
             .decode_to_dynamic_image(SAMPLE_JXL_GRAY)
             .unwrap()
             .unwrap();
@@ -177,7 +174,6 @@ mod tests {
             ..PixelFormat::default()
         });
         decoder
-            .pixels()
             .decode_to_dynamic_image(SAMPLE_JXL_GRAY)
             .unwrap()
             .unwrap();

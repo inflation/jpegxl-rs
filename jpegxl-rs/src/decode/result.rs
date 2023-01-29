@@ -34,7 +34,7 @@ pub struct Metadata {
 }
 
 /// Pixels returned from the decoder
-pub enum Data {
+pub enum Pixels {
     /// `f32` pixels
     Float(Vec<f32>),
     /// `u8` pixels
@@ -45,7 +45,7 @@ pub enum Data {
     Float16(Vec<f16>),
 }
 
-impl Data {
+impl Pixels {
     pub(crate) fn new(data: Vec<u8>, pixel_format: &JxlPixelFormat) -> Self {
         match pixel_format.data_type {
             JxlDataType::Float => Self::Float(to_f32(&data, pixel_format)),
@@ -86,4 +86,12 @@ pub(crate) fn to_f16(data: &[u8], pixel_format: &JxlPixelFormat) -> Vec<f16> {
             })
         })
         .collect()
+}
+
+/// Reconstruction result
+pub enum Data {
+    /// JPEG  
+    Jpeg(Vec<u8>),
+    /// Pixels
+    Pixels(Pixels),
 }
