@@ -28,12 +28,12 @@ Currently, `u8`, `u16`, `f16` and `f32` are supported as pixel types.
 
 ```rust
 let mut decoder = decoder_builder().build()?;
-let (Metadata { width, height, ..}, data) = decoder.pixels().decode(&sample)?;
-match data {
-    Data::Float(data) => { /* do something with Vec<f32> data */ },
-    Data::Uint8(data) => { /* do something with Vec<u8> data */ },
-    Data::Uint16(data) => { /* do something with Vec<u16> data */ },
-    Data::Float16(data) => { /* do something with Vec<f16> data */ },
+let (Metadata { width, height, ..}, pixels) = decoder.decode(&sample)?;
+match pixels {
+    Pixels::Float(data) => { /* do something with Vec<f32> data */ },
+    Pixels::Uint8(data) => { /* do something with Vec<u8> data */ },
+    Pixels::Uint16(data) => { /* do something with Vec<u16> data */ },
+    Pixels::Float16(data) => { /* do something with Vec<f16> data */ },
 }
 
 // Multi-threading
@@ -52,19 +52,18 @@ let mut decoder = decoder_builder()
                       })
                       .build()?;
 
-decoder.pixels().decode_to::<u8>(&sample);
+decoder.decode_to::<u8>(&sample);
 
 // You can change the settings after initialization
-decoder.pixel_format = Some(PixelFormat {
-                                num_channels: 1,
-                                endianness: Endianness::Native,
-                                ..Default::default()
-                            });
+decoder.skip_reorientation = Some(true);
 
-// Reconstruct JPEG
-let (metadata, jpeg) = decoder.jpeg().reconstruct(&sample)?;
-// Fallback to pixels if JPEG reconstruction fails
-let (metadata, jpeg, pixels) = decoder.jpeg().reconstruct_with_pixels(&sample)?;
+// Reconstruct JPEG, fallback to pixels if JPEG reconstruction is not possible
+// This operation is finished in on pass
+let (metadata, data) = decoder.reconstruct(&sample)?;
+match data {
+    Data::Jpeg(jpeg) => {/* do something with the JPEG data */}
+    Data::Pixels(pixels) => {/* do something with the pixels data */}
+}
 
 ```
 
@@ -100,7 +99,7 @@ use image::DynamicImage;
 
 let sample = std::fs::read("../samples/sample.jxl")?;
 let mut decoder = decoder_builder().build()?;
-let img = decoder.pixels().decode_to_dynamic_image(&sample)?;
+let img = decoder.decode_to_dynamic_image(&sample)?;
 ```
 
 License: GPL-3.0-or-later

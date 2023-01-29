@@ -25,9 +25,8 @@ fn simple() {
         .encode(sample.as_raw(), sample.width(), sample.height())
         .unwrap();
 
-    let mut decoder = decoder_builder().build().expect("Failed to build decoder");
+    let decoder = decoder_builder().build().expect("Failed to build decoder");
     let _res = decoder
-        .pixels()
         .decode(&result)
         .expect("Failed to decode the encoded image");
 }
@@ -70,7 +69,7 @@ fn builder() {
         )
         .unwrap();
 
-    let mut decoder = decoder_builder().build().unwrap();
+    let decoder = decoder_builder().build().unwrap();
     let (
         Metadata {
             num_color_channels,
@@ -78,7 +77,7 @@ fn builder() {
             ..
         },
         _,
-    ) = decoder.pixels().decode(&res).unwrap();
+    ) = decoder.decode(&res).unwrap();
     assert_eq!(num_color_channels, 3);
     assert!(has_alpha_channel);
 
@@ -132,8 +131,8 @@ fn multi_frames() {
         .encode()
         .unwrap();
 
-    let mut decoder = decoder_builder().build().unwrap();
-    let _res = decoder.pixels().decode(&result).unwrap();
+    let decoder = decoder_builder().build().unwrap();
+    let _res = decoder.decode(&result).unwrap();
 }
 
 #[test]
@@ -152,8 +151,8 @@ fn gray() {
         )
         .unwrap();
 
-    let mut decoder = decoder_builder().build().unwrap();
-    let _res = decoder.pixels().decode(&result).unwrap();
+    let decoder = decoder_builder().build().unwrap();
+    let _res = decoder.decode(&result).unwrap();
 
     encoder.color_encoding = ColorEncoding::LinearSrgbLuma;
     let result: EncoderResult<f16> = encoder
@@ -164,5 +163,5 @@ fn gray() {
         )
         .unwrap();
 
-    let _res = decoder.pixels().decode(&result).unwrap();
+    let _res = decoder.decode(&result).unwrap();
 }
