@@ -24,20 +24,17 @@ use thiserror::Error;
 /// Errors derived from [`JxlDecoderStatus`]
 #[derive(Error, Debug)]
 pub enum DecodeError {
-    /// Unable to read more data
-    #[error(transparent)]
-    InputError(#[from] std::io::Error),
     /// Cannot create a decoder
     #[error("Cannot create a decoder")]
     CannotCreateDecoder,
     /// Unknown Error
     #[error("Generic Error")]
     GenericError,
-    /// Invalid file format
-    #[error("The file does not contain a valid codestream or container")]
-    InvalidFileFormat,
-    /// Cannot reconstruct JPEG codestream
-    #[error("Cannot reconstruct JPEG codestream from the file")]
+    /// Invalid input
+    #[error("The input does not contain a valid codestream or container")]
+    InvalidInput,
+    /// Cannot reconstruct JPEG
+    #[error("Cannot reconstruct JPEG data from the image")]
     CannotReconstruct,
     /// Unknown status
     #[error("Unknown status: `{0:?}`")]
@@ -93,12 +90,12 @@ mod tests {
     fn decode_invalid_data() {
         let sample = Vec::new();
 
-        let decoder = crate::decoder_builder()
+        let mut decoder = crate::decoder_builder()
             .build()
             .expect("Failed to create decoder");
         assert!(matches!(
-            decoder.decode_to::<u8>(&sample),
-            Err(DecodeError::InvalidFileFormat)
+            decoder.pixels().decode_to::<u8>(&sample),
+            Err(DecodeError::InvalidInput)
         ));
     }
 

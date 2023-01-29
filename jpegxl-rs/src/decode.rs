@@ -19,94 +19,60 @@ along with jpegxl-rs.  If not, see <https://www.gnu.org/licenses/>.
 
 use std::{mem::MaybeUninit, ptr::null};
 
-use half::f16;
 #[allow(clippy::wildcard_imports)]
 use jpegxl_sys::*;
 
 use crate::{
     common::{Endianness, PixelType},
     errors::{check_dec_status, DecodeError},
-    memory::JxlMemoryManager,
+    memory::MemoryManager,
     parallel::JxlParallelRunner,
+    utils::check_valid_signature,
 };
 
-/// Basic Information
+mod result;
+pub use result::*;
+
+/// Basic information
 pub type BasicInfo = JxlBasicInfo;
+/// Progressive decoding steps
+pub type ProgressiveDetail = JxlProgressiveDetail;
+/// Orientation
+pub type Orientation = JxlOrientation;
 
-/// Result of decoding
-#[derive(Debug)]
-pub struct DecoderResult {
-    /// Width of the image
-    pub width: u32,
-    /// Height of the image
-    pub height: u32,
-    /// Orientation
-    pub orientation: JxlOrientation,
-    /// Number of color channels per pixel
+/// Desired Pixel Format
+#[derive(Clone, Copy, Debug)]
+pub struct PixelFormat {
+    /// Amount of channels available in a pixel buffer.
+    ///
+    /// 1. single-channel data, e.g. grayscale or a single extra channel
+    /// 2. single-channel + alpha
+    /// 3. trichromatic, e.g. RGB
+    /// 4. trichromatic + alpha
+    ///
+    /// # Default
+    /// 0, which means determined automatically from color channels and alpha bits
     pub num_channels: u32,
-    /// ICC color profile
-    pub icc_profile: Vec<u8>,
-    /// Enum for various pixel types
-    pub data: Data,
+    /// Whether multi-byte data types are represented in big endian or little
+    /// endian format. This applies to `u16`, `f16`, and `f32`.
+    ///
+    /// # Default
+    /// [`Endianness::Native`]
+    pub endianness: Endianness,
+    /// Align scanlines to a multiple of align bytes. _Currently not supported_
+    ///
+    /// # Default
+    /// 0, which means requiring no alignment (which has the same effect as value 1)
+    // TODO: support custom scanlines alignment
+    pub align: usize,
 }
 
-/// Wrapper type for different pixel types
-pub enum Data {
-    /// `u8`
-    U8(Vec<u8>),
-    /// `u16`
-    U16(Vec<u16>),
-    /// `f16`
-    F16(Vec<f16>),
-    /// `f32`
-    F32(Vec<f32>),
-}
-
-impl std::fmt::Debug for Data {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::U8(_) => f.write_str("U8 pixels"),
-            Self::U16(_) => f.write_str("U16 pixels"),
-            Self::F16(_) => f.write_str("F16 pixels"),
-            Self::F32(_) => f.write_str("F32 pixels"),
-        }
-    }
-}
-
-impl Data {
-    /// Returns the data as a vector of `u8`
-    #[must_use]
-    pub fn as_u8(&self) -> Option<&[u8]> {
-        match &self {
-            Data::U8(data) => Some(data.as_slice()),
-            _ => None,
-        }
-    }
-
-    /// Returns the data as a vector of `u16`
-    #[must_use]
-    pub fn as_u16(&self) -> Option<&[u16]> {
-        match &self {
-            Data::U16(data) => Some(data.as_slice()),
-            _ => None,
-        }
-    }
-
-    /// Returns the data as a vector of `f16`
-    #[must_use]
-    pub fn as_f16(&self) -> Option<&[f16]> {
-        match &self {
-            Data::F16(data) => Some(data.as_slice()),
-            _ => None,
-        }
-    }
-
-    /// Returns the data as a vector of `f16`
-    #[must_use]
-    pub fn as_f32(&self) -> Option<&[f32]> {
-        match &self {
-            Data::F32(data) => Some(data.as_slice()),
-            _ => None,
+impl Default for PixelFormat {
+    fn default() -> Self {
+        Self {
+            num_channels: 0,
+            endianness: Endianness::Native,
+            align: 0,
         }
     }
 }
@@ -120,44 +86,77 @@ pub struct JxlDecoder<'pr, 'mm> {
     #[builder(setter(skip))]
     dec: *mut jpegxl_sys::JxlDecoder,
 
-    /// Number of channels for returned result
-    ///
-    /// Default: 0 for automatic detection
-    pub num_channels: u32,
-    /// Endianness for returned result
-    ///
-    /// Default: native endian
-    pub endianness: Endianness,
-    /// Set pixel scanlines alignment for returned result
-    ///
-    /// Default: 0
-    pub align: usize,
+    /// Override desired pixel format
+    pub pixel_format: Option<PixelFormat>,
 
-    /// Keep orientation or not
+    /// Enables or disables preserving of as-in-bitstream pixel data orientation.
+    /// If it is set to `true`, the decoder will skip applying the transformation
     ///
-    /// Default: false, so the decoder rotates the image for you
-    pub keep_orientation: bool,
-    /// Set initial buffer for JPEG reconstruction.
-    /// Larger one could be faster with fewer allocations
+    /// # Default
+    /// `false`, and the returned pixel data is re-oriented
+    pub skip_reorientation: Option<bool>,
+    /// Enables or disables preserving of associated alpha channels.
+    /// If it is set to `true`, the colors will be unpremultiplied based on the alpha channel
+    ///
+    /// # Default
+    /// `false`, and return the pixel data "as is".
+    pub unpremul_alpha: Option<bool>,
+    /// Enables or disables rendering spot colors.
+    /// If it is set to `false`, then spot colors are not rendered, and have to be retrieved
+    /// separately. This is useful for printing applications
+    ///
+    /// # Default
+    /// `true`, and spot colors are rendered, which is OK for viewing the decoded image
+    pub render_spotcolors: Option<bool>,
+    /// Enables or disables coalescing of zero-duration frames.
+    /// For loading a multi-layer still image as separate layers (as opposed to the merged image),
+    /// coalescing has to be disabled
+    ///
+    /// # Default
+    /// `true`, and all frames have the image dimensions, and are blended if needed.
+    pub coalescing: Option<bool>,
+    /// Perform tone mapping to the peak display luminance.
+    ///
+    /// # Note
+    /// This is provided for convenience and the exact tone mapping that is performed
+    /// is not meant to be considered authoritative in any way. It may change from version
+    /// to version
+    pub desired_intensity_target: Option<f32>,
+    /// Configures whether to get boxes in raw mode or in decompressed mode.
+    ///
+    /// # Default
+    /// false, and the boxes are returned in raw mode
+    pub decompress: Option<bool>,
+
+    /// Configures at which progressive steps in frame decoding
+    ///
+    /// # Default
+    /// [`ProgressiveDetail::DC`]
+    pub progressive_detail: Option<JxlProgressiveDetail>,
+
+    /// Set initial buffer for JPEG reconstruction
+    /// Larger buffer could make reconstruction faster by doing fewer reallocations
     ///
     /// Default: 512 KiB
     pub init_jpeg_buffer: usize,
 
-    /// Parallel runner
+    /// Set parallel runner
     pub parallel_runner: Option<&'pr dyn JxlParallelRunner>,
 
-    /// Store memory manager ref so it pins until the end of the decoder
-    #[builder(setter(skip))]
-    _memory_manager: Option<&'mm dyn JxlMemoryManager>,
+    /// Set memory manager
+    #[allow(dead_code)]
+    memory_manager: Option<&'mm dyn MemoryManager>,
 }
 
 impl<'pr, 'mm> JxlDecoderBuilder<'pr, 'mm> {
-    fn _build(
-        &self,
-        memory_manager: Option<&'mm dyn JxlMemoryManager>,
-    ) -> Result<JxlDecoder<'pr, 'mm>, DecodeError> {
+    /// Build a [`JxlDecoder`]
+    ///
+    /// # Errors
+    /// Return [`DecodeError::CannotCreateDecoder`] if it fails to create the decoder.
+    pub fn build(&self) -> Result<JxlDecoder<'pr, 'mm>, DecodeError> {
+        let mm = self.memory_manager.flatten();
         let dec = unsafe {
-            memory_manager.map_or_else(
+            mm.map_or_else(
                 || JxlDecoderCreate(null()),
                 |mm| JxlDecoderCreate(&mm.manager()),
             )
@@ -169,59 +168,48 @@ impl<'pr, 'mm> JxlDecoderBuilder<'pr, 'mm> {
 
         Ok(JxlDecoder {
             dec,
-            num_channels: self.num_channels.unwrap_or(0),
-            endianness: self.endianness.unwrap_or(Endianness::Native),
-            align: self.align.unwrap_or(0),
-            keep_orientation: self.keep_orientation.unwrap_or(false),
+            pixel_format: self.pixel_format.flatten(),
+            skip_reorientation: self.skip_reorientation.flatten(),
+            unpremul_alpha: self.unpremul_alpha.flatten(),
+            render_spotcolors: self.render_spotcolors.flatten(),
+            coalescing: self.coalescing.flatten(),
+            desired_intensity_target: self.desired_intensity_target.flatten(),
+            decompress: self.decompress.flatten(),
+            progressive_detail: self.progressive_detail.flatten(),
             init_jpeg_buffer: self.init_jpeg_buffer.unwrap_or(512 * 1024),
             parallel_runner: self.parallel_runner.flatten(),
-            _memory_manager: memory_manager,
+            memory_manager: mm,
         })
-    }
-
-    /// Build a [`JxlDecoder`]
-    ///
-    /// # Errors
-    /// Return [`DecodeError::CannotCreateDecoder`] if it fails to create the decoder.
-    pub fn build(&self) -> Result<JxlDecoder<'pr, 'mm>, DecodeError> {
-        Self::_build(self, None)
-    }
-
-    /// Build a [`JxlDecoder`] with custom memory manager
-    ///
-    /// # Errors
-    /// Return [`DecodeError::CannotCreateDecoder`] if it fails to create the decoder.
-    pub fn build_with(
-        &self,
-        mm: &'mm dyn JxlMemoryManager,
-    ) -> Result<JxlDecoder<'pr, 'mm>, DecodeError> {
-        Self::_build(self, Some(mm))
     }
 }
 
 impl<'pr, 'mm> JxlDecoder<'pr, 'mm> {
-    fn decode_internal(
+    #[allow(clippy::needless_pass_by_value)]
+    pub(crate) fn decode_internal(
         &self,
-        pixel_type: Option<JxlDataType>,
         data: &[u8],
-        mut reconstruct_jpeg_buffer: Option<&mut Vec<u8>>,
-    ) -> Result<DecoderResult, DecodeError> {
-        let mut basic_info = MaybeUninit::uninit();
-        let mut pixel_format = MaybeUninit::uninit();
-
-        let mut result = Data::U8(vec![]);
-        let mut icc_profile = vec![];
-
-        if let Some(buf) = reconstruct_jpeg_buffer.as_deref_mut() {
-            buf.resize(self.init_jpeg_buffer, 0);
+        data_type: Option<JxlDataType>,
+        with_icc_profile: bool,
+        reconstruct_jpeg_buffer: Option<&mut Vec<u8>>,
+        pixels: Option<(*mut JxlPixelFormat, &mut Vec<u8>)>,
+    ) -> Result<Metadata, DecodeError> {
+        let Some(sig) = check_valid_signature(data) else { return Err(DecodeError::InvalidInput) };
+        if !sig {
+            return Err(DecodeError::InvalidInput);
         }
 
-        self.setup_decoder(reconstruct_jpeg_buffer.is_some())?;
+        let mut basic_info = MaybeUninit::uninit();
+        let mut icc = if with_icc_profile { Some(vec![]) } else { None };
+        let (format, pixels) = pixels.unzip();
+        let mut reconstructed = false;
+
+        self.setup_decoder(with_icc_profile, reconstruct_jpeg_buffer.is_some())?;
 
         let next_in = data.as_ptr();
         let avail_in = std::mem::size_of_val(data) as _;
 
         check_dec_status(unsafe { JxlDecoderSetInput(self.dec, next_in, avail_in) })?;
+        unsafe { JxlDecoderCloseInput(self.dec) };
 
         let mut status;
         loop {
@@ -236,16 +224,14 @@ impl<'pr, 'mm> JxlDecoder<'pr, 'mm> {
                 Error => return Err(DecodeError::GenericError),
 
                 NeedMoreInput => {
-                    return Err(DecodeError::InvalidFileFormat);
+                    unimplemented!()
                 }
 
                 // Get the basic info
                 BasicInfo => {
-                    self.get_basic_info(
-                        pixel_type,
-                        basic_info.as_mut_ptr(),
-                        pixel_format.as_mut_ptr(),
-                    )?;
+                    check_dec_status(unsafe {
+                        JxlDecoderGetBasicInfo(self.dec, basic_info.as_mut_ptr())
+                    })?;
 
                     if let Some(pr) = self.parallel_runner {
                         pr.callback_basic_info(unsafe { &*basic_info.as_ptr() });
@@ -254,12 +240,15 @@ impl<'pr, 'mm> JxlDecoder<'pr, 'mm> {
 
                 // Get color encoding
                 ColorEncoding => {
-                    icc_profile = self.get_icc_profile(unsafe { &*pixel_format.as_ptr() })?;
+                    if let Some(icc) = icc.as_mut() {
+                        self.get_icc_profile(icc)?;
+                    }
                 }
 
                 // Get JPEG reconstruction buffer
                 JpegReconstruction => {
-                    if let Some(buf) = reconstruct_jpeg_buffer.as_deref_mut() {
+                    reconstructed = true;
+                    if let Some(&mut ref mut buf) = reconstruct_jpeg_buffer {
                         check_dec_status(unsafe {
                             JxlDecoderSetJPEGBuffer(self.dec, buf.as_mut_ptr(), buf.len())
                         })?;
@@ -268,7 +257,7 @@ impl<'pr, 'mm> JxlDecoder<'pr, 'mm> {
 
                 // JPEG buffer need more space
                 JpegNeedMoreOutput => {
-                    if let Some(buf) = reconstruct_jpeg_buffer.as_deref_mut() {
+                    if let Some(&mut ref mut buf) = reconstruct_jpeg_buffer {
                         let need_to_write = unsafe { JxlDecoderReleaseJPEGBuffer(self.dec) };
 
                         buf.resize(buf.len() + need_to_write, 0);
@@ -280,28 +269,49 @@ impl<'pr, 'mm> JxlDecoder<'pr, 'mm> {
 
                 // Get the output buffer
                 NeedImageOutBuffer => {
-                    result = self.output(unsafe { &*pixel_format.as_ptr() })?;
+                    if let Some(format) = format {
+                        if let Some(&mut ref mut pixels) = pixels {
+                            self.output(
+                                unsafe { &*basic_info.as_ptr() },
+                                data_type,
+                                format,
+                                pixels,
+                            )?;
+                        }
+                    }
                 }
 
                 FullImage => continue,
                 Success => {
-                    if let Some(buf) = reconstruct_jpeg_buffer.as_deref_mut() {
+                    if let Some(&mut ref mut buf) = reconstruct_jpeg_buffer {
                         let remaining = unsafe { JxlDecoderReleaseJPEGBuffer(self.dec) };
 
                         buf.truncate(buf.len() - remaining);
                         buf.shrink_to_fit();
                     }
 
+                    if let Some(&mut ref mut buf) = reconstruct_jpeg_buffer {
+                        if !reconstructed && pixels.is_none() {
+                            return Err(DecodeError::CannotReconstruct);
+                        } else if !reconstructed {
+                            buf.clear();
+                        }
+                    }
+
                     unsafe { JxlDecoderReset(self.dec) };
 
                     let info = unsafe { basic_info.assume_init() };
-                    return Ok(DecoderResult {
+                    return Ok(Metadata {
                         width: info.xsize,
                         height: info.ysize,
+                        intensity_target: info.intensity_target,
+                        min_nits: info.min_nits,
                         orientation: info.orientation,
-                        num_channels: unsafe { pixel_format.assume_init().num_channels },
-                        icc_profile,
-                        data: result,
+                        num_color_channels: info.num_color_channels,
+                        has_alpha_channel: info.alpha_bits > 0,
+                        intrinsic_width: info.intrinsic_xsize,
+                        intrinsic_height: info.intrinsic_ysize,
+                        icc_profile: icc,
                     });
                 }
                 _ => return Err(DecodeError::UnknownStatus(status)),
@@ -309,7 +319,7 @@ impl<'pr, 'mm> JxlDecoder<'pr, 'mm> {
         }
     }
 
-    fn setup_decoder(&self, reconstruct_jpeg: bool) -> Result<(), DecodeError> {
+    fn setup_decoder(&self, icc: bool, reconstruct_jpeg: bool) -> Result<(), DecodeError> {
         if let Some(runner) = self.parallel_runner {
             check_dec_status(unsafe {
                 JxlDecoderSetParallelRunner(self.dec, runner.runner(), runner.as_opaque_ptr())
@@ -319,8 +329,10 @@ impl<'pr, 'mm> JxlDecoder<'pr, 'mm> {
         let events = {
             use JxlDecoderStatus::{BasicInfo, ColorEncoding, FullImage, JpegReconstruction};
 
-            let mut events = BasicInfo as i32 | ColorEncoding as i32 | FullImage as i32;
-
+            let mut events = BasicInfo as i32 | FullImage as i32;
+            if icc {
+                events |= ColorEncoding as i32;
+            }
             if reconstruct_jpeg {
                 events |= JpegReconstruction as i32;
             }
@@ -329,144 +341,108 @@ impl<'pr, 'mm> JxlDecoder<'pr, 'mm> {
         };
         check_dec_status(unsafe { JxlDecoderSubscribeEvents(self.dec, events) })?;
 
-        check_dec_status(unsafe {
-            JxlDecoderSetKeepOrientation(self.dec, self.keep_orientation.into())
-        })?;
-
-        Ok(())
-    }
-
-    fn get_basic_info(
-        &self,
-        pixel_type: Option<JxlDataType>,
-        basic_info: *mut JxlBasicInfo,
-        pixel_format: *mut JxlPixelFormat,
-    ) -> Result<(), DecodeError> {
-        unsafe {
-            check_dec_status(JxlDecoderGetBasicInfo(self.dec, basic_info))?;
+        if let Some(val) = self.skip_reorientation {
+            check_dec_status(unsafe { JxlDecoderSetKeepOrientation(self.dec, val.into()) })?;
         }
-
-        let basic_info = unsafe { &*basic_info };
-        let num_channels = if self.num_channels == 0 {
-            basic_info.num_color_channels + u32::from(basic_info.alpha_bits != 0)
-        } else {
-            self.num_channels
-        };
-        let data_type = pixel_type.unwrap_or_else(|| match basic_info.bits_per_sample {
-            8 => JxlDataType::Uint8,
-            16 => {
-                if basic_info.exponent_bits_per_sample == 0 {
-                    JxlDataType::Uint16
-                } else {
-                    JxlDataType::Float16
-                }
-            }
-            32 => JxlDataType::Float,
-            _ => unreachable!(),
-        });
-
-        unsafe {
-            *pixel_format = JxlPixelFormat {
-                num_channels,
-                data_type,
-                endianness: self.endianness,
-                align: self.align,
-            };
+        if let Some(val) = self.unpremul_alpha {
+            check_dec_status(unsafe { JxlDecoderSetUnpremultiplyAlpha(self.dec, val.into()) })?;
+        }
+        if let Some(val) = self.render_spotcolors {
+            check_dec_status(unsafe { JxlDecoderSetRenderSpotcolors(self.dec, val.into()) })?;
+        }
+        if let Some(val) = self.coalescing {
+            check_dec_status(unsafe { JxlDecoderSetCoalescing(self.dec, val.into()) })?;
+        }
+        if let Some(val) = self.desired_intensity_target {
+            check_dec_status(unsafe { JxlDecoderSetDesiredIntensityTarget(self.dec, val) })?;
         }
 
         Ok(())
     }
 
-    fn get_icc_profile(&self, format: &JxlPixelFormat) -> Result<Vec<u8>, DecodeError> {
+    fn get_icc_profile(&self, icc_profile: &mut Vec<u8>) -> Result<(), DecodeError> {
         let mut icc_size = 0;
-
         check_dec_status(unsafe {
             JxlDecoderGetICCProfileSize(
                 self.dec,
-                format,
+                null(),
                 JxlColorProfileTarget::Data,
                 &mut icc_size,
             )
         })?;
-
-        let mut icc_profile = vec![0; icc_size];
+        icc_profile.resize(icc_size, 0);
 
         check_dec_status(unsafe {
             JxlDecoderGetColorAsICCProfile(
                 self.dec,
-                format,
+                null(),
                 JxlColorProfileTarget::Data,
                 icc_profile.as_mut_ptr(),
                 icc_size,
             )
         })?;
 
-        icc_profile.shrink_to_fit();
-
-        Ok(icc_profile)
+        Ok(())
     }
 
-    fn output(&self, pixel_format: &JxlPixelFormat) -> Result<Data, DecodeError> {
-        unsafe fn buf<T: PixelType>(
-            dec: *mut jpegxl_sys::JxlDecoder,
-            f: &JxlPixelFormat,
-            size: usize,
-        ) -> Result<Vec<T>, DecodeError> {
-            let mut buffer = vec![T::default(); size / std::mem::size_of::<T>()];
-            check_dec_status(JxlDecoderSetImageOutBuffer(
-                dec,
-                f,
-                buffer.as_mut_ptr().cast(),
-                size,
-            ))?;
+    fn output(
+        &self,
+        info: &BasicInfo,
+        data_type: Option<JxlDataType>,
+        format: *mut JxlPixelFormat,
+        pixels: &mut Vec<u8>,
+    ) -> Result<(), DecodeError> {
+        let data_type = match data_type {
+            Some(v) => v,
+            None => match info.bits_per_sample {
+                8 => JxlDataType::Uint8,
+                16 if info.exponent_bits_per_sample == 0 => JxlDataType::Uint16,
+                16 => JxlDataType::Float16,
+                32 => JxlDataType::Float,
+                _ => return Err(DecodeError::InvalidInput),
+            },
+        };
 
-            buffer.shrink_to_fit();
-
-            Ok(buffer)
-        }
+        let f = self.pixel_format.unwrap_or_default();
+        let pixel_format = JxlPixelFormat {
+            num_channels: if f.num_channels == 0 {
+                info.num_color_channels + u32::from(info.alpha_bits > 0)
+            } else {
+                f.num_channels
+            },
+            data_type,
+            endianness: f.endianness,
+            align: 0, // TODO: support align
+        };
 
         let mut size = 0;
         check_dec_status(unsafe {
-            JxlDecoderImageOutBufferSize(self.dec, pixel_format, &mut size)
+            JxlDecoderImageOutBufferSize(self.dec, &pixel_format, &mut size)
+        })?;
+        pixels.resize(size, 0);
+
+        check_dec_status(unsafe {
+            JxlDecoderSetImageOutBuffer(self.dec, &pixel_format, pixels.as_mut_ptr().cast(), size)
         })?;
 
-        Ok(unsafe {
-            match pixel_format.data_type {
-                JxlDataType::Float => Data::F32(buf(self.dec, pixel_format, size)?),
-                JxlDataType::Uint8 => Data::U8(buf(self.dec, pixel_format, size)?),
-                JxlDataType::Uint16 => Data::U16(buf(self.dec, pixel_format, size)?),
-                JxlDataType::Float16 => Data::F16(buf(self.dec, pixel_format, size)?),
-                _ => unimplemented!(), // Other types are deprecated
-            }
-        })
+        unsafe { *format = pixel_format };
+        Ok(())
     }
 
-    /// Decode a JPEG XL image
-    ///
-    /// # Errors
-    /// Return a [`DecodeError`] when internal decoder fails
-    pub fn decode(&self, data: &[u8]) -> Result<DecoderResult, DecodeError> {
-        self.decode_internal(None, data, None)
+    /// Reconstruct jpeg
+    pub fn jpeg(&mut self) -> DecodingIntermediateJpeg {
+        DecodingIntermediateJpeg {
+            dec: self,
+            with_icc_profile: false,
+        }
     }
 
-    /// Decode a JPEG XL image to a given pixel type
-    ///
-    /// Currently only support RGB(A)8/16/32 encoded static image. Other info are discarded.
-    /// # Errors
-    /// Return a [`DecodeError`] when internal decoder fails
-    pub fn decode_to<T: PixelType>(&self, data: &[u8]) -> Result<DecoderResult, DecodeError> {
-        self.decode_internal(Some(T::pixel_type()), data, None)
-    }
-
-    /// Decode a JPEG XL image and reconstruct JPEG data
-    ///
-    /// # Errors
-    /// Return a [`DecodeError`] when internal decoder fails
-    pub fn decode_jpeg(&self, data: &[u8]) -> Result<(DecoderResult, Vec<u8>), DecodeError> {
-        let mut buffer = vec![0; self.init_jpeg_buffer];
-        let result = self.decode_internal(None, data, Some(&mut buffer))?;
-
-        Ok((result, buffer))
+    /// Decode to pixels
+    pub fn pixels(&mut self) -> DecodingIntermediate {
+        DecodingIntermediate {
+            dec: self,
+            with_icc_profile: false,
+        }
     }
 }
 
@@ -480,4 +456,132 @@ impl<'prl, 'mm> Drop for JxlDecoder<'prl, 'mm> {
 #[must_use]
 pub fn decoder_builder<'prl, 'mm>() -> JxlDecoderBuilder<'prl, 'mm> {
     JxlDecoderBuilder::default()
+}
+
+/// Intermediate step for decoding to pixels
+pub struct DecodingIntermediate<'dec, 'pr, 'mm> {
+    pub(crate) dec: &'dec JxlDecoder<'pr, 'mm>,
+    pub(crate) with_icc_profile: bool,
+}
+
+impl<'dec, 'pr, 'mm> DecodingIntermediate<'dec, 'pr, 'mm> {
+    /// Need ICC profile or not
+    pub fn with_icc_profile(&mut self) -> &mut Self {
+        self.with_icc_profile = true;
+        self
+    }
+
+    /// Decode a JPEG XL image
+    ///
+    /// # Errors
+    /// Return a [`DecodeError`] when internal decoder fails
+    pub fn decode(&self, data: &[u8]) -> Result<(Metadata, Data), DecodeError> {
+        let mut buffer = vec![];
+        let mut pixel_format = MaybeUninit::uninit();
+        let metadata = self.dec.decode_internal(
+            data,
+            None,
+            self.with_icc_profile,
+            None,
+            Some((pixel_format.as_mut_ptr(), &mut buffer)),
+        )?;
+        Ok((
+            metadata,
+            Data::new(buffer, unsafe { &pixel_format.assume_init() }),
+        ))
+    }
+
+    /// Decode a JPEG XL image to a specific pixel type
+    ///
+    /// # Errors
+    /// Return a [`DecodeError`] when internal decoder fails
+    pub fn decode_to<T: PixelType>(&self, data: &[u8]) -> Result<(Metadata, Vec<T>), DecodeError> {
+        let mut buffer = vec![];
+        let mut pixel_format = MaybeUninit::uninit();
+        let metadata = self.dec.decode_internal(
+            data,
+            Some(T::pixel_type()),
+            self.with_icc_profile,
+            None,
+            Some((pixel_format.as_mut_ptr(), &mut buffer)),
+        )?;
+
+        // Safety: type `T` is set by user
+        let buf = unsafe {
+            let pixel_format = pixel_format.assume_init();
+            debug_assert!(T::pixel_type() == pixel_format.data_type);
+
+            match T::pixel_type() {
+                JxlDataType::Float => {
+                    std::mem::transmute::<_, Vec<T>>(to_f32(&buffer, &pixel_format))
+                }
+                JxlDataType::Uint8 => std::mem::transmute::<_, Vec<T>>(buffer),
+                JxlDataType::Uint16 => {
+                    std::mem::transmute::<_, Vec<T>>(to_u16(&buffer, &pixel_format))
+                }
+                JxlDataType::Float16 => {
+                    std::mem::transmute::<_, Vec<T>>(to_f16(&buffer, &pixel_format))
+                }
+            }
+        };
+
+        Ok((metadata, buf))
+    }
+}
+
+/// Intermediate step for reconstruct JPEG
+pub struct DecodingIntermediateJpeg<'dec, 'pr, 'mm> {
+    dec: &'dec JxlDecoder<'pr, 'mm>,
+    with_icc_profile: bool,
+}
+
+impl<'dec, 'pr, 'mm> DecodingIntermediateJpeg<'dec, 'pr, 'mm> {
+    /// Need ICC profile or not
+    pub fn with_icc_profile(&mut self) -> &mut Self {
+        self.with_icc_profile = true;
+        self
+    }
+
+    /// Reconstruct JPEG data
+    ///
+    /// # Errors
+    /// Return a [`DecodeError::CannotReconstruct`] when there is no JPEG data
+    pub fn reconstruct(&self, data: &[u8]) -> Result<(Metadata, Vec<u8>), DecodeError> {
+        let mut buf = vec![0; self.dec.init_jpeg_buffer];
+        let metadata =
+            self.dec
+                .decode_internal(data, None, self.with_icc_profile, Some(&mut buf), None)?;
+
+        Ok((metadata, buf))
+    }
+
+    /// Reconstruct JPEG data with pixels output when failed
+    ///
+    /// # Errors
+    /// Return a [`DecodeError`] when internal decoder fails
+    pub fn reconstruct_with_pixels(
+        &self,
+        data: &[u8],
+    ) -> Result<(Metadata, Option<Vec<u8>>, Data), DecodeError> {
+        let mut jpeg_buf = vec![0; self.dec.init_jpeg_buffer];
+        let mut buffer = vec![];
+        let mut pixel_format = MaybeUninit::uninit();
+        let metadata = self.dec.decode_internal(
+            data,
+            None,
+            self.with_icc_profile,
+            Some(&mut jpeg_buf),
+            Some((pixel_format.as_mut_ptr(), &mut buffer)),
+        )?;
+
+        Ok((
+            metadata,
+            if jpeg_buf.is_empty() {
+                None
+            } else {
+                Some(jpeg_buf)
+            },
+            Data::new(buffer, unsafe { &pixel_format.assume_init() }),
+        ))
+    }
 }

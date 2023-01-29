@@ -123,10 +123,17 @@ extern "C" {
         keep_orientation: JxlBool,
     ) -> JxlDecoderStatus;
 
+    pub fn JxlDecoderSetUnpremultiplyAlpha(
+        dec: *mut JxlDecoder,
+        unpremul_alpha: JxlBool,
+    ) -> JxlDecoderStatus;
+
     pub fn JxlDecoderSetRenderSpotcolors(
         dec: *mut JxlDecoder,
         render_spotcolors: JxlBool,
     ) -> JxlDecoderStatus;
+
+    pub fn JxlDecoderSetCoalescing(dec: *mut JxlDecoder, coalescing: JxlBool) -> JxlDecoderStatus;
 
     pub fn JxlDecoderProcessInput(dec: *mut JxlDecoder) -> JxlDecoderStatus;
 

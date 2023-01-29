@@ -38,12 +38,8 @@ impl From<bool> for JxlBool {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum JxlDataType {
     Float = 0,
-    #[deprecated(since = "0.7.0", note = "Use `JxlDataType::Uint8` instead")]
-    Boolean = 1,
     Uint8 = 2,
     Uint16 = 3,
-    #[deprecated(since = "0.7.0", note = "Use `JxlDataType::Float` instead")]
-    Uint32 = 4,
     Float16 = 5,
 }
 

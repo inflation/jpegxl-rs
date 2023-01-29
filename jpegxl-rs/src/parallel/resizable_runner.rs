@@ -26,19 +26,19 @@ use jpegxl_sys::resizable_parallel_runner::*;
 
 use super::{JxlParallelRunner, RunnerFn};
 
-use crate::{decode::BasicInfo, memory::JxlMemoryManager};
+use crate::{decode::BasicInfo, memory::MemoryManager};
 
 /// Wrapper for resizable thread pool implementation with C++ standard library
 pub struct ResizableRunner<'mm> {
     runner_ptr: *mut c_void,
-    _memory_manager: Option<&'mm dyn JxlMemoryManager>,
+    _memory_manager: Option<&'mm dyn MemoryManager>,
 }
 
 impl<'mm> ResizableRunner<'mm> {
     /// Construct with number of threads
     #[must_use]
-    pub fn new(memory_manager: Option<&'mm dyn JxlMemoryManager>) -> Self {
-        let mm = memory_manager.map(JxlMemoryManager::manager);
+    pub fn new(memory_manager: Option<&'mm dyn MemoryManager>) -> Self {
+        let mm = memory_manager.map(MemoryManager::manager);
         let runner_ptr =
             unsafe { JxlResizableParallelRunnerCreate(mm.as_ref().map_or(null_mut(), |mm| mm)) };
 
