@@ -25,27 +25,31 @@ pub type Endianness = jpegxl_sys::JxlEndianness;
 
 // Pixel data type.
 // Currently `u8`, `u16`, `f16` and `f32` are supported.
-pub trait PixelType: Clone + Default + 'static {
+pub trait PixelType: Sized + 'static {
     /// Return the C const
     fn pixel_type() -> JxlDataType;
 
     /// Return number of bits per sample and exponential bits
-    #[must_use]
-    #[allow(clippy::cast_possible_truncation)]
-    fn bits_per_sample() -> (u32, u32) {
-        ((std::mem::size_of::<Self>() * 8) as u32, 0)
-    }
+    fn bits_per_sample() -> (u32, u32);
 }
 
 impl PixelType for u8 {
     fn pixel_type() -> JxlDataType {
         JxlDataType::Uint8
     }
+
+    fn bits_per_sample() -> (u32, u32) {
+        (8, 0)
+    }
 }
 
 impl PixelType for u16 {
     fn pixel_type() -> JxlDataType {
         JxlDataType::Uint16
+    }
+
+    fn bits_per_sample() -> (u32, u32) {
+        (16, 0)
     }
 }
 
@@ -66,6 +70,6 @@ impl PixelType for f16 {
     }
 
     fn bits_per_sample() -> (u32, u32) {
-        (16, 4)
+        (16, 5)
     }
 }

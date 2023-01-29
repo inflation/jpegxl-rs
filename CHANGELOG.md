@@ -7,36 +7,25 @@
 ### Added
 
 - ✨ Add utils for checking signature
+- ✨ Add resizable threads parallel runner
 
 ### Changed
 
 - 🚸 Don't return error if JPEG reconstruction fails
 - ⬆️ Upgrade `libjxl` to 0.8.0
 
-<a name="0.7.1"></a>
-
-## 0.7.1 (2022-11-20)
-
-### Added
-
-- ✨ Add resizable threads parallel runner
-
-### Changed
-
-- ⬆️ Upgrade `libjxl` to v0.7
-
 ### Miscellaneous
 
 - 📝 Update several docs
 
-<a name="0.7.0-alpha.0"></a>
+<a name="0.7.0"></a>
 
-## 0.7.0-alpha.0 (2022-08-13)
+## 0.7.0 (2022-08-13)
 
 ### Changed
 
 - ♻️ Separate source to a separate crate
-- ⬆️ Upgrade `libjxl` to 0.7-rc
+- ⬆️ Upgrade `libjxl` to v0.7
 - ♻️ Move `jpegxl-sys` into workspace
 - 🏗️ Use system `libjxl` by default
 - ⬆️ Update `image-rs` library

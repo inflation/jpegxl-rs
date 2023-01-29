@@ -25,8 +25,9 @@ fn simple() {
         .encode(sample.as_raw(), sample.width(), sample.height())
         .unwrap();
 
-    let decoder = decoder_builder().build().expect("Failed to build decoder");
+    let mut decoder = decoder_builder().build().expect("Failed to build decoder");
     let _res = decoder
+        .pixels()
         .decode(&result)
         .expect("Failed to decode the encoded image");
 }
@@ -43,6 +44,8 @@ fn jpeg() -> Result<(), EncodeError> {
 #[test]
 #[cfg(feature = "threads")]
 fn builder() {
+    use crate::decode::Metadata;
+
     let sample = get_sample().to_rgba8();
     let threads_runner = ThreadsRunner::default();
     let resizable_runner = ResizableRunner::default();
@@ -67,9 +70,17 @@ fn builder() {
         )
         .unwrap();
 
-    let decoder = decoder_builder().build().unwrap();
-    let dec_res = decoder.decode(&res).unwrap();
-    assert!(dec_res.num_channels == 4);
+    let mut decoder = decoder_builder().build().unwrap();
+    let (
+        Metadata {
+            num_color_channels,
+            has_alpha_channel,
+            ..
+        },
+        _,
+    ) = decoder.pixels().decode(&res).unwrap();
+    assert_eq!(num_color_channels, 3);
+    assert!(has_alpha_channel);
 
     // Check encoder reset
     encoder.has_alpha = false;
@@ -121,8 +132,8 @@ fn multi_frames() {
         .encode()
         .unwrap();
 
-    let decoder = decoder_builder().build().unwrap();
-    let _res = decoder.decode(&result).unwrap();
+    let mut decoder = decoder_builder().build().unwrap();
+    let _res = decoder.pixels().decode(&result).unwrap();
 }
 
 #[test]
@@ -141,8 +152,8 @@ fn gray() {
         )
         .unwrap();
 
-    let decoder = decoder_builder().build().unwrap();
-    let _res = decoder.decode(&result).unwrap();
+    let mut decoder = decoder_builder().build().unwrap();
+    let _res = decoder.pixels().decode(&result).unwrap();
 
     encoder.color_encoding = ColorEncoding::LinearSrgbLuma;
     let result: EncoderResult<f16> = encoder
@@ -153,5 +164,5 @@ fn gray() {
         )
         .unwrap();
 
-    let _res = decoder.decode(&result).unwrap();
+    let _res = decoder.pixels().decode(&result).unwrap();
 }

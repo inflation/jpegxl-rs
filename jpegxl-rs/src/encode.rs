@@ -22,7 +22,7 @@ use jpegxl_sys::*;
 use std::{marker::PhantomData, mem::MaybeUninit, ops::Deref, ptr::null};
 
 use crate::{
-    common::PixelType, errors::EncodeError, memory::JxlMemoryManager, parallel::JxlParallelRunner,
+    common::PixelType, errors::EncodeError, memory::MemoryManager, parallel::JxlParallelRunner,
 };
 
 /// Encoding speed
@@ -212,20 +212,22 @@ pub struct JxlEncoder<'prl, 'mm> {
     /// Default: `None`, indicating single thread execution
     pub parallel_runner: Option<&'prl dyn JxlParallelRunner>,
 
-    /// Store memory manager ref so it pins until the end of the encoder
-    #[builder(setter(skip))]
-    _memory_manager: Option<&'mm dyn JxlMemoryManager>,
+    /// Set memory manager
+    #[allow(dead_code)]
+    memory_manager: Option<&'mm dyn MemoryManager>,
 }
 
 impl<'prl, 'mm> JxlEncoderBuilder<'prl, 'mm> {
-    fn _build(
-        &self,
-        memory_manager: Option<&'mm dyn JxlMemoryManager>,
-    ) -> Result<JxlEncoder<'prl, 'mm>, EncodeError> {
+    /// Build a [`JxlEncoder`]
+    ///
+    /// # Errors
+    /// Return [`EncodeError::CannotCreateEncoder`] if it fails to create the encoder
+    pub fn build(&self) -> Result<JxlEncoder<'prl, 'mm>, EncodeError> {
+        let mm = self.memory_manager.flatten();
         let enc = unsafe {
-            memory_manager.map_or_else(
+            mm.map_or_else(
                 || JxlEncoderCreate(null()),
-                |memory_manager| JxlEncoderCreate(&memory_manager.manager()),
+                |mm| JxlEncoderCreate(&mm.manager()),
             )
         };
 
@@ -235,7 +237,7 @@ impl<'prl, 'mm> JxlEncoderBuilder<'prl, 'mm> {
 
         let options_ptr = unsafe { JxlEncoderFrameSettingsCreate(enc, null()) };
 
-        let encoder = JxlEncoder {
+        Ok(JxlEncoder {
             enc,
             options_ptr,
             has_alpha: self.has_alpha.unwrap_or_default(),
@@ -247,29 +249,8 @@ impl<'prl, 'mm> JxlEncoderBuilder<'prl, 'mm> {
             init_buffer_size: self.init_buffer_size.unwrap_or(1024 * 1024),
             color_encoding: self.color_encoding.unwrap_or(ColorEncoding::Srgb),
             parallel_runner: self.parallel_runner.flatten(),
-            _memory_manager: memory_manager,
-        };
-
-        Ok(encoder)
-    }
-
-    /// Build a [`JxlEncoder`]
-    ///
-    /// # Errors
-    /// Return [`EncodeError::CannotCreateEncoder`] if it fails to create the encoder
-    pub fn build(&self) -> Result<JxlEncoder<'prl, 'mm>, EncodeError> {
-        Self::_build(self, None)
-    }
-
-    /// Build a [`JxlEncoder`] with custom memory manager
-    ///
-    /// # Errors
-    /// Return [`EncodeError::CannotCreateEncoder`] if it fails to create the encoder
-    pub fn build_with(
-        &self,
-        mm: &'mm dyn JxlMemoryManager,
-    ) -> Result<JxlEncoder<'prl, 'mm>, EncodeError> {
-        Self::_build(self, Some(mm))
+            memory_manager: mm,
+        })
     }
 }
 

@@ -16,7 +16,10 @@ along with jpegxl-rs.  If not, see <https://www.gnu.org/licenses/>.
 */
 
 //! Memory manager interface
+
 use std::ffi::c_void;
+
+use jpegxl_sys::memory_manager::JxlMemoryManager;
 
 /// Allocator function type
 pub type AllocFn = unsafe extern "C" fn(opaque: *mut c_void, size: usize) -> *mut c_void;
@@ -25,7 +28,8 @@ pub type FreeFn = unsafe extern "C" fn(opaque: *mut c_void, address: *mut c_void
 
 /// General trait for a memory manager
 
-pub trait JxlMemoryManager {
+#[allow(clippy::module_name_repetitions)]
+pub trait MemoryManager {
     /// Return a custom allocator function
     fn alloc(&self) -> AllocFn;
     /// Return a custom deallocator function
@@ -33,8 +37,8 @@ pub trait JxlMemoryManager {
 
     /// Helper conversion function for C API
     #[must_use]
-    fn manager(&self) -> jpegxl_sys::memory_manager::JxlMemoryManager {
-        jpegxl_sys::memory_manager::JxlMemoryManager {
+    fn manager(&self) -> JxlMemoryManager {
+        JxlMemoryManager {
             opaque: self as *const _ as *mut _,
             alloc: self.alloc(),
             free: self.free(),
@@ -58,7 +62,7 @@ pub(crate) mod tests {
 
     pub struct NoManager {}
 
-    impl JxlMemoryManager for NoManager {
+    impl MemoryManager for NoManager {
         fn alloc(&self) -> AllocFn {
             unsafe extern "C" fn alloc(_a: *mut c_void, _b: usize) -> *mut c_void {
                 null_mut()
@@ -74,7 +78,7 @@ pub(crate) mod tests {
         }
     }
 
-    /// Example implementation of [`JxlMemoryManager`] of a fixed size allocator
+    /// Example implementation of [`MemoryManager`] of a fixed size allocator
     pub struct BumpManager<const N: usize> {
         arena: Box<[u8; N]>,
         footer: AtomicUsize,
@@ -89,7 +93,7 @@ pub(crate) mod tests {
         }
     }
 
-    impl<const N: usize> JxlMemoryManager for BumpManager<N> {
+    impl<const N: usize> MemoryManager for BumpManager<N> {
         fn alloc(&self) -> AllocFn {
             unsafe extern "C" fn alloc<const N: usize>(
                 opaque: *mut c_void,
@@ -131,10 +135,10 @@ pub(crate) mod tests {
     fn test_no_manager() {
         let mm = NoManager {};
 
-        let decoder = decoder_builder().build_with(&mm);
+        let decoder = decoder_builder().memory_manager(&mm).build();
         assert!(matches!(decoder, Err(DecodeError::CannotCreateDecoder)));
 
-        let encoder = encoder_builder().build_with(&mm);
+        let encoder = encoder_builder().memory_manager(&mm).build();
         assert!(matches!(encoder, Err(EncodeError::CannotCreateEncoder)));
     }
 
@@ -144,11 +148,12 @@ pub(crate) mod tests {
         let mm = BumpManager::<{ 1024 * 5 }>::default();
         let parallel_runner =
             ThreadsRunner::new(Some(&mm), Some(64)).expect("Failed to create ThreadsRunner");
-        let decoder = decoder_builder()
+        let mut decoder = decoder_builder()
             .parallel_runner(&parallel_runner)
-            .build_with(&mm)?;
+            .memory_manager(&mm)
+            .build()?;
 
-        decoder.decode(crate::tests::SAMPLE_JXL)?;
+        decoder.pixels().decode(crate::tests::SAMPLE_JXL)?;
 
         Ok(())
     }

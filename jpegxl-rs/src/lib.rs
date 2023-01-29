@@ -47,16 +47,16 @@ along with jpegxl-rs.  If not, see <https://www.gnu.org/licenses/>.
 //!
 //! ```
 //! # use jpegxl_rs::*;
-//! # use jpegxl_rs::decode::{DecoderResult, Data};
+//! # use jpegxl_rs::decode::{PixelFormat, Metadata, Data};
 //! # || -> Result<(), Box<dyn std::error::Error>> {
 //! # let sample = [];
 //! let mut decoder = decoder_builder().build()?;
-//! let DecoderResult { width, height, data ,..} = decoder.decode(&sample)?;
+//! let (Metadata { width, height, ..}, data) = decoder.pixels().decode(&sample)?;
 //! match data {
-//!     Data::U8(data) => { /* do something with Vec<u8> data */ },
-//!     Data::U16(data) => { /* do something with Vec<u16> data */ },
-//!     Data::F16(data) => { /* do something with Vec<f16> data */ },
-//!     Data::F32(data) => { /* do something with Vec<f32> data */ },
+//!     Data::Float(data) => { /* do something with Vec<f32> data */ },
+//!     Data::Uint8(data) => { /* do something with Vec<u8> data */ },
+//!     Data::Uint16(data) => { /* do something with Vec<u16> data */ },
+//!     Data::Float16(data) => { /* do something with Vec<f16> data */ },
 //! }
 //!
 //! // Multi-threading
@@ -68,16 +68,27 @@ along with jpegxl-rs.  If not, see <https://www.gnu.org/licenses/>.
 //!
 //! // Customize pixel format
 //! let mut decoder = decoder_builder()
-//!                       .num_channels(3)
-//!                       .endianness(Endianness::Big)
-//!                       .align(8)
+//!                       .pixel_format(PixelFormat {
+//!                           num_channels: 3,
+//!                           endianness: Endianness::Big,
+//!                           align: 8
+//!                       })
 //!                       .build()?;
 //!
-//! decoder.decode_to::<u8>(&sample);
+//! decoder.pixels().decode_to::<u8>(&sample);
 //!
 //! // You can change the settings after initialization
-//! decoder.num_channels = 1;
-//! decoder.endianness = Endianness::Native;
+//! decoder.pixel_format = Some(PixelFormat {
+//!                                 num_channels: 1,
+//!                                 endianness: Endianness::Native,
+//!                                 ..Default::default()
+//!                             });
+//!
+//! // Reconstruct JPEG
+//! let (metadata, jpeg) = decoder.jpeg().reconstruct(&sample)?;
+//! // Fallback to pixels if JPEG reconstruction fails
+//! let (metadata, jpeg, pixels) = decoder.jpeg().reconstruct_with_pixels(&sample)?;
+//!
 //! # Ok(()) };
 //! ```
 //!
@@ -118,8 +129,8 @@ along with jpegxl-rs.  If not, see <https://www.gnu.org/licenses/>.
 //! use image::DynamicImage;
 //!
 //! let sample = std::fs::read("../samples/sample.jxl")?;
-//! let decoder = decoder_builder().build()?;
-//! let img = decoder.decode(&sample)?.into_dynamic_image();       
+//! let mut decoder = decoder_builder().build()?;
+//! let img = decoder.pixels().decode_to_dynamic_image(&sample)?;       
 //! # Ok::<(), Box<dyn std::error::Error>>(())
 //! ```
 
