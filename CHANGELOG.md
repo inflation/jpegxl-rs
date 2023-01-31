@@ -1,5 +1,17 @@
 # Changelog
 
+<a name="0.8.1"></a>
+
+## 0.8.1 (2023-01-31)
+
+### Changed
+
+- ♻️ Refactor `JxlDecoder` to be more ergonomic
+
+### Miscellaneous
+
+- 📄 Add license notice to new files
+
 <a name="0.8.0"></a>
 
 ## 0.8.0 (2023-01-19)
