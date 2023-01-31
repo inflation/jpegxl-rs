@@ -10,7 +10,7 @@ pub fn criterion_benchmark(c: &mut Criterion) {
 
     let decoder = decoder_builder().build().unwrap();
     group.bench_function("single thread", |b| {
-        b.iter_with_large_drop(|| decoder.decode_to::<u8>(black_box(SAMPLE)).unwrap())
+        b.iter_with_large_drop(|| decoder.decode_with::<u8>(black_box(SAMPLE)).unwrap())
     });
 
     let parallel_runner = ThreadsRunner::default();
@@ -19,7 +19,7 @@ pub fn criterion_benchmark(c: &mut Criterion) {
         .build()
         .unwrap();
     group.bench_function("thread pool using default number of threads", |b| {
-        b.iter_with_large_drop(|| decoder.decode_to::<u8>(black_box(SAMPLE)).unwrap())
+        b.iter_with_large_drop(|| decoder.decode_with::<u8>(black_box(SAMPLE)).unwrap())
     });
 
     let parallel_runner = ResizableRunner::default();
@@ -28,7 +28,7 @@ pub fn criterion_benchmark(c: &mut Criterion) {
         .build()
         .unwrap();
     group.bench_function("resizable thread pool", |b| {
-        b.iter_with_large_drop(|| decoder.decode_to::<u8>(black_box(SAMPLE)).unwrap())
+        b.iter_with_large_drop(|| decoder.decode_with::<u8>(black_box(SAMPLE)).unwrap())
     });
 
     group.finish();

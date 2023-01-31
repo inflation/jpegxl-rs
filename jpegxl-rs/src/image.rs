@@ -22,9 +22,10 @@ along with jpegxl-rs.  If not, see <https://www.gnu.org/licenses/>.
 use std::mem::MaybeUninit;
 
 use image::{DynamicImage, ImageBuffer};
-use jpegxl_sys::JxlDataType;
+use jpegxl_sys::{JxlDataType, JxlPixelFormat};
 
 use crate::{
+    common::PixelType,
     decode::{to_f32, to_u16, JxlDecoder, Metadata},
     DecodeError,
 };
@@ -34,89 +35,106 @@ pub trait ToDynamic {
     /// Decode the JPEG XL image to a [`DynamicImage`]
     ///
     /// # Errors
-    /// Return a [`DecodeError`] when internal decoding fails. Return `Ok(None)` when the image is not
-    /// representable as a [`DynamicImage`]
-    fn decode_to_dynamic_image(&self, data: &[u8]) -> Result<Option<DynamicImage>, DecodeError>;
+    /// Return a [`DecodeError`] when internal decoding fails.
+    /// Return `Ok(None)` when the image is not representable as a [`DynamicImage`]
+    fn decode_to_image(&self, data: &[u8]) -> Result<Option<DynamicImage>, DecodeError>;
+
+    /// Decode the JPEG XL image to a [`DynamicImage`] with a specific pixel type
+    ///
+    /// # Errors
+    /// Return a [`DecodeError`] when internal decoding fails.
+    /// Return `Ok(None)` when the image is not representable as a [`DynamicImage`]
+    fn decode_to_image_with<T: PixelType>(
+        &self,
+        data: &[u8],
+    ) -> Result<Option<DynamicImage>, DecodeError>;
 }
 
 impl<'pr, 'mm> ToDynamic for JxlDecoder<'pr, 'mm> {
-    fn decode_to_dynamic_image(&self, data: &[u8]) -> Result<Option<DynamicImage>, DecodeError> {
+    fn decode_to_image(&self, data: &[u8]) -> Result<Option<DynamicImage>, DecodeError> {
         let mut buffer = vec![];
         let mut pixel_format = MaybeUninit::uninit();
-        let Metadata {
-            width,
-            height,
-            num_color_channels,
-            has_alpha_channel,
-            ..
-        } = self.decode_internal(
+        let metadata = self.decode_internal(
             data,
             None,
-            self.icc_profile,
+            false,
             None,
             (pixel_format.as_mut_ptr(), &mut buffer),
         )?;
 
         let pixel_format = unsafe { pixel_format.assume_init() };
-        Ok(match pixel_format.data_type {
-            JxlDataType::Float => {
-                if num_color_channels == 3 {
-                    if has_alpha_channel {
-                        ImageBuffer::from_raw(width, height, to_f32(&buffer, &pixel_format))
-                            .map(DynamicImage::ImageRgba32F)
-                    } else {
-                        ImageBuffer::from_raw(width, height, to_f32(&buffer, &pixel_format))
-                            .map(DynamicImage::ImageRgb32F)
-                    }
-                } else {
-                    None
-                }
-            }
-            JxlDataType::Uint8 => {
-                if num_color_channels == 1 {
-                    if has_alpha_channel {
-                        ImageBuffer::from_raw(width, height, buffer).map(DynamicImage::ImageLumaA8)
-                    } else {
-                        ImageBuffer::from_raw(width, height, buffer).map(DynamicImage::ImageLuma8)
-                    }
-                } else if num_color_channels == 3 {
-                    if has_alpha_channel {
-                        ImageBuffer::from_raw(width, height, buffer).map(DynamicImage::ImageRgba8)
-                    } else {
-                        ImageBuffer::from_raw(width, height, buffer).map(DynamicImage::ImageRgb8)
-                    }
-                } else {
-                    None
-                }
-            }
-            JxlDataType::Uint16 => {
-                if num_color_channels == 1 {
-                    if has_alpha_channel {
-                        ImageBuffer::from_raw(width, height, to_u16(&buffer, &pixel_format))
-                            .map(DynamicImage::ImageLumaA16)
-                    } else {
-                        ImageBuffer::from_raw(width, height, to_u16(&buffer, &pixel_format))
-                            .map(DynamicImage::ImageLuma16)
-                    }
-                } else if num_color_channels == 3 {
-                    if has_alpha_channel {
-                        ImageBuffer::from_raw(width, height, to_u16(&buffer, &pixel_format))
-                            .map(DynamicImage::ImageRgba16)
-                    } else {
-                        ImageBuffer::from_raw(width, height, to_u16(&buffer, &pixel_format))
-                            .map(DynamicImage::ImageRgb16)
-                    }
-                } else {
-                    None
-                }
-            }
-            JxlDataType::Float16 => None,
-        })
+        Ok(to_image(metadata, &pixel_format, buffer))
+    }
+
+    fn decode_to_image_with<T: PixelType>(
+        &self,
+        data: &[u8],
+    ) -> Result<Option<DynamicImage>, DecodeError> {
+        let mut buffer = vec![];
+        let mut pixel_format = MaybeUninit::uninit();
+        let metadata = self.decode_internal(
+            data,
+            Some(T::pixel_type()),
+            false,
+            None,
+            (pixel_format.as_mut_ptr(), &mut buffer),
+        )?;
+
+        let pixel_format = unsafe { pixel_format.assume_init() };
+        Ok(to_image(metadata, &pixel_format, buffer))
+    }
+}
+
+fn to_image(
+    Metadata { width, height, .. }: Metadata,
+    pixel_format: &JxlPixelFormat,
+    buffer: Vec<u8>,
+) -> Option<DynamicImage> {
+    match (pixel_format.data_type, pixel_format.num_channels) {
+        (JxlDataType::Float, 3) => {
+            ImageBuffer::from_raw(width, height, to_f32(&buffer, pixel_format))
+                .map(DynamicImage::ImageRgb32F)
+        }
+        (JxlDataType::Float, 4) => {
+            ImageBuffer::from_raw(width, height, to_f32(&buffer, pixel_format))
+                .map(DynamicImage::ImageRgba32F)
+        }
+        (JxlDataType::Uint8, 1) => {
+            ImageBuffer::from_raw(width, height, buffer).map(DynamicImage::ImageLuma8)
+        }
+        (JxlDataType::Uint8, 2) => {
+            ImageBuffer::from_raw(width, height, buffer).map(DynamicImage::ImageLumaA8)
+        }
+        (JxlDataType::Uint8, 3) => {
+            ImageBuffer::from_raw(width, height, buffer).map(DynamicImage::ImageRgb8)
+        }
+        (JxlDataType::Uint8, 4) => {
+            ImageBuffer::from_raw(width, height, buffer).map(DynamicImage::ImageRgba8)
+        }
+        (JxlDataType::Uint16, 1) => {
+            ImageBuffer::from_raw(width, height, to_u16(&buffer, pixel_format))
+                .map(DynamicImage::ImageLuma16)
+        }
+        (JxlDataType::Uint16, 2) => {
+            ImageBuffer::from_raw(width, height, to_u16(&buffer, pixel_format))
+                .map(DynamicImage::ImageLumaA16)
+        }
+        (JxlDataType::Uint16, 3) => {
+            ImageBuffer::from_raw(width, height, to_u16(&buffer, pixel_format))
+                .map(DynamicImage::ImageRgb16)
+        }
+        (JxlDataType::Uint16, 4) => {
+            ImageBuffer::from_raw(width, height, to_u16(&buffer, pixel_format))
+                .map(DynamicImage::ImageRgba16)
+        }
+        _ => None,
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use half::f16;
+
     use crate::{
         decode::PixelFormat,
         decoder_builder,
@@ -135,7 +153,7 @@ mod tests {
             .unwrap();
 
         let img = decoder
-            .decode_to_dynamic_image(SAMPLE_JXL)
+            .decode_to_image(SAMPLE_JXL)
             .unwrap()
             .expect("Failed to create DynamicImage");
         let sample_png =
@@ -145,36 +163,86 @@ mod tests {
     }
 
     #[test]
-    fn channels() {
+    fn pixel_type() {
         let parallel_runner = ThreadsRunner::default();
         let mut decoder = decoder_builder()
             .parallel_runner(&parallel_runner)
-            .pixel_format(PixelFormat {
-                num_channels: 1,
-                ..PixelFormat::default()
-            })
             .build()
             .unwrap();
+        assert!(matches!(
+            decoder.decode_to_image_with::<f16>(SAMPLE_JXL).unwrap(),
+            None
+        ));
+
+        decoder.pixel_format = Some(PixelFormat {
+            num_channels: 1,
+            ..PixelFormat::default()
+        });
         decoder
-            .decode_to_dynamic_image(SAMPLE_JXL_GRAY)
+            .decode_to_image_with::<u8>(SAMPLE_JXL_GRAY)
             .unwrap()
             .unwrap();
+        decoder
+            .decode_to_image_with::<u16>(SAMPLE_JXL_GRAY)
+            .unwrap()
+            .unwrap();
+        assert!(matches!(
+            decoder
+                .decode_to_image_with::<f32>(SAMPLE_JXL_GRAY)
+                .unwrap(),
+            None
+        ));
 
         decoder.pixel_format = Some(PixelFormat {
             num_channels: 2,
             ..PixelFormat::default()
         });
         decoder
-            .decode_to_dynamic_image(SAMPLE_JXL_GRAY)
+            .decode_to_image_with::<u8>(SAMPLE_JXL_GRAY)
             .unwrap()
             .unwrap();
+        decoder
+            .decode_to_image_with::<u16>(SAMPLE_JXL_GRAY)
+            .unwrap()
+            .unwrap();
+        assert!(matches!(
+            decoder
+                .decode_to_image_with::<f32>(SAMPLE_JXL_GRAY)
+                .unwrap(),
+            None
+        ));
 
         decoder.pixel_format = Some(PixelFormat {
             num_channels: 3,
             ..PixelFormat::default()
         });
         decoder
-            .decode_to_dynamic_image(SAMPLE_JXL_GRAY)
+            .decode_to_image_with::<u8>(SAMPLE_JXL)
+            .unwrap()
+            .unwrap();
+        decoder
+            .decode_to_image_with::<u16>(SAMPLE_JXL)
+            .unwrap()
+            .unwrap();
+        decoder
+            .decode_to_image_with::<f32>(SAMPLE_JXL)
+            .unwrap()
+            .unwrap();
+
+        decoder.pixel_format = Some(PixelFormat {
+            num_channels: 4,
+            ..PixelFormat::default()
+        });
+        decoder
+            .decode_to_image_with::<u8>(SAMPLE_JXL)
+            .unwrap()
+            .unwrap();
+        decoder
+            .decode_to_image_with::<u16>(SAMPLE_JXL)
+            .unwrap()
+            .unwrap();
+        decoder
+            .decode_to_image_with::<f32>(SAMPLE_JXL)
             .unwrap()
             .unwrap();
     }
