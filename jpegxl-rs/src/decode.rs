@@ -441,7 +441,10 @@ impl<'pr, 'mm> JxlDecoder<'pr, 'mm> {
     ///
     /// # Errors
     /// Return a [`DecodeError`] when internal decoder fails
-    pub fn decode_to<T: PixelType>(&self, data: &[u8]) -> Result<(Metadata, Vec<T>), DecodeError> {
+    pub fn decode_with<T: PixelType>(
+        &self,
+        data: &[u8],
+    ) -> Result<(Metadata, Vec<T>), DecodeError> {
         let mut buffer = vec![];
         let mut pixel_format = MaybeUninit::uninit();
         let metadata = self.decode_internal(

@@ -52,7 +52,7 @@ let mut decoder = decoder_builder()
                       })
                       .build()?;
 
-decoder.decode_to::<u8>(&sample);
+decoder.decode_with::<u8>(&sample);
 
 // You can change the settings after initialization
 decoder.skip_reorientation = Some(true);
@@ -99,7 +99,8 @@ use image::DynamicImage;
 
 let sample = std::fs::read("../samples/sample.jxl")?;
 let mut decoder = decoder_builder().build()?;
-let img = decoder.decode_to_dynamic_image(&sample)?;
+let img = decoder.decode_to_image(&sample)?;
+let img = decoder.decode_to_image_with::<f32>(&sample)?;
 ```
 
 License: GPL-3.0-or-later

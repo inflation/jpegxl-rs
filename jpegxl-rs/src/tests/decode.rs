@@ -35,10 +35,10 @@ fn pixel_types() {
     let decoder = decoder_builder().build().unwrap();
 
     // Check different pixel types
-    let _ = decoder.decode_to::<f32>(super::SAMPLE_JXL).unwrap();
-    let _ = decoder.decode_to::<u8>(super::SAMPLE_JXL).unwrap();
-    let _ = decoder.decode_to::<u16>(super::SAMPLE_JXL).unwrap();
-    let _ = decoder.decode_to::<f16>(super::SAMPLE_JXL).unwrap();
+    let _ = decoder.decode_with::<f32>(super::SAMPLE_JXL).unwrap();
+    let _ = decoder.decode_with::<u8>(super::SAMPLE_JXL).unwrap();
+    let _ = decoder.decode_with::<u16>(super::SAMPLE_JXL).unwrap();
+    let _ = decoder.decode_with::<f16>(super::SAMPLE_JXL).unwrap();
 }
 
 #[test]
@@ -75,7 +75,7 @@ fn builder() {
         .unwrap();
 
     let (Metadata { width, height, .. }, data) =
-        decoder.decode_to::<f32>(super::SAMPLE_JXL).unwrap();
+        decoder.decode_with::<f32>(super::SAMPLE_JXL).unwrap();
     assert_eq!(data.len(), (width * height * 3) as usize);
 
     // Set options after creating decoder
@@ -89,6 +89,6 @@ fn builder() {
 
     decoder.decode(super::SAMPLE_JXL).unwrap();
     let (Metadata { width, height, .. }, data) =
-        decoder.decode_to::<f32>(super::SAMPLE_JXL).unwrap();
+        decoder.decode_with::<f32>(super::SAMPLE_JXL).unwrap();
     assert_eq!(data.len(), (width * height * 4) as usize);
 }

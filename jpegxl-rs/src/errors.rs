@@ -91,7 +91,7 @@ mod tests {
             .build()
             .expect("Failed to create decoder");
         assert!(matches!(
-            decoder.decode_to::<u8>(&sample),
+            decoder.decode_with::<u8>(&sample),
             Err(DecodeError::InvalidInput)
         ));
     }
