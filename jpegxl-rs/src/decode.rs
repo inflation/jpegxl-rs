@@ -455,7 +455,7 @@ impl<'pr, 'mm> JxlDecoder<'pr, 'mm> {
             (pixel_format.as_mut_ptr(), &mut buffer),
         )?;
 
-        // Safety: type `T` is set by user
+        // Safety: type `T` is set by user and provide to the decoder to determine output data type
         let buf = unsafe {
             let pixel_format = pixel_format.assume_init();
             debug_assert!(T::pixel_type() == pixel_format.data_type);
