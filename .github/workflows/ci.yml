@@ -7,22 +7,39 @@ env:
   RUST_BACKTRACE: 1
   CARGO_INCREMENTAL: 0
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build:
     name: Build
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v3
         with:
           submodules: recursive
       - name: Install Rust
         run: rustup update stable
+      - name: Dependency
+        run: cargo fetch
+      - uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
       - name: Build
         run: cargo build --all-features
 
   coverage:
     name: Code Coverage
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v3
         with:
@@ -31,6 +48,17 @@ jobs:
         run: rustup update nightly
       - name: Install cargo-llvm-cov
         uses: taiki-e/install-action@cargo-llvm-cov
+      - name: Dependency
+        run: cargo fetch
+      - uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
       - name: Generate code coverage
         run: cargo +nightly llvm-cov --all-features --workspace --lcov --output-path lcov.info
       - name: Upload coverage to Codecov
@@ -43,14 +71,26 @@ jobs:
   sanitizer:
     name: Sanitizers
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v3
         with:
           submodules: recursive
       - name: Install Rust
-        run: rustup update nightly 
+        run: rustup update nightly
       - name: Add rust-src
         run: rustup +nightly component add rust-src
+      - name: Dependency
+        run: cargo fetch
+      - uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
       - name: Address Sanitizer
         run: cargo +nightly test -Z build-std --target=x86_64-unknown-linux-gnu --all-features
         env:
@@ -60,15 +100,27 @@ jobs:
   clippy:
     name: Clippy
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v3
         with:
           submodules: recursive
       - name: Install Rust
         run: rustup update stable
+      - name: Dependency
+        run: cargo fetch
+      - uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
       - name: Run Clippy with reviewdog
         uses: giraffate/clippy-action@v1.0.0
-        with: 
+        with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           clippy_flags: --all-features --tests -- -D warnings
           reporter: github-check
@@ -76,6 +128,7 @@ jobs:
   fmt:
     name: Rustfmt
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v3
       - name: Install Rust
