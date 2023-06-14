@@ -1,16 +1,20 @@
-# Changelog
+# Change log
 
-<a name="0.8.2-alpha"></a>
-## 0.8.2-alpha (2023-03-30)
+<a name="0.8.2"></a>
+
+## 0.8.2 (2023-06-14)
+
+### Added
+
+- ✨ Add `uses_original_profile` to `JxlEncoderBuilder`
 
 ### Changed
 
-- ⬆️ Update `libjxl` to v0.8.1
-- ♻️ Refactor `JxlDecoder` to be more ergonomic
+- ⬆️ Upgrade `libjxl` to v0.8.2
 
 ### Removed
 
-- 🔥 Remove unused intermediate structs
+- 🔥 Remove unused intermediate structures
 
 ### Miscellaneous
 
