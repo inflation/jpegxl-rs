@@ -23,6 +23,7 @@ use thiserror::Error;
 
 /// Errors derived from [`JxlDecoderStatus`]
 #[derive(Error, Debug)]
+#[non_exhaustive]
 pub enum DecodeError {
     /// Cannot create a decoder
     #[error("Cannot create a decoder")]
@@ -40,6 +41,7 @@ pub enum DecodeError {
 
 /// Errors derived from [`JxlEncoderStatus`]
 #[derive(Error, Debug)]
+#[non_exhaustive]
 pub enum EncodeError {
     /// Cannot create an encoder
     #[error("Cannot create an encoder")]
@@ -81,27 +83,26 @@ pub(crate) fn check_dec_status(status: JxlDecoderStatus) -> Result<(), DecodeErr
 
 #[cfg(test)]
 mod tests {
+    use testresult::TestResult;
+
     use super::*;
 
     #[test]
-    fn decode_invalid_data() {
+    fn decode_invalid_data() -> TestResult {
         let sample = Vec::new();
 
-        let decoder = crate::decoder_builder()
-            .build()
-            .expect("Failed to create decoder");
+        let decoder = crate::decoder_builder().build()?;
         assert!(matches!(
             decoder.decode_with::<u8>(&sample),
             Err(DecodeError::InvalidInput)
         ));
+
+        Ok(())
     }
 
     #[test]
-    fn encode_invalid_data() {
-        let mut encoder = crate::encoder_builder()
-            .has_alpha(true)
-            .build()
-            .expect("Failed to create encoder");
+    fn encode_invalid_data() -> TestResult {
+        let mut encoder = crate::encoder_builder().has_alpha(true).build()?;
 
         assert!(matches!(
             encoder.encode::<u8, u8>(&[], 0, 0),
@@ -112,5 +113,7 @@ mod tests {
             encoder.encode::<f32, f32>(&[1.0, 1.0, 1.0, 0.5], 1, 1),
             Err(EncodeError::ApiUsage)
         ));
+
+        Ok(())
     }
 }

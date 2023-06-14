@@ -134,6 +134,7 @@ fn to_image(
 #[cfg(test)]
 mod tests {
     use half::f16;
+    use testresult::TestResult;
 
     use crate::{
         decode::PixelFormat,
@@ -145,32 +146,29 @@ mod tests {
     use super::*;
 
     #[test]
-    fn simple() {
+    fn simple() -> TestResult {
         let parallel_runner = ThreadsRunner::default();
         let decoder = decoder_builder()
             .parallel_runner(&parallel_runner)
-            .build()
-            .unwrap();
+            .build()?;
 
         let img = decoder
-            .decode_to_image(SAMPLE_JXL)
-            .unwrap()
+            .decode_to_image(SAMPLE_JXL)?
             .expect("Failed to create DynamicImage");
-        let sample_png =
-            image::load_from_memory_with_format(SAMPLE_PNG, image::ImageFormat::Png).unwrap();
-
+        let sample_png = image::load_from_memory_with_format(SAMPLE_PNG, image::ImageFormat::Png)?;
         assert_eq!(img.to_rgba16(), sample_png.to_rgba16());
+
+        Ok(())
     }
 
     #[test]
-    fn pixel_type() {
+    fn pixel_type() -> TestResult {
         let parallel_runner = ThreadsRunner::default();
         let mut decoder = decoder_builder()
             .parallel_runner(&parallel_runner)
-            .build()
-            .unwrap();
+            .build()?;
         assert!(matches!(
-            decoder.decode_to_image_with::<f16>(SAMPLE_JXL).unwrap(),
+            decoder.decode_to_image_with::<f16>(SAMPLE_JXL)?,
             None
         ));
 
@@ -179,17 +177,13 @@ mod tests {
             ..PixelFormat::default()
         });
         decoder
-            .decode_to_image_with::<u8>(SAMPLE_JXL_GRAY)
-            .unwrap()
+            .decode_to_image_with::<u8>(SAMPLE_JXL_GRAY)?
             .unwrap();
         decoder
-            .decode_to_image_with::<u16>(SAMPLE_JXL_GRAY)
-            .unwrap()
+            .decode_to_image_with::<u16>(SAMPLE_JXL_GRAY)?
             .unwrap();
         assert!(matches!(
-            decoder
-                .decode_to_image_with::<f32>(SAMPLE_JXL_GRAY)
-                .unwrap(),
+            decoder.decode_to_image_with::<f32>(SAMPLE_JXL_GRAY)?,
             None
         ));
 
@@ -198,17 +192,13 @@ mod tests {
             ..PixelFormat::default()
         });
         decoder
-            .decode_to_image_with::<u8>(SAMPLE_JXL_GRAY)
-            .unwrap()
+            .decode_to_image_with::<u8>(SAMPLE_JXL_GRAY)?
             .unwrap();
         decoder
-            .decode_to_image_with::<u16>(SAMPLE_JXL_GRAY)
-            .unwrap()
+            .decode_to_image_with::<u16>(SAMPLE_JXL_GRAY)?
             .unwrap();
         assert!(matches!(
-            decoder
-                .decode_to_image_with::<f32>(SAMPLE_JXL_GRAY)
-                .unwrap(),
+            decoder.decode_to_image_with::<f32>(SAMPLE_JXL_GRAY)?,
             None
         ));
 
@@ -216,34 +206,18 @@ mod tests {
             num_channels: 3,
             ..PixelFormat::default()
         });
-        decoder
-            .decode_to_image_with::<u8>(SAMPLE_JXL)
-            .unwrap()
-            .unwrap();
-        decoder
-            .decode_to_image_with::<u16>(SAMPLE_JXL)
-            .unwrap()
-            .unwrap();
-        decoder
-            .decode_to_image_with::<f32>(SAMPLE_JXL)
-            .unwrap()
-            .unwrap();
+        decoder.decode_to_image_with::<u8>(SAMPLE_JXL)?.unwrap();
+        decoder.decode_to_image_with::<u16>(SAMPLE_JXL)?.unwrap();
+        decoder.decode_to_image_with::<f32>(SAMPLE_JXL)?.unwrap();
 
         decoder.pixel_format = Some(PixelFormat {
             num_channels: 4,
             ..PixelFormat::default()
         });
-        decoder
-            .decode_to_image_with::<u8>(SAMPLE_JXL)
-            .unwrap()
-            .unwrap();
-        decoder
-            .decode_to_image_with::<u16>(SAMPLE_JXL)
-            .unwrap()
-            .unwrap();
-        decoder
-            .decode_to_image_with::<f32>(SAMPLE_JXL)
-            .unwrap()
-            .unwrap();
+        decoder.decode_to_image_with::<u8>(SAMPLE_JXL)?.unwrap();
+        decoder.decode_to_image_with::<u16>(SAMPLE_JXL)?.unwrap();
+        decoder.decode_to_image_with::<f32>(SAMPLE_JXL)?.unwrap();
+
+        Ok(())
     }
 }

@@ -8,7 +8,7 @@ license = "GPL-3.0-or-later"
 name = "jpegxl-rs"
 readme = "README.md"
 repository = "https://github.com/inflation/jpegxl-rs"
-version = "0.8.1+libjxl-0.8.1"
+version = "0.8.2+libjxl-0.8.2"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -22,24 +22,25 @@ bench = []
 
 [dependencies]
 derive_builder = "0.12.0"
-image = { version = "0.24.5", optional = true, default-features = false }
-thiserror = "1.0.38"
+image = { version = "0.24.6", optional = true, default-features = false }
+thiserror = "1.0.40"
 half = "2.2.1"
 byteorder = "1.4.3"
 
 [dependencies.jpegxl-sys]
-version = "0.8.1"
+version = "0.8.2"
 path = "../jpegxl-sys"
 
 [dev-dependencies]
 qcms = { git = "https://github.com/FirefoxGraphics/qcms" }
-image = { version = "0.24.5", default-features = false, features = [
+image = { version = "0.24.6", default-features = false, features = [
     "jpeg",
     "png",
 ] }
+testresult = "0.3.0"
 
 [target.'cfg(not(target_family = "wasm"))'.dev-dependencies]
-criterion = "0.4.0"
+criterion = "0.5.1"
 
 
 [package.metadata.docs.rs]

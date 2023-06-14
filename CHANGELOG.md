@@ -1,12 +1,16 @@
 # Changelog
 
-<a name="0.8.1"></a>
-
-## 0.8.1 (2023-01-31)
+<a name="0.8.2-alpha"></a>
+## 0.8.2-alpha (2023-03-30)
 
 ### Changed
 
+- ⬆️ Update `libjxl` to v0.8.1
 - ♻️ Refactor `JxlDecoder` to be more ergonomic
+
+### Removed
+
+- 🔥 Remove unused intermediate structs
 
 ### Miscellaneous
 

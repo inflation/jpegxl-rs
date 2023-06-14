@@ -1,4 +1,4 @@
 [submodule "libjxl"]
 	path = jpegxl-src/libjxl
 	url = https://github.com/libjxl/libjxl
-	branch = v0.8.1
+	branch = tags/v0.8.2
