@@ -159,6 +159,7 @@ impl<U: PixelType> Deref for EncoderResult<U> {
 #[derive(Builder)]
 #[builder(build_fn(skip))]
 #[builder(setter(strip_option))]
+#[allow(clippy::struct_excessive_bools)]
 pub struct JxlEncoder<'prl, 'mm> {
     /// Opaque pointer to the underlying encoder
     #[builder(setter(skip))]
@@ -193,6 +194,15 @@ pub struct JxlEncoder<'prl, 'mm> {
     /// Using the JPEG XL container format allows to store metadata such as JPEG reconstruction;
     /// but it adds a few bytes to the encoded file for container headers even if there is no extra metadata.
     pub use_container: bool,
+    /// Configure the encoder to use the original color profile
+    ///
+    /// If the input image has a color profile, it will be used for the encoded image.
+    /// Otherwise, an internal fixed color profile is chosen (which should be smaller).
+    ///
+    /// When lossless recompressing JPEG image, you must set this to true.
+    ///
+    /// Default: `false`
+    pub uses_original_profile: bool,
     /// Set the decoding speed tier
     ///
     /// Minimum is 0 (highest quality), and maximum is 4 (lowest quality). Default is 0.
@@ -245,6 +255,7 @@ impl<'prl, 'mm> JxlEncoderBuilder<'prl, 'mm> {
             speed: self.speed.unwrap_or_default(),
             quality: self.quality.unwrap_or(1.0),
             use_container: self.use_container.unwrap_or_default(),
+            uses_original_profile: self.uses_original_profile.unwrap_or_default(),
             decoding_speed: self.decoding_speed.unwrap_or_default(),
             init_buffer_size: self.init_buffer_size.unwrap_or(1024 * 1024),
             color_encoding: self.color_encoding.unwrap_or(ColorEncoding::Srgb),
@@ -329,8 +340,8 @@ impl JxlEncoder<'_, '_> {
 
         basic_info.xsize = width;
         basic_info.ysize = height;
-        basic_info.uses_original_profile = JxlBool::True;
         basic_info.have_container = self.use_container.into();
+        basic_info.uses_original_profile = self.uses_original_profile.into();
 
         let (bits, exp) = U::bits_per_sample();
         basic_info.bits_per_sample = bits;
@@ -340,16 +351,6 @@ impl JxlEncoder<'_, '_> {
             basic_info.num_extra_channels = 1;
             basic_info.alpha_bits = bits;
             basic_info.alpha_exponent_bits = exp;
-
-            // let mut alpha = unsafe {
-            //     let mut alpha = MaybeUninit::<JxlExtraChannelInfo>::uninit();
-            //     JxlEncoderInitExtraChannelInfo(JxlExtraChannelType::Alpha, alpha.as_mut_ptr());
-            //     alpha.assume_init()
-            // };
-            // alpha.bits_per_sample = bits;
-            // alpha.exponent_bits_per_sample = exp;
-
-            // self.check_enc_status(unsafe { JxlEncoderSetExtraChannelInfo(self.enc, 0, &alpha) })?;
         } else {
             basic_info.num_extra_channels = 0;
             basic_info.alpha_bits = 0;

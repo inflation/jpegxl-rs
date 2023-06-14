@@ -1,15 +1,14 @@
 use half::f16;
 use image::DynamicImage;
+use testresult::TestResult;
 
 use crate::{
     decoder_builder,
     encode::{ColorEncoding, EncoderFrame, EncoderResult},
-    encoder_builder, EncodeError, Endianness,
+    encoder_builder, Endianness,
 };
 #[cfg(feature = "threads")]
 use crate::{encode::EncoderSpeed, ResizableRunner, ThreadsRunner};
-
-use super::SAMPLE_JPEG;
 
 fn get_sample() -> DynamicImage {
     image::load_from_memory_with_format(super::SAMPLE_PNG, image::ImageFormat::Png)
@@ -17,23 +16,25 @@ fn get_sample() -> DynamicImage {
 }
 
 #[test]
-fn simple() {
+fn simple() -> TestResult {
     let sample = get_sample().to_rgb8();
-    let mut encoder = encoder_builder().build().unwrap();
+    let mut encoder = encoder_builder().build()?;
 
-    let result: EncoderResult<u16> = encoder
-        .encode(sample.as_raw(), sample.width(), sample.height())
-        .unwrap();
+    let result: EncoderResult<u16> =
+        encoder.encode(sample.as_raw(), sample.width(), sample.height())?;
 
     let decoder = decoder_builder().build().expect("Failed to build decoder");
-    let _res = decoder
-        .decode(&result)
-        .expect("Failed to decode the encoded image");
+    let _res = decoder.decode(&result)?;
+
+    Ok(())
 }
 
 #[test]
-fn jpeg() -> Result<(), EncodeError> {
-    let mut encoder = encoder_builder().use_container(true).build()?;
+fn jpeg() -> TestResult {
+    let mut encoder = encoder_builder()
+        .use_container(true)
+        .uses_original_profile(true)
+        .build()?;
 
     let _res = encoder.encode_jpeg(super::SAMPLE_JPEG)?;
 
@@ -42,7 +43,7 @@ fn jpeg() -> Result<(), EncodeError> {
 
 #[test]
 #[cfg(feature = "threads")]
-fn builder() {
+fn builder() -> TestResult {
     use crate::decode::Metadata;
 
     let sample = get_sample().to_rgba8();
@@ -58,16 +59,13 @@ fn builder() {
         .decoding_speed(4)
         .init_buffer_size(64)
         .parallel_runner(&threads_runner)
-        .build()
-        .unwrap();
+        .build()?;
 
-    let res: EncoderResult<u8> = encoder
-        .encode_frame(
-            &EncoderFrame::new(sample.as_raw()).num_channels(4),
-            sample.width(),
-            sample.height(),
-        )
-        .unwrap();
+    let res: EncoderResult<u8> = encoder.encode_frame(
+        &EncoderFrame::new(sample.as_raw()).num_channels(4),
+        sample.width(),
+        sample.height(),
+    )?;
 
     let decoder = decoder_builder().build().unwrap();
     let (
@@ -77,7 +75,7 @@ fn builder() {
             ..
         },
         _,
-    ) = decoder.decode(&res).unwrap();
+    ) = decoder.decode(&res)?;
     assert_eq!(num_color_channels, 3);
     assert!(has_alpha_channel);
 
@@ -85,83 +83,74 @@ fn builder() {
     encoder.has_alpha = false;
     let sample = get_sample().to_rgb8();
 
-    let _res: EncoderResult<u8> = encoder
-        .encode(sample.as_raw(), sample.width(), sample.height())
-        .unwrap();
+    let _res: EncoderResult<u8> =
+        encoder.encode(sample.as_raw(), sample.width(), sample.height())?;
 
     // Check different pixel format
-    let _res: EncoderResult<u16> = encoder
-        .encode(sample.as_raw(), sample.width(), sample.height())
-        .unwrap();
+    let _res: EncoderResult<u16> =
+        encoder.encode(sample.as_raw(), sample.width(), sample.height())?;
 
-    let _res: EncoderResult<f16> = encoder
-        .encode(sample.as_raw(), sample.width(), sample.height())
-        .unwrap();
+    let _res: EncoderResult<f16> =
+        encoder.encode(sample.as_raw(), sample.width(), sample.height())?;
 
-    let _res: EncoderResult<f32> = encoder
-        .encode(sample.as_raw(), sample.width(), sample.height())
-        .unwrap();
+    let _res: EncoderResult<f32> =
+        encoder.encode(sample.as_raw(), sample.width(), sample.height())?;
 
     // Check resizable runner
     encoder.parallel_runner = Some(&resizable_runner);
-    let _res: EncoderResult<u8> = encoder
-        .encode(sample.as_raw(), sample.width(), sample.height())
-        .unwrap();
+    let _res: EncoderResult<u8> =
+        encoder.encode(sample.as_raw(), sample.width(), sample.height())?;
+
+    Ok(())
 }
 
 #[test]
-fn multi_frames() {
+fn multi_frames() -> TestResult {
     let sample = get_sample().to_rgb8();
     let mut encoder = encoder_builder()
         .color_encoding(ColorEncoding::Srgb)
-        .build()
-        .unwrap();
+        .build()?;
 
     let frame = EncoderFrame::new(sample.as_raw())
         .endianness(Endianness::Native)
         .align(0);
 
     let result: EncoderResult<f32> = encoder
-        .multiple(sample.width(), sample.height())
-        .unwrap()
-        .add_frame(&frame)
-        .unwrap()
-        .add_jpeg_frame(SAMPLE_JPEG)
-        .unwrap()
-        .encode()
-        .unwrap();
+        .multiple(sample.width(), sample.height())?
+        .add_frame(&frame)?
+        .add_frame(&frame)?
+        .encode()?;
 
-    let decoder = decoder_builder().build().unwrap();
-    let _res = decoder.decode(&result).unwrap();
+    let decoder = decoder_builder().build()?;
+    let _res = decoder.decode(&result)?;
+
+    Ok(())
 }
 
 #[test]
-fn gray() {
+fn gray() -> TestResult {
     let sample = get_sample().to_luma8();
     let mut encoder = encoder_builder()
         .color_encoding(ColorEncoding::SrgbLuma)
-        .build()
-        .unwrap();
+        .build()?;
 
-    let result: EncoderResult<f16> = encoder
-        .encode_frame(
-            &EncoderFrame::new(sample.as_raw()).num_channels(1),
-            sample.width(),
-            sample.height(),
-        )
-        .unwrap();
+    let result: EncoderResult<f16> = encoder.encode_frame(
+        &EncoderFrame::new(sample.as_raw()).num_channels(1),
+        sample.width(),
+        sample.height(),
+    )?;
 
-    let decoder = decoder_builder().build().unwrap();
-    let _res = decoder.decode(&result).unwrap();
+    let decoder = decoder_builder().build()?;
+    let _res = decoder.decode(&result)?;
 
     encoder.color_encoding = ColorEncoding::LinearSrgbLuma;
-    let result: EncoderResult<f16> = encoder
-        .encode_frame(
-            &EncoderFrame::new(sample.as_raw()).num_channels(1),
-            sample.width(),
-            sample.height(),
-        )
-        .unwrap();
+    let result: EncoderResult<f16> = encoder.encode_frame(
+        &EncoderFrame::new(sample.as_raw()).num_channels(1),
+        sample.width(),
+        sample.height(),
+    )?;
 
-    let _res = decoder.decode(&result).unwrap();
+    let _res = decoder.decode(&result)?;
+
+    Ok(())
 }
