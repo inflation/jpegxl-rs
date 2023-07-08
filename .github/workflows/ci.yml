@@ -71,7 +71,7 @@ jobs:
             target/
           key: ${{ runner.os }}-cargo-sanitizer-${{ hashFiles('**/Cargo.lock') }}
       - name: Address Sanitizer
-        run: cargo +nightly nextest -Z build-std --target=x86_64-unknown-linux-gnu --all-features
+        run: cargo +nightly nextest run -Z build-std --target=x86_64-unknown-linux-gnu --all-features
         env:
           RUSTFLAGS: "-Z sanitizer=address"
           RUSTDOCFLAGS: "-Z sanitizer=address"
