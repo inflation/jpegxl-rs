@@ -18,6 +18,7 @@ along with jpegxl-rs.  If not, see <https://www.gnu.org/licenses/>.
 #![warn(missing_docs)]
 #![deny(clippy::all)]
 #![warn(clippy::pedantic)]
+#![allow(clippy::enum_glob_use)]
 
 //! [![Documentation](https://docs.rs/jpegxl-rs/badge.svg)](https://docs.rs/jpegxl-rs/)
 //! [![Crates.io](https://img.shields.io/crates/v/jpegxl-rs.svg)](https://crates.io/crates/jpegxl-rs)
@@ -135,6 +136,7 @@ along with jpegxl-rs.  If not, see <https://www.gnu.org/licenses/>.
 //! ```
 
 #![cfg_attr(docsrs, feature(doc_cfg))]
+#![cfg_attr(coverage_nightly, feature(no_coverage))]
 
 #[macro_use]
 extern crate derive_builder;

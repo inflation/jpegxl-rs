@@ -17,6 +17,7 @@ along with jpegxl-rs.  If not, see <https://www.gnu.org/licenses/>.
 
 //! Wrapper for resizable thread pool implementation with C++ standard library
 
+#![cfg(feature = "threads")]
 #![cfg_attr(docsrs, doc(cfg(feature = "threads")))]
 
 use std::{ffi::c_void, ptr::null_mut};
@@ -81,5 +82,29 @@ impl JxlParallelRunner for ResizableRunner<'_> {
 impl Drop for ResizableRunner<'_> {
     fn drop(&mut self) {
         unsafe { JxlResizableParallelRunnerDestroy(self.runner_ptr) };
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use testresult::TestResult;
+
+    use crate::{memory::tests::BumpManager, decoder_builder};
+
+    use super::*;
+
+    #[test]
+    #[cfg_attr(coverage_nightly, no_coverage)]
+    fn test_construction() -> TestResult{
+        let memory_manager = BumpManager::<{1024 * 5}>::default();
+        let parallel_runner = ResizableRunner::new(Some(&memory_manager));
+
+        let decoder = decoder_builder()
+            .memory_manager(&memory_manager)
+            .parallel_runner(&parallel_runner)
+            .build()?;
+        decoder.decode(crate::tests::SAMPLE_JXL)?;
+
+        Ok(())
     }
 }

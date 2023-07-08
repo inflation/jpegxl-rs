@@ -4,3 +4,4 @@ Cargo.lock
 .cargo
 sweep.timestamp
 build/
+lcov.info

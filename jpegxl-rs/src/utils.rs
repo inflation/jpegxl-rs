@@ -40,7 +40,7 @@ mod tests {
 
     #[test]
     fn test_signature() {
-        assert!(matches!(check_valid_signature(&[]), None));
+        assert!(check_valid_signature(&[]).is_none());
         assert_eq!(check_valid_signature(&[0; 64]), Some(false));
         assert_eq!(check_valid_signature(SAMPLE_JXL), Some(true));
     }

@@ -79,7 +79,7 @@ impl Default for PixelFormat {
 
 /// JPEG XL Decoder
 #[derive(Builder)]
-#[builder(build_fn(skip))]
+#[builder(build_fn(skip, error = "None"))]
 #[builder(setter(strip_option))]
 pub struct JxlDecoder<'pr, 'mm> {
     /// Opaque pointer to the underlying decoder
@@ -150,8 +150,7 @@ pub struct JxlDecoder<'pr, 'mm> {
     pub parallel_runner: Option<&'pr dyn JxlParallelRunner>,
 
     /// Set memory manager
-    #[allow(dead_code)]
-    memory_manager: Option<&'mm dyn MemoryManager>,
+    pub memory_manager: Option<&'mm dyn MemoryManager>,
 }
 
 impl<'pr, 'mm> JxlDecoderBuilder<'pr, 'mm> {
@@ -191,16 +190,17 @@ impl<'pr, 'mm> JxlDecoderBuilder<'pr, 'mm> {
 }
 
 impl<'pr, 'mm> JxlDecoder<'pr, 'mm> {
-    #[allow(clippy::needless_pass_by_value)]
     pub(crate) fn decode_internal(
         &self,
         data: &[u8],
         data_type: Option<JxlDataType>,
         with_icc_profile: bool,
-        reconstruct_jpeg_buffer: Option<&mut Vec<u8>>,
+        reconstruct_jpeg_buffer: &mut Option<&mut Vec<u8>>,
         (format, pixels): (*mut JxlPixelFormat, &mut Vec<u8>),
     ) -> Result<Metadata, DecodeError> {
-        let Some(sig) = check_valid_signature(data) else { return Err(DecodeError::InvalidInput) };
+        let Some(sig) = check_valid_signature(data) else {
+            return Err(DecodeError::InvalidInput);
+        };
         if !sig {
             return Err(DecodeError::InvalidInput);
         }
@@ -218,19 +218,12 @@ impl<'pr, 'mm> JxlDecoder<'pr, 'mm> {
 
         let mut status;
         loop {
-            use JxlDecoderStatus::{
-                BasicInfo, ColorEncoding, Error, FullImage, JpegNeedMoreOutput, JpegReconstruction,
-                NeedImageOutBuffer, NeedMoreInput, Success,
-            };
+            use JxlDecoderStatus::*;
 
             status = unsafe { JxlDecoderProcessInput(self.dec) };
 
             match status {
-                Error => return Err(DecodeError::GenericError),
-
-                NeedMoreInput => {
-                    unimplemented!()
-                }
+                NeedMoreInput | Error => return Err(DecodeError::GenericError),
 
                 // Get the basic info
                 BasicInfo => {
@@ -252,7 +245,7 @@ impl<'pr, 'mm> JxlDecoder<'pr, 'mm> {
 
                 // Get JPEG reconstruction buffer
                 JpegReconstruction => {
-                    if let Some(&mut ref mut buf) = reconstruct_jpeg_buffer {
+                    if let Some(buf) = reconstruct_jpeg_buffer {
                         buf.resize(self.init_jpeg_buffer, 0);
                         check_dec_status(unsafe {
                             JxlDecoderSetJPEGBuffer(self.dec, buf.as_mut_ptr(), buf.len())
@@ -262,7 +255,7 @@ impl<'pr, 'mm> JxlDecoder<'pr, 'mm> {
 
                 // JPEG buffer need more space
                 JpegNeedMoreOutput => {
-                    if let Some(&mut ref mut buf) = reconstruct_jpeg_buffer {
+                    if let Some(buf) = reconstruct_jpeg_buffer {
                         let need_to_write = unsafe { JxlDecoderReleaseJPEGBuffer(self.dec) };
 
                         buf.resize(buf.len() + need_to_write, 0);
@@ -302,7 +295,13 @@ impl<'pr, 'mm> JxlDecoder<'pr, 'mm> {
                         icc_profile: icc,
                     });
                 }
-                _ => return Err(DecodeError::UnknownStatus(status)),
+                NeedPreviewOutBuffer => todo!(),
+                BoxNeedMoreOutput => todo!(),
+                Extensions => todo!(),
+                PreviewImage => todo!(),
+                Frame => todo!(),
+                Box => todo!(),
+                FrameProgression => todo!(),
             }
         }
     }
@@ -428,7 +427,7 @@ impl<'pr, 'mm> JxlDecoder<'pr, 'mm> {
             data,
             None,
             self.icc_profile,
-            None,
+            &mut None,
             (pixel_format.as_mut_ptr(), &mut buffer),
         )?;
         Ok((
@@ -451,7 +450,7 @@ impl<'pr, 'mm> JxlDecoder<'pr, 'mm> {
             data,
             Some(T::pixel_type()),
             self.icc_profile,
-            None,
+            &mut None,
             (pixel_format.as_mut_ptr(), &mut buffer),
         )?;
 
@@ -459,13 +458,7 @@ impl<'pr, 'mm> JxlDecoder<'pr, 'mm> {
         let buf = unsafe {
             let pixel_format = pixel_format.assume_init();
             debug_assert!(T::pixel_type() == pixel_format.data_type);
-
-            match T::pixel_type() {
-                JxlDataType::Float => std::mem::transmute(to_f32(&buffer, &pixel_format)),
-                JxlDataType::Uint8 => std::mem::transmute(buffer),
-                JxlDataType::Uint16 => std::mem::transmute(to_u16(&buffer, &pixel_format)),
-                JxlDataType::Float16 => std::mem::transmute(to_f16(&buffer, &pixel_format)),
-            }
+            T::convert(&buffer, &pixel_format)
         };
 
         Ok((metadata, buf))
@@ -486,7 +479,7 @@ impl<'pr, 'mm> JxlDecoder<'pr, 'mm> {
             data,
             None,
             self.icc_profile,
-            Some(&mut jpeg_buf),
+            &mut Some(&mut jpeg_buf),
             (pixel_format.as_mut_ptr(), &mut buffer),
         )?;
 
@@ -511,4 +504,18 @@ impl<'prl, 'mm> Drop for JxlDecoder<'prl, 'mm> {
 #[must_use]
 pub fn decoder_builder<'prl, 'mm>() -> JxlDecoderBuilder<'prl, 'mm> {
     JxlDecoderBuilder::default()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    #[allow(clippy::clone_on_copy)]
+    fn test_derive() {
+        let e = PixelFormat::default().clone();
+        println!("{e:?}");
+
+        _ = decoder_builder().clone();
+    }
 }

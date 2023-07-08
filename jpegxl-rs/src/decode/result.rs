@@ -15,13 +15,11 @@ You should have received a copy of the GNU General Public License
 along with jpegxl-rs.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-use byteorder::{ByteOrder, NativeEndian, BE, LE};
 use half::f16;
 use jpegxl_sys::{JxlDataType, JxlPixelFormat};
 
-use crate::Endianness;
-
 use super::Orientation;
+use crate::common::PixelType;
 
 /// Result of decoding
 #[derive(Debug)]
@@ -51,6 +49,7 @@ pub struct Metadata {
 }
 
 /// Pixels returned from the decoder
+#[derive(Debug)]
 pub enum Pixels {
     /// `f32` pixels
     Float(Vec<f32>),
@@ -65,44 +64,12 @@ pub enum Pixels {
 impl Pixels {
     pub(crate) fn new(data: Vec<u8>, pixel_format: &JxlPixelFormat) -> Self {
         match pixel_format.data_type {
-            JxlDataType::Float => Self::Float(to_f32(&data, pixel_format)),
+            JxlDataType::Float => Self::Float(f32::convert(&data, pixel_format)),
             JxlDataType::Uint8 => Self::Uint8(data),
-            JxlDataType::Uint16 => Self::Uint16(to_u16(&data, pixel_format)),
-            JxlDataType::Float16 => Self::Float16(to_f16(&data, pixel_format)),
+            JxlDataType::Uint16 => Self::Uint16(u16::convert(&data, pixel_format)),
+            JxlDataType::Float16 => Self::Float16(f16::convert(&data, pixel_format)),
         }
     }
-}
-
-pub(crate) fn to_f32(data: &[u8], pixel_format: &JxlPixelFormat) -> Vec<f32> {
-    let mut buf = vec![f32::default(); data.len() / std::mem::size_of::<f32>()];
-    match pixel_format.endianness {
-        Endianness::Native => NativeEndian::read_f32_into(data, buf.as_mut_slice()),
-        Endianness::Little => LE::read_f32_into(data, buf.as_mut_slice()),
-        Endianness::Big => BE::read_f32_into(data, buf.as_mut_slice()),
-    }
-    buf
-}
-
-pub(crate) fn to_u16(data: &[u8], pixel_format: &JxlPixelFormat) -> Vec<u16> {
-    let mut buf = vec![u16::default(); data.len() / std::mem::size_of::<u16>()];
-    match pixel_format.endianness {
-        Endianness::Native => NativeEndian::read_u16_into(data, buf.as_mut_slice()),
-        Endianness::Little => LE::read_u16_into(data, buf.as_mut_slice()),
-        Endianness::Big => BE::read_u16_into(data, buf.as_mut_slice()),
-    }
-    buf
-}
-
-pub(crate) fn to_f16(data: &[u8], pixel_format: &JxlPixelFormat) -> Vec<f16> {
-    data.chunks_exact(std::mem::size_of::<f16>())
-        .map(|v| {
-            f16::from_bits(match pixel_format.endianness {
-                Endianness::Native => NativeEndian::read_u16(v),
-                Endianness::Little => LE::read_u16(v),
-                Endianness::Big => BE::read_u16(v),
-            })
-        })
-        .collect()
 }
 
 /// Reconstruction result
@@ -111,4 +78,31 @@ pub enum Data {
     Jpeg(Vec<u8>),
     /// Pixels
     Pixels(Pixels),
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    #[cfg_attr(coverage_nightly, no_coverage)]
+    fn test_derive() {
+        println!(
+            "{:?}",
+            Metadata {
+                width: 0,
+                height: 0,
+                intensity_target: 0.0,
+                min_nits: 0.0,
+                orientation: Orientation::Identity,
+                num_color_channels: 0,
+                has_alpha_channel: false,
+                intrinsic_width: 0,
+                intrinsic_height: 0,
+                icc_profile: None,
+            }
+        );
+
+        println!("{:?}", Pixels::Float(vec![]));
+    }
 }

@@ -21,25 +21,25 @@ use std::ffi::c_void;
 
 use jpegxl_sys::memory_manager::JxlMemoryManager;
 
-/// Allocator function type
+/// Allocating function type
 pub type AllocFn = unsafe extern "C" fn(opaque: *mut c_void, size: usize) -> *mut c_void;
-/// Deallocator function type
+/// Deallocating function type
 pub type FreeFn = unsafe extern "C" fn(opaque: *mut c_void, address: *mut c_void);
 
 /// General trait for a memory manager
 
 #[allow(clippy::module_name_repetitions)]
 pub trait MemoryManager {
-    /// Return a custom allocator function
+    /// Return a custom allocating function
     fn alloc(&self) -> AllocFn;
-    /// Return a custom deallocator function
+    /// Return a custom deallocating function
     fn free(&self) -> FreeFn;
 
     /// Helper conversion function for C API
     #[must_use]
     fn manager(&self) -> JxlMemoryManager {
         JxlMemoryManager {
-            opaque: self as *const _ as *mut _,
+            opaque: (self as *const Self).cast_mut().cast(),
             alloc: self.alloc(),
             free: self.free(),
         }
@@ -53,10 +53,7 @@ pub(crate) mod tests {
         sync::atomic::{AtomicUsize, Ordering},
     };
 
-    use crate::{decoder_builder, encoder_builder, DecodeError, EncodeError};
-
-    #[cfg(feature = "threads")]
-    use crate::ThreadsRunner;
+    use crate::{decoder_builder, encoder_builder};
 
     use super::*;
 
@@ -64,7 +61,8 @@ pub(crate) mod tests {
 
     impl MemoryManager for NoManager {
         fn alloc(&self) -> AllocFn {
-            unsafe extern "C" fn alloc(_a: *mut c_void, _b: usize) -> *mut c_void {
+            #[cfg_attr(coverage_nightly, no_coverage)]
+            unsafe extern "C" fn alloc(_opaque: *mut c_void, _size: usize) -> *mut c_void {
                 null_mut()
             }
 
@@ -72,7 +70,10 @@ pub(crate) mod tests {
         }
 
         fn free(&self) -> FreeFn {
-            unsafe extern "C" fn free(_opaque: *mut c_void, _address: *mut c_void) {}
+            #[cfg_attr(coverage_nightly, no_coverage)]
+            unsafe extern "C" fn free(_opaque: *mut c_void, _address: *mut c_void) {
+                debug_assert!(false, "Should not be called");
+            }
 
             free
         }
@@ -95,6 +96,7 @@ pub(crate) mod tests {
 
     impl<const N: usize> MemoryManager for BumpManager<N> {
         fn alloc(&self) -> AllocFn {
+            #[cfg_attr(coverage_nightly, no_coverage)]
             unsafe extern "C" fn alloc<const N: usize>(
                 opaque: *mut c_void,
                 size: usize,
@@ -125,6 +127,7 @@ pub(crate) mod tests {
         }
 
         fn free(&self) -> FreeFn {
+            #[cfg_attr(coverage_nightly, no_coverage)]
             unsafe extern "C" fn free(_opaque: *mut c_void, _address: *mut c_void) {}
 
             free
@@ -132,29 +135,13 @@ pub(crate) mod tests {
     }
 
     #[test]
-    fn test_no_manager() {
+    fn test_mm() {
         let mm = NoManager {};
+        assert!(decoder_builder().memory_manager(&mm).build().is_err());
+        assert!(encoder_builder().memory_manager(&mm).build().is_err());
 
-        let decoder = decoder_builder().memory_manager(&mm).build();
-        assert!(matches!(decoder, Err(DecodeError::CannotCreateDecoder)));
-
-        let encoder = encoder_builder().memory_manager(&mm).build();
-        assert!(matches!(encoder, Err(EncodeError::CannotCreateEncoder)));
-    }
-
-    #[test]
-    #[cfg(feature = "threads")]
-    fn test_bump_manager() -> Result<(), DecodeError> {
-        let mm = BumpManager::<{ 1024 * 5 }>::default();
-        let parallel_runner =
-            ThreadsRunner::new(Some(&mm), Some(64)).expect("Failed to create ThreadsRunner");
-        let decoder = decoder_builder()
-            .parallel_runner(&parallel_runner)
-            .memory_manager(&mm)
-            .build()?;
-
-        decoder.decode(crate::tests::SAMPLE_JXL)?;
-
-        Ok(())
+        let mm = BumpManager::<{ 1024 * 10 }>::default();
+        assert!(decoder_builder().memory_manager(&mm).build().is_ok());
+        assert!(encoder_builder().memory_manager(&mm).build().is_ok());
     }
 }

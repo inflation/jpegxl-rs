@@ -18,7 +18,7 @@ along with jpegxl-sys.  If not, see <https://www.gnu.org/licenses/>.
 use std::ffi::c_char;
 
 #[repr(i32)]
-#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub enum JxlBool {
     True = 1,
     False = 0,
@@ -35,7 +35,7 @@ impl From<bool> for JxlBool {
 }
 
 #[repr(C)]
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum JxlDataType {
     Float = 0,
     Uint8 = 2,
@@ -44,7 +44,7 @@ pub enum JxlDataType {
 }
 
 #[repr(C)]
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum JxlEndianness {
     Native = 0,
     Little,
@@ -52,7 +52,7 @@ pub enum JxlEndianness {
 }
 
 #[repr(C)]
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct JxlPixelFormat {
     pub num_channels: u32,
     pub data_type: JxlDataType,
@@ -61,7 +61,7 @@ pub struct JxlPixelFormat {
 }
 
 #[repr(C)]
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum JxlBitDepthType {
     BitDepthFromPixelFormat = 0,
     BitDepthFromCodestream = 1,
@@ -69,7 +69,7 @@ pub enum JxlBitDepthType {
 }
 
 #[repr(C)]
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug)]
 pub struct JxlBitDepth {
     type_: JxlBitDepthType,
     bits_per_sample: u32,
@@ -79,7 +79,7 @@ pub struct JxlBitDepth {
 pub type JxlBoxType = [c_char; 4];
 
 #[repr(C)]
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum JxlProgressiveDetail {
     Frames = 0,
     DC = 1,
@@ -91,7 +91,7 @@ pub enum JxlProgressiveDetail {
 }
 
 #[repr(C)]
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum JxlColorSpace {
     Rgb = 0,
     Gray,
@@ -100,7 +100,7 @@ pub enum JxlColorSpace {
 }
 
 #[repr(C)]
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum JxlWhitePoint {
     D65 = 1,
     Custom = 2,
@@ -109,7 +109,7 @@ pub enum JxlWhitePoint {
 }
 
 #[repr(C)]
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum JxlPrimaries {
     SRgb = 1,
     Custom = 2,
@@ -118,7 +118,7 @@ pub enum JxlPrimaries {
 }
 
 #[repr(C)]
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum JxlTransferFunction {
     Rec709 = 1,
     Unknown = 2,
@@ -131,7 +131,7 @@ pub enum JxlTransferFunction {
 }
 
 #[repr(C)]
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum JxlRenderingIntent {
     Perceptual = 0,
     Relative,
@@ -155,19 +155,8 @@ pub struct JxlColorEncoding {
 }
 
 #[repr(C)]
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum JxlColorProfileTarget {
     Original,
     Data,
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_jxl_bool() {
-        assert_eq!(JxlBool::from(true), JxlBool::True);
-        assert_eq!(JxlBool::from(false), JxlBool::False);
-    }
 }

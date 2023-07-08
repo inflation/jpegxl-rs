@@ -1,7 +1,7 @@
 use crate::JxlBool;
 
 #[repr(C)]
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]
 pub enum JxlOrientation {
     Identity = 1,
     FlipHorizontal = 2,
@@ -14,6 +14,7 @@ pub enum JxlOrientation {
 }
 
 #[repr(C)]
+#[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]
 pub enum JxlExtraChannelType {
     Alpha,
     Depth,
@@ -35,12 +36,14 @@ pub enum JxlExtraChannelType {
 }
 
 #[repr(C)]
+#[derive(Debug, Clone)]
 pub struct JxlPreviewHeader {
     pub xsize: u32,
     pub ysize: u32,
 }
 
 #[repr(C)]
+#[derive(Debug, Clone)]
 pub struct JxlAnimationHeader {
     pub tps_numerator: u32,
     pub tps_denominator: u32,
@@ -49,6 +52,7 @@ pub struct JxlAnimationHeader {
 }
 
 #[repr(C)]
+#[derive(Debug, Clone)]
 pub struct JxlBasicInfo {
     pub have_container: JxlBool,
     pub xsize: u32,
@@ -76,6 +80,7 @@ pub struct JxlBasicInfo {
 }
 
 #[repr(C)]
+#[derive(Debug, Clone)]
 pub struct JxlExtraChannelInfo {
     pub type_: JxlExtraChannelType,
     pub bits_per_sample: u32,
@@ -88,11 +93,13 @@ pub struct JxlExtraChannelInfo {
 }
 
 #[repr(C)]
+#[derive(Debug, Clone)]
 pub struct JxlHeaderExtensions {
     pub extensions: u64,
 }
 
 #[repr(C)]
+#[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]
 pub enum JxlBlendMode {
     Replace = 0,
     Add = 1,
@@ -102,6 +109,7 @@ pub enum JxlBlendMode {
 }
 
 #[repr(C)]
+#[derive(Debug, Clone)]
 pub struct JxlBlendInfo {
     pub blendmode: JxlBlendMode,
     pub source: u32,
@@ -110,6 +118,7 @@ pub struct JxlBlendInfo {
 }
 
 #[repr(C)]
+#[derive(Debug, Clone)]
 pub struct JxlLayerInfo {
     pub have_crop: JxlBool,
     pub crop_x0: i32,
@@ -121,6 +130,7 @@ pub struct JxlLayerInfo {
 }
 
 #[repr(C)]
+#[derive(Debug, Clone)]
 pub struct JxlFrameHeader {
     pub duration: u32,
     pub timecode: u32,

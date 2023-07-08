@@ -77,10 +77,11 @@ mod test {
     }
 
     #[test]
+    #[cfg_attr(coverage_nightly, no_coverage)]
     fn test_bindings_version() {
         unsafe {
-            assert_eq!(JxlDecoderVersion(), 8001);
-            assert_eq!(JxlEncoderVersion(), 8001);
+            assert_eq!(JxlDecoderVersion(), 8002);
+            assert_eq!(JxlEncoderVersion(), 8002);
         }
     }
 
@@ -170,6 +171,7 @@ mod test {
     }
 
     #[test]
+    #[cfg_attr(coverage_nightly, no_coverage)]
     fn test_bindings_decoding() {
         unsafe {
             let dec = JxlDecoderCreate(ptr::null()); // Default memory manager
@@ -184,6 +186,7 @@ mod test {
 
     #[test]
     #[cfg(feature = "threads")]
+    #[cfg_attr(coverage_nightly, no_coverage)]
     fn test_bindings_thread_pool() {
         unsafe {
             let runner = JxlThreadParallelRunnerCreate(
@@ -356,7 +359,7 @@ mod test {
             status = JxlEncoderAddImageFrame(
                 JxlEncoderFrameSettingsCreate(enc, std::ptr::null()),
                 &pixel_format,
-                pixels.as_ptr() as *mut std::ffi::c_void,
+                pixels.as_ptr().cast_mut().cast(),
                 pixels.len(),
             );
             jxl_enc_assert!(status, "Add Image Frame");
@@ -392,6 +395,7 @@ mod test {
     }
 
     #[test]
+    #[cfg_attr(coverage_nightly, no_coverage)]    
     fn test_bindings_encoding() {
         let img = image::load_from_memory_with_format(SAMPLE_PNG, image::ImageFormat::Png).unwrap();
         let image_buffer = img.into_rgb8();

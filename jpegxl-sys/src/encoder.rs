@@ -42,7 +42,7 @@ pub struct JxlEncoderFrameSettings {
 }
 
 #[repr(C)]
-#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum JxlEncoderStatus {
     Success = 0,
     Error = 1,
@@ -55,7 +55,7 @@ pub enum JxlEncoderStatus {
 }
 
 #[repr(C)]
-#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum JxlEncoderError {
     OK = 0,
     Generic = 1,
@@ -67,7 +67,7 @@ pub enum JxlEncoderError {
 }
 
 #[repr(C)]
-#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum FrameSetting {
     Effort = 0,
     DecodingSpeed = 1,

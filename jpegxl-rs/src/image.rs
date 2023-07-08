@@ -26,7 +26,7 @@ use jpegxl_sys::{JxlDataType, JxlPixelFormat};
 
 use crate::{
     common::PixelType,
-    decode::{to_f32, to_u16, JxlDecoder, Metadata},
+    decode::{JxlDecoder, Metadata},
     DecodeError,
 };
 
@@ -58,7 +58,7 @@ impl<'pr, 'mm> ToDynamic for JxlDecoder<'pr, 'mm> {
             data,
             None,
             false,
-            None,
+            &mut None,
             (pixel_format.as_mut_ptr(), &mut buffer),
         )?;
 
@@ -76,7 +76,7 @@ impl<'pr, 'mm> ToDynamic for JxlDecoder<'pr, 'mm> {
             data,
             Some(T::pixel_type()),
             false,
-            None,
+            &mut None,
             (pixel_format.as_mut_ptr(), &mut buffer),
         )?;
 
@@ -92,11 +92,11 @@ fn to_image(
 ) -> Option<DynamicImage> {
     match (pixel_format.data_type, pixel_format.num_channels) {
         (JxlDataType::Float, 3) => {
-            ImageBuffer::from_raw(width, height, to_f32(&buffer, pixel_format))
+            ImageBuffer::from_raw(width, height, f32::convert(&buffer, pixel_format))
                 .map(DynamicImage::ImageRgb32F)
         }
         (JxlDataType::Float, 4) => {
-            ImageBuffer::from_raw(width, height, to_f32(&buffer, pixel_format))
+            ImageBuffer::from_raw(width, height, f32::convert(&buffer, pixel_format))
                 .map(DynamicImage::ImageRgba32F)
         }
         (JxlDataType::Uint8, 1) => {
@@ -112,19 +112,19 @@ fn to_image(
             ImageBuffer::from_raw(width, height, buffer).map(DynamicImage::ImageRgba8)
         }
         (JxlDataType::Uint16, 1) => {
-            ImageBuffer::from_raw(width, height, to_u16(&buffer, pixel_format))
+            ImageBuffer::from_raw(width, height, u16::convert(&buffer, pixel_format))
                 .map(DynamicImage::ImageLuma16)
         }
         (JxlDataType::Uint16, 2) => {
-            ImageBuffer::from_raw(width, height, to_u16(&buffer, pixel_format))
+            ImageBuffer::from_raw(width, height, u16::convert(&buffer, pixel_format))
                 .map(DynamicImage::ImageLumaA16)
         }
         (JxlDataType::Uint16, 3) => {
-            ImageBuffer::from_raw(width, height, to_u16(&buffer, pixel_format))
+            ImageBuffer::from_raw(width, height, u16::convert(&buffer, pixel_format))
                 .map(DynamicImage::ImageRgb16)
         }
         (JxlDataType::Uint16, 4) => {
-            ImageBuffer::from_raw(width, height, to_u16(&buffer, pixel_format))
+            ImageBuffer::from_raw(width, height, u16::convert(&buffer, pixel_format))
                 .map(DynamicImage::ImageRgba16)
         }
         _ => None,
@@ -146,6 +146,16 @@ mod tests {
     use super::*;
 
     #[test]
+    #[cfg_attr(coverage_nightly, no_coverage)]
+    fn invalid() -> TestResult {
+        let decoder = decoder_builder().build()?;
+        assert!(decoder.decode_to_image(&[]).is_err());
+        assert!(decoder.decode_to_image_with::<f32>(&[]).is_err());
+        Ok(())
+    }
+
+    #[test]
+    #[cfg_attr(coverage_nightly, no_coverage)]
     fn simple() -> TestResult {
         let parallel_runner = ThreadsRunner::default();
         let decoder = decoder_builder()
@@ -162,15 +172,13 @@ mod tests {
     }
 
     #[test]
+    #[cfg_attr(coverage_nightly, no_coverage)]
     fn pixel_type() -> TestResult {
         let parallel_runner = ThreadsRunner::default();
         let mut decoder = decoder_builder()
             .parallel_runner(&parallel_runner)
             .build()?;
-        assert!(matches!(
-            decoder.decode_to_image_with::<f16>(SAMPLE_JXL)?,
-            None
-        ));
+        assert!(decoder.decode_to_image_with::<f16>(SAMPLE_JXL)?.is_none());
 
         decoder.pixel_format = Some(PixelFormat {
             num_channels: 1,
@@ -182,10 +190,9 @@ mod tests {
         decoder
             .decode_to_image_with::<u16>(SAMPLE_JXL_GRAY)?
             .unwrap();
-        assert!(matches!(
-            decoder.decode_to_image_with::<f32>(SAMPLE_JXL_GRAY)?,
-            None
-        ));
+        assert!(decoder
+            .decode_to_image_with::<f32>(SAMPLE_JXL_GRAY)?
+            .is_none());
 
         decoder.pixel_format = Some(PixelFormat {
             num_channels: 2,
@@ -197,10 +204,9 @@ mod tests {
         decoder
             .decode_to_image_with::<u16>(SAMPLE_JXL_GRAY)?
             .unwrap();
-        assert!(matches!(
-            decoder.decode_to_image_with::<f32>(SAMPLE_JXL_GRAY)?,
-            None
-        ));
+        assert!(decoder
+            .decode_to_image_with::<f32>(SAMPLE_JXL_GRAY)?
+            .is_none());
 
         decoder.pixel_format = Some(PixelFormat {
             num_channels: 3,

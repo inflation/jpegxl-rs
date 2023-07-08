@@ -15,7 +15,6 @@ fn source_dir() -> PathBuf {
 
 #[cfg_attr(coverage_nightly, no_coverage)]
 pub fn build() {
-    use cmake::Config;
 
     let source = source_dir();
 
@@ -29,7 +28,7 @@ pub fn build() {
         ),
     );
 
-    let mut config = Config::new(source);
+    let mut config = cmake::Config::new(source);
     config
         .define("BUILD_SHARED_LIBS", "OFF")
         .define("BUILD_TESTING", "OFF")
@@ -72,6 +71,7 @@ mod tests {
     use super::*;
 
     #[test]
+    #[cfg_attr(coverage_nightly, no_coverage)]
     fn test_source_dir() {
         let mut path = source_dir();
         assert!(path.is_dir());

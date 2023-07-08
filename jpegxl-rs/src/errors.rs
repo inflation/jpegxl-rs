@@ -69,7 +69,7 @@ pub enum EncodeError {
     ApiUsage,
     /// Unknown status
     #[error("Unknown status: `{0:?}`")]
-    UnknownStatus(u32),
+    UnknownStatus(JxlEncoderError),
 }
 
 /// Error mapping from underlying C const to [`DecodeError`] enum
@@ -88,6 +88,7 @@ mod tests {
     use super::*;
 
     #[test]
+    #[cfg_attr(coverage_nightly, no_coverage)]
     fn decode_invalid_data() -> TestResult {
         let sample = Vec::new();
 
@@ -96,11 +97,26 @@ mod tests {
             decoder.decode_with::<u8>(&sample),
             Err(DecodeError::InvalidInput)
         ));
+        assert!(matches!(
+            decoder.decode(&crate::tests::SAMPLE_JXL[..100]),
+            Err(DecodeError::GenericError)
+        ));
+
+        assert!(matches!(
+            check_dec_status(JxlDecoderStatus::Error),
+            Err(DecodeError::GenericError)
+        ));
+
+        println!(
+            "{x}, {x:?}",
+            x = check_dec_status(JxlDecoderStatus::BasicInfo).unwrap_err()
+        );
 
         Ok(())
     }
 
     #[test]
+    #[cfg_attr(coverage_nightly, no_coverage)]
     fn encode_invalid_data() -> TestResult {
         let mut encoder = crate::encoder_builder().has_alpha(true).build()?;
 
@@ -108,11 +124,15 @@ mod tests {
             encoder.encode::<u8, u8>(&[], 0, 0),
             Err(EncodeError::ApiUsage)
         ));
-
         assert!(matches!(
             encoder.encode::<f32, f32>(&[1.0, 1.0, 1.0, 0.5], 1, 1),
             Err(EncodeError::ApiUsage)
         ));
+
+        println!(
+            "{x}, {x:?}",
+            x = EncodeError::UnknownStatus(JxlEncoderError::OK)
+        );
 
         Ok(())
     }

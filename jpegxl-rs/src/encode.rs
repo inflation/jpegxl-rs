@@ -40,7 +40,7 @@ pub enum EncoderSpeed {
     Hare,
     /// 6
     Wombat,
-    /// 7
+    /// 7, default
     Squirrel,
     /// 8
     Kitten,
@@ -96,7 +96,9 @@ pub struct EncoderFrame<'data, T: PixelType> {
 }
 
 impl<'data, T: PixelType> EncoderFrame<'data, T> {
-    /// Create a default frame from the data. Use RGB(3) channels, native endianness and no alignment.
+    /// Create a default frame from the data.
+    ///
+    /// Use RGB(3) channels, native endianness and no alignment.
     pub fn new(data: &'data [T]) -> Self {
         Self {
             data,
@@ -157,7 +159,7 @@ impl<U: PixelType> Deref for EncoderResult<U> {
 
 /// JPEG XL Encoder
 #[derive(Builder)]
-#[builder(build_fn(skip))]
+#[builder(build_fn(skip, error = "None"))]
 #[builder(setter(strip_option))]
 #[allow(clippy::struct_excessive_bools)]
 pub struct JxlEncoder<'prl, 'mm> {
@@ -178,7 +180,7 @@ pub struct JxlEncoder<'prl, 'mm> {
     pub lossless: bool,
     /// Set speed
     ///
-    /// Default: `[EncodeSpeed::Squirrel] (7)`.
+    /// Default: `Squirrel` (7).
     pub speed: EncoderSpeed,
     /// Set quality for lossy compression: target max butteraugli distance, lower = higher quality
     ///
@@ -192,7 +194,8 @@ pub struct JxlEncoder<'prl, 'mm> {
     /// Configure the encoder to use the JPEG XL container format
     ///
     /// Using the JPEG XL container format allows to store metadata such as JPEG reconstruction;
-    /// but it adds a few bytes to the encoded file for container headers even if there is no extra metadata.
+    /// but it adds a few bytes to the encoded file for container headers
+    /// even if there is no extra metadata.
     pub use_container: bool,
     /// Configure the encoder to use the original color profile
     ///
@@ -209,7 +212,7 @@ pub struct JxlEncoder<'prl, 'mm> {
     pub decoding_speed: i64,
     /// Set initial output buffer size in bytes
     ///
-    /// Default: 1 MiB
+    /// Default: 512 KiB
     pub init_buffer_size: usize,
 
     /// Set color encoding
@@ -257,7 +260,7 @@ impl<'prl, 'mm> JxlEncoderBuilder<'prl, 'mm> {
             use_container: self.use_container.unwrap_or_default(),
             uses_original_profile: self.uses_original_profile.unwrap_or_default(),
             decoding_speed: self.decoding_speed.unwrap_or_default(),
-            init_buffer_size: self.init_buffer_size.unwrap_or(1024 * 1024),
+            init_buffer_size: self.init_buffer_size.unwrap_or(512 * 1024 * 1024),
             color_encoding: self.color_encoding.unwrap_or(ColorEncoding::Srgb),
             parallel_runner: self.parallel_runner.flatten(),
             memory_manager: mm,
@@ -268,6 +271,7 @@ impl<'prl, 'mm> JxlEncoderBuilder<'prl, 'mm> {
 // Private helper functions
 impl JxlEncoder<'_, '_> {
     /// Error mapping from underlying C const to [`EncodeError`] enum
+    #[cfg_attr(coverage_nightly, no_coverage)]
     fn check_enc_status(&self, status: JxlEncoderStatus) -> Result<(), EncodeError> {
         match status {
             JxlEncoderStatus::Success => Ok(()),
@@ -416,7 +420,12 @@ impl JxlEncoder<'_, '_> {
 
             unsafe {
                 let offset = next_out as usize - buffer.as_ptr() as usize;
-                buffer.resize(buffer.len() * 2, 0);
+                let new_size = if buffer.is_empty() {
+                    1
+                } else {
+                    buffer.len() * 2
+                };
+                buffer.resize(new_size, 0);
                 next_out = (buffer.as_mut_ptr()).add(offset);
                 avail_out = buffer.len() - offset;
             }
@@ -566,4 +575,21 @@ impl<U: PixelType> MultiFrames<'_, '_, '_, U> {
 #[must_use]
 pub fn encoder_builder<'prl, 'mm>() -> JxlEncoderBuilder<'prl, 'mm> {
     JxlEncoderBuilder::default()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    #[allow(clippy::clone_on_copy)]
+    fn test_derive() {
+        let e = EncoderSpeed::default().clone();
+        println!("{e:?}");
+
+        let e = ColorEncoding::Srgb.clone();
+        println!("{e:?}");
+
+        _ = encoder_builder().clone();
+    }
 }

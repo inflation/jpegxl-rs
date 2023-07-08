@@ -15,8 +15,10 @@ You should have received a copy of the GNU General Public License
 along with jpegxl-rs.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-//! Wrapper for default threadpool implementation with C++ standard library
+//! Wrapper for default thread pool implementation with C++ standard library
 
+
+#![cfg(feature = "threads")]
 #![cfg_attr(docsrs, doc(cfg(feature = "threads")))]
 
 use std::{ffi::c_void, ptr::null_mut};

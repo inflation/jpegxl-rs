@@ -24,7 +24,7 @@ bench = []
 derive_builder = "0.12.0"
 image = { version = "0.24.6", optional = true, default-features = false }
 thiserror = "1.0.40"
-half = "2.2.1"
+half = "2.3.1"
 byteorder = "1.4.3"
 
 [dependencies.jpegxl-sys]
