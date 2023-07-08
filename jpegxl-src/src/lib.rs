@@ -15,7 +15,6 @@ fn source_dir() -> PathBuf {
 
 #[cfg_attr(coverage_nightly, no_coverage)]
 pub fn build() {
-
     let source = source_dir();
 
     env::set_var(

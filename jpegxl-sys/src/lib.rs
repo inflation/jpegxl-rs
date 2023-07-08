@@ -395,7 +395,7 @@ mod test {
     }
 
     #[test]
-    #[cfg_attr(coverage_nightly, no_coverage)]    
+    #[cfg_attr(coverage_nightly, no_coverage)]
     fn test_bindings_encoding() {
         let img = image::load_from_memory_with_format(SAMPLE_PNG, image::ImageFormat::Png).unwrap();
         let image_buffer = img.into_rgb8();

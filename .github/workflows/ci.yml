@@ -15,7 +15,6 @@ jobs:
   coverage:
     name: Code Coverage
     runs-on: ubuntu-latest
-    needs: [fmt]
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v3
@@ -50,7 +49,6 @@ jobs:
     name: Sanitizers
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    needs: [fmt]
     steps:
       - uses: actions/checkout@v3
         with:
