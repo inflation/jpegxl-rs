@@ -42,8 +42,7 @@ fn simple() -> TestResult {
 
     assert_eq!(data.len(), (width * height * 4) as usize);
     // Check if icc profile is valid
-    qcms::Profile::new_from_slice(&icc_profile.unwrap(), false)
-        .ok_or("Failed to retrieve icc profile")?;
+    lcms2::Profile::new_icc(&icc_profile.unwrap())?;
 
     Ok(())
 }

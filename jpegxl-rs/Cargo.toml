@@ -32,11 +32,11 @@ version = "0.8.2"
 path = "../jpegxl-sys"
 
 [dev-dependencies]
-qcms = { git = "https://github.com/FirefoxGraphics/qcms" }
 image = { version = "0.24.6", default-features = false, features = [
     "jpeg",
     "png",
 ] }
+lcms2 = "5.6.0"
 testresult = "0.3.0"
 
 [target.'cfg(not(target_family = "wasm"))'.dev-dependencies]
