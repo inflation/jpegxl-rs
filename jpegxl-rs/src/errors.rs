@@ -90,11 +90,13 @@ mod tests {
     #[test]
     #[cfg_attr(coverage_nightly, no_coverage)]
     fn decode_invalid_data() -> TestResult {
-        let sample = Vec::new();
-
         let decoder = crate::decoder_builder().build()?;
         assert!(matches!(
-            decoder.decode_with::<u8>(&sample),
+            decoder.decode_with::<u8>(&[]),
+            Err(DecodeError::InvalidInput)
+        ));
+        assert!(matches!(
+            decoder.decode_with::<u8>(&[0; 64]),
             Err(DecodeError::InvalidInput)
         ));
         assert!(matches!(

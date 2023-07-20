@@ -31,11 +31,16 @@ fn simple() -> TestResult {
 
 #[test]
 fn jpeg() -> TestResult {
+    let pr = ResizableRunner::default();
     let mut encoder = encoder_builder()
         .use_container(true)
         .uses_original_profile(true)
+        .parallel_runner(&pr)
         .build()?;
 
+    let _res = encoder.encode_jpeg(super::SAMPLE_JPEG)?;
+
+    encoder.parallel_runner = None;
     let _res = encoder.encode_jpeg(super::SAMPLE_JPEG)?;
 
     Ok(())
@@ -139,7 +144,6 @@ fn multi_frames() -> TestResult {
     let decoder = decoder_builder().build()?;
     let _res = decoder.decode(&result)?;
 
-    encoder.use_container = true;
     encoder.uses_original_profile = true;
     let result: EncoderResult<f32> = encoder
         .multiple(sample.width(), sample.height())?

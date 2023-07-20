@@ -146,7 +146,7 @@ impl<'data, T: PixelType> EncoderFrame<'data, T> {
 pub struct EncoderResult<U: PixelType> {
     /// Output binary data
     pub data: Vec<u8>,
-    _output_pixel_type: PhantomData<U>,
+    _pixel_type: PhantomData<U>,
 }
 
 impl<U: PixelType> Deref for EncoderResult<U> {
@@ -210,7 +210,8 @@ pub struct JxlEncoder<'prl, 'mm> {
     ///
     /// Minimum is 0 (highest quality), and maximum is 4 (lowest quality). Default is 0.
     pub decoding_speed: i64,
-    /// Set initial output buffer size in bytes
+    /// Set initial output buffer size in bytes.
+    /// Anything less than 32 bytes will be rounded up to 32 bytes.
     ///
     /// Default: 512 KiB
     pub init_buffer_size: usize,
@@ -250,6 +251,10 @@ impl<'prl, 'mm> JxlEncoderBuilder<'prl, 'mm> {
 
         let options_ptr = unsafe { JxlEncoderFrameSettingsCreate(enc, null()) };
 
+        let init_buffer_size =
+            self.init_buffer_size
+                .map_or(512 * 1024 * 1024, |v| if v < 32 { 32 } else { v });
+
         Ok(JxlEncoder {
             enc,
             options_ptr,
@@ -260,7 +265,7 @@ impl<'prl, 'mm> JxlEncoderBuilder<'prl, 'mm> {
             use_container: self.use_container.unwrap_or_default(),
             uses_original_profile: self.uses_original_profile.unwrap_or_default(),
             decoding_speed: self.decoding_speed.unwrap_or_default(),
-            init_buffer_size: self.init_buffer_size.unwrap_or(512 * 1024 * 1024),
+            init_buffer_size,
             color_encoding: self.color_encoding.unwrap_or(ColorEncoding::Srgb),
             parallel_runner: self.parallel_runner.flatten(),
             memory_manager: mm,
@@ -318,10 +323,11 @@ impl JxlEncoder<'_, '_> {
     }
 
     // Setup the encoder
-    fn setup_encoder<U: PixelType>(
+    fn setup_encoder(
         &self,
         width: u32,
         height: u32,
+        (bits, exp): (u32, u32),
         has_alpha: bool,
     ) -> Result<(), EncodeError> {
         if let Some(runner) = self.parallel_runner {
@@ -347,7 +353,6 @@ impl JxlEncoder<'_, '_> {
         basic_info.have_container = self.use_container.into();
         basic_info.uses_original_profile = self.uses_original_profile.into();
 
-        let (bits, exp) = U::bits_per_sample();
         basic_info.bits_per_sample = bits;
         basic_info.exponent_bits_per_sample = exp;
 
@@ -402,8 +407,7 @@ impl JxlEncoder<'_, '_> {
         })
     }
 
-    // Start encoding
-    fn start_encoding<U: PixelType>(&mut self) -> Result<EncoderResult<U>, EncodeError> {
+    fn _internal(&mut self) -> Result<Vec<u8>, EncodeError> {
         unsafe { JxlEncoderCloseInput(self.enc) };
 
         let mut buffer = vec![0; self.init_buffer_size];
@@ -419,15 +423,12 @@ impl JxlEncoder<'_, '_> {
             }
 
             unsafe {
-                let offset = next_out as usize - buffer.as_ptr() as usize;
-                let new_size = if buffer.is_empty() {
-                    1
-                } else {
-                    buffer.len() * 2
-                };
-                buffer.resize(new_size, 0);
-                next_out = (buffer.as_mut_ptr()).add(offset);
-                avail_out = buffer.len() - offset;
+                let offset = next_out.offset_from(buffer.as_ptr());
+                debug_assert!(offset >= 0);
+
+                buffer.resize(buffer.len() * 2, 0);
+                next_out = buffer.as_mut_ptr().offset(offset);
+                avail_out = buffer.len().wrapping_add_signed(-offset);
             }
         }
         buffer.truncate(next_out as usize - buffer.as_ptr() as usize);
@@ -437,9 +438,14 @@ impl JxlEncoder<'_, '_> {
         self.options_ptr = unsafe { JxlEncoderFrameSettingsCreate(self.enc, null()) };
 
         buffer.shrink_to_fit();
+        Ok(buffer)
+    }
+
+    // Start encoding
+    fn start_encoding<U: PixelType>(&mut self) -> Result<EncoderResult<U>, EncodeError> {
         Ok(EncoderResult {
-            data: buffer,
-            _output_pixel_type: PhantomData,
+            data: self._internal()?,
+            _pixel_type: PhantomData,
         })
     }
 }
@@ -469,7 +475,7 @@ impl<'prl, 'mm> JxlEncoder<'prl, 'mm> {
         width: u32,
         height: u32,
     ) -> Result<MultiFrames<'enc, 'prl, 'mm, U>, EncodeError> {
-        self.setup_encoder::<U>(width, height, self.has_alpha)?;
+        self.setup_encoder(width, height, U::bits_per_sample(), self.has_alpha)?;
         Ok(MultiFrames::<'enc, 'prl, '_, U>(self, PhantomData))
     }
 
@@ -513,7 +519,7 @@ impl<'prl, 'mm> JxlEncoder<'prl, 'mm> {
         width: u32,
         height: u32,
     ) -> Result<EncoderResult<U>, EncodeError> {
-        self.setup_encoder::<U>(width, height, self.has_alpha)?;
+        self.setup_encoder(width, height, U::bits_per_sample(), self.has_alpha)?;
         self.add_frame(&EncoderFrame::new(data))?;
         self.start_encoding::<U>()
     }
@@ -528,7 +534,7 @@ impl<'prl, 'mm> JxlEncoder<'prl, 'mm> {
         width: u32,
         height: u32,
     ) -> Result<EncoderResult<U>, EncodeError> {
-        self.setup_encoder::<U>(width, height, self.has_alpha)?;
+        self.setup_encoder(width, height, U::bits_per_sample(), self.has_alpha)?;
         self.add_frame(frame)?;
         self.start_encoding::<U>()
     }
