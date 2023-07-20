@@ -38,7 +38,10 @@ jobs:
             target/
           key: ${{ runner.os }}-cargo-test-${{ hashFiles('**/Cargo.lock') }}
       - name: Generate code coverage
-        run: cargo +nightly llvm-cov nextest --all-features --workspace --lcov --output-path lcov.info
+        run: cargo +nightly llvm-cov nextest
+          --all-features --workspace
+          --ignore-filename-regex jpegxl-sys/
+          --lcov --output-path lcov.info
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v3
         with:
