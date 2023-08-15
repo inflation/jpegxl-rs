@@ -5,3 +5,4 @@ Cargo.lock
 sweep.timestamp
 build/
 lcov.info
+.pijul

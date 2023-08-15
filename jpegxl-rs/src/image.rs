@@ -58,8 +58,9 @@ impl<'pr, 'mm> ToDynamic for JxlDecoder<'pr, 'mm> {
             data,
             None,
             false,
-            &mut None,
-            (pixel_format.as_mut_ptr(), &mut buffer),
+            None,
+            pixel_format.as_mut_ptr(),
+            &mut buffer,
         )?;
 
         let pixel_format = unsafe { pixel_format.assume_init() };
@@ -76,8 +77,9 @@ impl<'pr, 'mm> ToDynamic for JxlDecoder<'pr, 'mm> {
             data,
             Some(T::pixel_type()),
             false,
-            &mut None,
-            (pixel_format.as_mut_ptr(), &mut buffer),
+            None,
+            pixel_format.as_mut_ptr(),
+            &mut buffer,
         )?;
 
         let pixel_format = unsafe { pixel_format.assume_init() };

@@ -195,8 +195,9 @@ impl<'pr, 'mm> JxlDecoder<'pr, 'mm> {
         data: &[u8],
         data_type: Option<JxlDataType>,
         with_icc_profile: bool,
-        reconstruct_jpeg_buffer: &mut Option<&mut Vec<u8>>,
-        (format, pixels): (*mut JxlPixelFormat, &mut Vec<u8>),
+        mut reconstruct_jpeg_buffer: Option<&mut Vec<u8>>,
+        format: *mut JxlPixelFormat,
+        pixels: &mut Vec<u8>,
     ) -> Result<Metadata, DecodeError> {
         let Some(sig) = check_valid_signature(data) else {
             return Err(DecodeError::InvalidInput);
@@ -238,31 +239,31 @@ impl<'pr, 'mm> JxlDecoder<'pr, 'mm> {
 
                 // Get color encoding
                 ColorEncoding => {
-                    if let Some(icc) = icc.as_mut() {
-                        self.get_icc_profile(icc)?;
-                    }
+                    self.get_icc_profile(unsafe { icc.as_mut().unwrap_unchecked() })?;
                 }
 
                 // Get JPEG reconstruction buffer
                 JpegReconstruction => {
-                    if let Some(buf) = reconstruct_jpeg_buffer {
-                        buf.resize(self.init_jpeg_buffer, 0);
-                        check_dec_status(unsafe {
-                            JxlDecoderSetJPEGBuffer(self.dec, buf.as_mut_ptr(), buf.len())
-                        })?;
-                    }
+                    // Safety: JpegReconstruction is only called when reconstruct_jpeg_buffer
+                    // is not None
+                    let buf = unsafe { reconstruct_jpeg_buffer.as_mut().unwrap_unchecked() };
+                    buf.resize(self.init_jpeg_buffer, 0);
+                    check_dec_status(unsafe {
+                        JxlDecoderSetJPEGBuffer(self.dec, buf.as_mut_ptr(), buf.len())
+                    })?;
                 }
 
                 // JPEG buffer need more space
                 JpegNeedMoreOutput => {
-                    if let Some(buf) = reconstruct_jpeg_buffer {
-                        let need_to_write = unsafe { JxlDecoderReleaseJPEGBuffer(self.dec) };
+                    // Safety: JpegNeedMoreOutput is only called when reconstruct_jpeg_buffer
+                    // is not None
+                    let buf = unsafe { reconstruct_jpeg_buffer.as_mut().unwrap_unchecked() };
+                    let need_to_write = unsafe { JxlDecoderReleaseJPEGBuffer(self.dec) };
 
-                        buf.resize(buf.len() + need_to_write, 0);
-                        check_dec_status(unsafe {
-                            JxlDecoderSetJPEGBuffer(self.dec, buf.as_mut_ptr(), buf.len())
-                        })?;
-                    }
+                    buf.resize(buf.len() + need_to_write, 0);
+                    check_dec_status(unsafe {
+                        JxlDecoderSetJPEGBuffer(self.dec, buf.as_mut_ptr(), buf.len())
+                    })?;
                 }
 
                 // Get the output buffer
@@ -272,7 +273,7 @@ impl<'pr, 'mm> JxlDecoder<'pr, 'mm> {
 
                 FullImage => continue,
                 Success => {
-                    if let Some(&mut ref mut buf) = reconstruct_jpeg_buffer {
+                    if let Some(buf) = reconstruct_jpeg_buffer.as_mut() {
                         let remaining = unsafe { JxlDecoderReleaseJPEGBuffer(self.dec) };
 
                         buf.truncate(buf.len() - remaining);
@@ -386,7 +387,7 @@ impl<'pr, 'mm> JxlDecoder<'pr, 'mm> {
                 16 if info.exponent_bits_per_sample == 0 => JxlDataType::Uint16,
                 16 => JxlDataType::Float16,
                 32 => JxlDataType::Float,
-                _ => return Err(DecodeError::InvalidInput),
+                _ => unreachable!(),
             },
         };
 
@@ -427,8 +428,9 @@ impl<'pr, 'mm> JxlDecoder<'pr, 'mm> {
             data,
             None,
             self.icc_profile,
-            &mut None,
-            (pixel_format.as_mut_ptr(), &mut buffer),
+            None,
+            pixel_format.as_mut_ptr(),
+            &mut buffer,
         )?;
         Ok((
             metadata,
@@ -450,8 +452,9 @@ impl<'pr, 'mm> JxlDecoder<'pr, 'mm> {
             data,
             Some(T::pixel_type()),
             self.icc_profile,
-            &mut None,
-            (pixel_format.as_mut_ptr(), &mut buffer),
+            None,
+            pixel_format.as_mut_ptr(),
+            &mut buffer,
         )?;
 
         // Safety: type `T` is set by user and provide to the decoder to determine output data type
@@ -479,8 +482,9 @@ impl<'pr, 'mm> JxlDecoder<'pr, 'mm> {
             data,
             None,
             self.icc_profile,
-            &mut Some(&mut jpeg_buf),
-            (pixel_format.as_mut_ptr(), &mut buffer),
+            Some(&mut jpeg_buf),
+            pixel_format.as_mut_ptr(),
+            &mut buffer,
         )?;
 
         Ok((
