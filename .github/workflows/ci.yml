@@ -102,7 +102,7 @@ jobs:
             target/
           key: ${{ runner.os }}-cargo-clippy-${{ hashFiles('**/Cargo.lock') }}
       - name: Run Clippy with reviewdog
-        uses: giraffate/clippy-action@v1.0.0
+        uses: giraffate/clippy-action@v1.0.1
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           clippy_flags: --all-features --tests -- -D warnings
