@@ -1,0 +1,23 @@
+﻿# Basic set up for Cargo projects
+
+---
+version: 2
+updates:
+
+  # Maintain dependencies for GitHub Actions
+  - package-ecosystem: "github-actions"
+    directory: /
+    schedule:
+      interval: "weekly"
+    commit-message:
+      prefix: "️👷 "
+      include: scope
+
+  # Maintain dependencies for Cargo
+  - package-ecosystem: cargo
+    directory: /
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: "⬆️ "
+      include: scope
