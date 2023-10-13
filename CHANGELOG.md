@@ -1,5 +1,29 @@
 # Change log
 
+<a name="0.8.3"></a>
+## 0.8.3 (2023-10-13)
+
+### Added
+
+- ➕ Use lcms2 to validate ICC profiles
+
+### Changed
+
+- ⬆️ Upgrade lcms2
+- ♻️ Remove type parameter from internal function
+- ♻️ Refactor `PixelType`
+
+### Fixed
+
+- 🐛 Fix rare pixel type
+
+### Miscellaneous
+
+-  ️👷 (deps): Bump actions/checkout from 3 to 4
+-  👷 Add dependabot
+-  👷 Ignore `jpegxl-sys`` when doing code coverage
+
+
 <a name="0.8.2"></a>
 
 ## 0.8.2 (2023-06-14)
