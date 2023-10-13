@@ -34,6 +34,9 @@ pub enum DecodeError {
     /// Invalid input
     #[error("The input does not contain a valid codestream or container")]
     InvalidInput,
+    /// Unsupported Pixel bit width
+    #[error("Unsupported Pixel bit width: {0}")]
+    UnsupportedBitWidth(u32),
     /// Unknown status
     #[error("Unknown status: `{0:?}`")]
     UnknownStatus(JxlDecoderStatus),

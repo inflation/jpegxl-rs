@@ -42,7 +42,20 @@ fn simple() -> TestResult {
 
     assert_eq!(data.len(), (width * height * 4) as usize);
     // Check if icc profile is valid
-    lcms2::Profile::new_icc(&icc_profile.unwrap())?;
+    lcms2::Profile::new_icc(&icc_profile.expect("ICC profile not retrieved"))?;
+
+    Ok(())
+}
+
+#[test]
+fn sample_2bit() -> TestResult {
+    let decoder = decoder_builder().build()?;
+
+    let (Metadata { width, height, .. }, data) = decoder.decode(super::SAMPLE_JXL_2BIT)?;
+    let Pixels::Uint8(data) = data else {
+        return Err("Failed to decode".into());
+    };
+    assert_eq!(data.len(), (width * height * 3) as usize);
 
     Ok(())
 }

@@ -103,19 +103,19 @@ pub(crate) mod tests {
             ) -> *mut c_void {
                 let mm = &mut *opaque.cast::<BumpManager<{ N }>>();
 
-                let mut footer = mm.footer.load(Ordering::Acquire);
+                let footer = mm.footer.load(Ordering::Acquire);
                 let mut new = footer + size;
 
                 loop {
                     if new > N {
                         break null_mut();
-                    } else if mm
-                        .footer
-                        .compare_exchange_weak(footer, new, Ordering::AcqRel, Ordering::Relaxed)
-                        .is_err()
-                    {
-                        footer = mm.footer.load(Ordering::Acquire);
-                        new = footer + size;
+                    } else if let Err(s) = mm.footer.compare_exchange_weak(
+                        footer,
+                        new,
+                        Ordering::AcqRel,
+                        Ordering::Relaxed,
+                    ) {
+                        new = s + size;
                     } else {
                         let addr = mm.arena.get_unchecked_mut(footer);
                         break (addr as *mut u8).cast();

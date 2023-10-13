@@ -382,12 +382,12 @@ impl<'pr, 'mm> JxlDecoder<'pr, 'mm> {
     ) -> Result<(), DecodeError> {
         let data_type = match data_type {
             Some(v) => v,
-            None => match info.bits_per_sample {
-                8 => JxlDataType::Uint8,
-                16 if info.exponent_bits_per_sample == 0 => JxlDataType::Uint16,
-                16 => JxlDataType::Float16,
-                32 => JxlDataType::Float,
-                _ => unreachable!(),
+            None => match (info.bits_per_sample, info.exponent_bits_per_sample) {
+                (x, 0) if x <= 8 => JxlDataType::Uint8,
+                (x, 0) if x <= 16 => JxlDataType::Uint16,
+                (16, _) => JxlDataType::Float16,
+                (32, _) => JxlDataType::Float,
+                (x, _) => return Err(DecodeError::UnsupportedBitWidth(x)),
             },
         };
 
