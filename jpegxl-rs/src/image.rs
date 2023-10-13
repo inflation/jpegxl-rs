@@ -148,7 +148,7 @@ mod tests {
     use super::*;
 
     #[test]
-    #[cfg_attr(coverage_nightly, no_coverage)]
+    #[cfg_attr(coverage_nightly, coverage(off))]
     fn invalid() -> TestResult {
         let decoder = decoder_builder().build()?;
         assert!(decoder.decode_to_image(&[]).is_err());
@@ -157,7 +157,7 @@ mod tests {
     }
 
     #[test]
-    #[cfg_attr(coverage_nightly, no_coverage)]
+    #[cfg_attr(coverage_nightly, coverage(off))]
     fn simple() -> TestResult {
         let parallel_runner = ThreadsRunner::default();
         let decoder = decoder_builder()
@@ -174,7 +174,7 @@ mod tests {
     }
 
     #[test]
-    #[cfg_attr(coverage_nightly, no_coverage)]
+    #[cfg_attr(coverage_nightly, coverage(off))]
     fn pixel_type() -> TestResult {
         let parallel_runner = ThreadsRunner::default();
         let mut decoder = decoder_builder()

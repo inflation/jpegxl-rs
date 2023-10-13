@@ -94,7 +94,7 @@ mod tests {
     use super::*;
 
     #[test]
-    #[cfg_attr(coverage_nightly, no_coverage)]
+    #[cfg_attr(coverage_nightly, coverage(off))]
     fn test_construction() -> TestResult {
         let memory_manager = BumpManager::<{ 1024 * 5 }>::default();
         let parallel_runner = ResizableRunner::new(Some(&memory_manager));

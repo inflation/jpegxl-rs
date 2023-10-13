@@ -91,7 +91,7 @@ mod tests {
     use super::*;
 
     #[test]
-    #[cfg_attr(coverage_nightly, no_coverage)]
+    #[cfg_attr(coverage_nightly, coverage(off))]
     fn decode_invalid_data() -> TestResult {
         let decoder = crate::decoder_builder().build()?;
         assert!(matches!(
@@ -121,7 +121,7 @@ mod tests {
     }
 
     #[test]
-    #[cfg_attr(coverage_nightly, no_coverage)]
+    #[cfg_attr(coverage_nightly, coverage(off))]
     fn encode_invalid_data() -> TestResult {
         let mut encoder = crate::encoder_builder().has_alpha(true).build()?;
 

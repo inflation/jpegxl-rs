@@ -61,7 +61,7 @@ pub(crate) mod tests {
 
     impl MemoryManager for NoManager {
         fn alloc(&self) -> AllocFn {
-            #[cfg_attr(coverage_nightly, no_coverage)]
+            #[cfg_attr(coverage_nightly, coverage(off))]
             unsafe extern "C" fn alloc(_opaque: *mut c_void, _size: usize) -> *mut c_void {
                 null_mut()
             }
@@ -70,7 +70,7 @@ pub(crate) mod tests {
         }
 
         fn free(&self) -> FreeFn {
-            #[cfg_attr(coverage_nightly, no_coverage)]
+            #[cfg_attr(coverage_nightly, coverage(off))]
             unsafe extern "C" fn free(_opaque: *mut c_void, _address: *mut c_void) {
                 debug_assert!(false, "Should not be called");
             }
@@ -96,7 +96,7 @@ pub(crate) mod tests {
 
     impl<const N: usize> MemoryManager for BumpManager<N> {
         fn alloc(&self) -> AllocFn {
-            #[cfg_attr(coverage_nightly, no_coverage)]
+            #[cfg_attr(coverage_nightly, coverage(off))]
             unsafe extern "C" fn alloc<const N: usize>(
                 opaque: *mut c_void,
                 size: usize,
@@ -127,7 +127,7 @@ pub(crate) mod tests {
         }
 
         fn free(&self) -> FreeFn {
-            #[cfg_attr(coverage_nightly, no_coverage)]
+            #[cfg_attr(coverage_nightly, coverage(off))]
             unsafe extern "C" fn free(_opaque: *mut c_void, _address: *mut c_void) {}
 
             free

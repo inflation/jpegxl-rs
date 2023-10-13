@@ -134,7 +134,7 @@ along with jpegxl-rs.  If not, see <https://www.gnu.org/licenses/>.
 //! ```
 
 #![cfg_attr(docsrs, feature(doc_cfg))]
-#![cfg_attr(coverage_nightly, feature(no_coverage))]
+#![cfg_attr(coverage_nightly, feature(coverage_attribute))]
 
 #[macro_use]
 extern crate derive_builder;

@@ -276,7 +276,7 @@ impl<'prl, 'mm> JxlEncoderBuilder<'prl, 'mm> {
 // Private helper functions
 impl JxlEncoder<'_, '_> {
     /// Error mapping from underlying C const to [`EncodeError`] enum
-    #[cfg_attr(coverage_nightly, no_coverage)]
+    #[cfg_attr(coverage_nightly, coverage(off))]
     fn check_enc_status(&self, status: JxlEncoderStatus) -> Result<(), EncodeError> {
         match status {
             JxlEncoderStatus::Success => Ok(()),

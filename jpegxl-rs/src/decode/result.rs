@@ -85,7 +85,7 @@ mod tests {
     use super::*;
 
     #[test]
-    #[cfg_attr(coverage_nightly, no_coverage)]
+    #[cfg_attr(coverage_nightly, coverage(off))]
     fn test_derive() {
         println!(
             "{:?}",

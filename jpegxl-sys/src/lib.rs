@@ -17,7 +17,7 @@ along with jpegxl-sys.  If not, see <https://www.gnu.org/licenses/>.
 
 #![warn(clippy::pedantic)]
 #![allow(clippy::module_name_repetitions)]
-#![cfg_attr(coverage_nightly, feature(no_coverage))]
+#![cfg_attr(coverage_nightly, feature(coverage_attribute))]
 
 pub mod butteraugli;
 pub mod cms;
@@ -77,7 +77,7 @@ mod test {
     }
 
     #[test]
-    #[cfg_attr(coverage_nightly, no_coverage)]
+    #[cfg_attr(coverage_nightly, coverage(off))]
     fn test_bindings_version() {
         unsafe {
             assert_eq!(JxlDecoderVersion(), 8002);
@@ -85,7 +85,7 @@ mod test {
         }
     }
 
-    #[cfg_attr(coverage_nightly, no_coverage)]
+    #[cfg_attr(coverage_nightly, coverage(off))]
     unsafe fn decode(decoder: *mut JxlDecoder, sample: &[u8]) {
         use JxlDecoderStatus::{
             BasicInfo, Error, FullImage, NeedImageOutBuffer, NeedMoreInput, Success,
@@ -171,7 +171,7 @@ mod test {
     }
 
     #[test]
-    #[cfg_attr(coverage_nightly, no_coverage)]
+    #[cfg_attr(coverage_nightly, coverage(off))]
     fn test_bindings_decoding() {
         unsafe {
             let dec = JxlDecoderCreate(ptr::null()); // Default memory manager
@@ -186,7 +186,7 @@ mod test {
 
     #[test]
     #[cfg(feature = "threads")]
-    #[cfg_attr(coverage_nightly, no_coverage)]
+    #[cfg_attr(coverage_nightly, coverage(off))]
     fn test_bindings_thread_pool() {
         unsafe {
             let runner = JxlThreadParallelRunnerCreate(
@@ -210,7 +210,7 @@ mod test {
 
     #[test]
     #[cfg(feature = "threads")]
-    #[cfg_attr(coverage_nightly, no_coverage)]
+    #[cfg_attr(coverage_nightly, coverage(off))]
     fn test_bindings_resizable() {
         use JxlDecoderStatus::{
             BasicInfo, Error, FullImage, NeedImageOutBuffer, NeedMoreInput, Success,
@@ -321,7 +321,7 @@ mod test {
         }
     }
 
-    #[cfg_attr(coverage_nightly, no_coverage)]
+    #[cfg_attr(coverage_nightly, coverage(off))]
     fn encode(pixels: &[u8], x_size: u32, ysize: u32) -> Vec<u8> {
         unsafe {
             let enc = JxlEncoderCreate(std::ptr::null());
@@ -395,7 +395,7 @@ mod test {
     }
 
     #[test]
-    #[cfg_attr(coverage_nightly, no_coverage)]
+    #[cfg_attr(coverage_nightly, coverage(off))]
     fn test_bindings_encoding() {
         let img = image::load_from_memory_with_format(SAMPLE_PNG, image::ImageFormat::Png).unwrap();
         let image_buffer = img.into_rgb8();

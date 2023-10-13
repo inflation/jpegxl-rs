@@ -1,4 +1,4 @@
-#![cfg_attr(coverage_nightly, feature(no_coverage))]
+#![cfg_attr(coverage_nightly, feature(coverage_attribute))]
 
 use std::{
     env,
@@ -13,7 +13,7 @@ fn source_dir() -> PathBuf {
     )
 }
 
-#[cfg_attr(coverage_nightly, no_coverage)]
+#[cfg_attr(coverage_nightly, coverage(off))]
 pub fn build() {
     let source = source_dir();
 
@@ -70,7 +70,7 @@ mod tests {
     use super::*;
 
     #[test]
-    #[cfg_attr(coverage_nightly, no_coverage)]
+    #[cfg_attr(coverage_nightly, coverage(off))]
     fn test_source_dir() {
         let mut path = source_dir();
         assert!(path.is_dir());
