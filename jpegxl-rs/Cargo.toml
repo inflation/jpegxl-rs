@@ -12,6 +12,12 @@ version = "0.8.3+libjxl-0.8.2"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
+[lints.rust]
+missing_docs = "warn"
+
+[lints.clippy]
+pedantic = "warn"
+
 [features]
 default = ["image", "threads"]
 image = ["dep:image"]

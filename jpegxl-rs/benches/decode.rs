@@ -1,5 +1,8 @@
+#![allow(missing_docs)]
+#![allow(clippy::missing_panics_doc)]
+
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
-use jpegxl_rs::*;
+use jpegxl_rs::{decoder_builder, parallel, ResizableRunner};
 use parallel::threads_runner::ThreadsRunner;
 
 const SAMPLE: &[u8] = include_bytes!("../../samples/bench.jxl");
@@ -10,7 +13,7 @@ pub fn criterion_benchmark(c: &mut Criterion) {
 
     let decoder = decoder_builder().build().unwrap();
     group.bench_function("single thread", |b| {
-        b.iter_with_large_drop(|| decoder.decode_with::<u8>(black_box(SAMPLE)).unwrap())
+        b.iter_with_large_drop(|| decoder.decode_with::<u8>(black_box(SAMPLE)).unwrap());
     });
 
     let parallel_runner = ThreadsRunner::default();
@@ -19,7 +22,7 @@ pub fn criterion_benchmark(c: &mut Criterion) {
         .build()
         .unwrap();
     group.bench_function("thread pool using default number of threads", |b| {
-        b.iter_with_large_drop(|| decoder.decode_with::<u8>(black_box(SAMPLE)).unwrap())
+        b.iter_with_large_drop(|| decoder.decode_with::<u8>(black_box(SAMPLE)).unwrap());
     });
 
     let parallel_runner = ResizableRunner::default();
@@ -28,7 +31,7 @@ pub fn criterion_benchmark(c: &mut Criterion) {
         .build()
         .unwrap();
     group.bench_function("resizable thread pool", |b| {
-        b.iter_with_large_drop(|| decoder.decode_with::<u8>(black_box(SAMPLE)).unwrap())
+        b.iter_with_large_drop(|| decoder.decode_with::<u8>(black_box(SAMPLE)).unwrap());
     });
 
     group.finish();

@@ -219,15 +219,15 @@ impl<'pr, 'mm> JxlDecoder<'pr, 'mm> {
 
         let mut status;
         loop {
-            use JxlDecoderStatus::*;
+            use JxlDecoderStatus as s;
 
             status = unsafe { JxlDecoderProcessInput(self.dec) };
 
             match status {
-                NeedMoreInput | Error => return Err(DecodeError::GenericError),
+                s::NeedMoreInput | s::Error => return Err(DecodeError::GenericError),
 
                 // Get the basic info
-                BasicInfo => {
+                s::BasicInfo => {
                     check_dec_status(unsafe {
                         JxlDecoderGetBasicInfo(self.dec, basic_info.as_mut_ptr())
                     })?;
@@ -238,12 +238,12 @@ impl<'pr, 'mm> JxlDecoder<'pr, 'mm> {
                 }
 
                 // Get color encoding
-                ColorEncoding => {
+                s::ColorEncoding => {
                     self.get_icc_profile(unsafe { icc.as_mut().unwrap_unchecked() })?;
                 }
 
                 // Get JPEG reconstruction buffer
-                JpegReconstruction => {
+                s::JpegReconstruction => {
                     // Safety: JpegReconstruction is only called when reconstruct_jpeg_buffer
                     // is not None
                     let buf = unsafe { reconstruct_jpeg_buffer.as_mut().unwrap_unchecked() };
@@ -254,7 +254,7 @@ impl<'pr, 'mm> JxlDecoder<'pr, 'mm> {
                 }
 
                 // JPEG buffer need more space
-                JpegNeedMoreOutput => {
+                s::JpegNeedMoreOutput => {
                     // Safety: JpegNeedMoreOutput is only called when reconstruct_jpeg_buffer
                     // is not None
                     let buf = unsafe { reconstruct_jpeg_buffer.as_mut().unwrap_unchecked() };
@@ -267,12 +267,12 @@ impl<'pr, 'mm> JxlDecoder<'pr, 'mm> {
                 }
 
                 // Get the output buffer
-                NeedImageOutBuffer => {
+                s::NeedImageOutBuffer => {
                     self.output(unsafe { &*basic_info.as_ptr() }, data_type, format, pixels)?;
                 }
 
-                FullImage => continue,
-                Success => {
+                s::FullImage => continue,
+                s::Success => {
                     if let Some(buf) = reconstruct_jpeg_buffer.as_mut() {
                         let remaining = unsafe { JxlDecoderReleaseJPEGBuffer(self.dec) };
 
@@ -296,13 +296,13 @@ impl<'pr, 'mm> JxlDecoder<'pr, 'mm> {
                         icc_profile: icc,
                     });
                 }
-                NeedPreviewOutBuffer => todo!(),
-                BoxNeedMoreOutput => todo!(),
-                Extensions => todo!(),
-                PreviewImage => todo!(),
-                Frame => todo!(),
-                Box => todo!(),
-                FrameProgression => todo!(),
+                s::NeedPreviewOutBuffer => todo!(),
+                s::BoxNeedMoreOutput => todo!(),
+                s::Extensions => todo!(),
+                s::PreviewImage => todo!(),
+                s::Frame => todo!(),
+                s::Box => todo!(),
+                s::FrameProgression => todo!(),
             }
         }
     }

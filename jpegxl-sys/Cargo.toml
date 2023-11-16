@@ -13,6 +13,10 @@ version = "0.8.2+libjxl-0.8.2"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
+[lints.clippy]
+pedantic = "warn"
+module_name_repetitions = "allow"
+
 [package.metadata.docs.rs]
 features = ["docs"]
 

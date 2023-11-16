@@ -1,3 +1,6 @@
+#![allow(missing_docs)]
+#![allow(clippy::missing_panics_doc)]
+
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use jpegxl_rs::{encoder_builder, ResizableRunner, ThreadsRunner};
 
@@ -16,7 +19,7 @@ pub fn criterion_benchmark(c: &mut Criterion) {
             encoder
                 .encode::<_, u8>(black_box(sample.as_raw()), sample.width(), sample.height())
                 .unwrap()
-        })
+        });
     });
 
     let parallel_runner = ThreadsRunner::default();
@@ -29,7 +32,7 @@ pub fn criterion_benchmark(c: &mut Criterion) {
             encoder
                 .encode::<_, u8>(black_box(sample.as_raw()), sample.width(), sample.height())
                 .unwrap()
-        })
+        });
     });
 
     let parallel_runner = ResizableRunner::default();
@@ -42,7 +45,7 @@ pub fn criterion_benchmark(c: &mut Criterion) {
             encoder
                 .encode::<_, u8>(black_box(sample.as_raw()), sample.width(), sample.height())
                 .unwrap()
-        })
+        });
     });
 
     group.finish();

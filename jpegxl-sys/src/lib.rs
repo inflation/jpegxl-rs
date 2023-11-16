@@ -15,8 +15,6 @@ You should have received a copy of the GNU General Public License
 along with jpegxl-sys.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-#![warn(clippy::pedantic)]
-#![allow(clippy::module_name_repetitions)]
 #![cfg_attr(coverage_nightly, feature(coverage_attribute))]
 
 pub mod butteraugli;

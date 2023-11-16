@@ -15,11 +15,6 @@ You should have received a copy of the GNU General Public License
 along with jpegxl-rs.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-#![warn(missing_docs)]
-#![deny(clippy::all)]
-#![warn(clippy::pedantic)]
-#![allow(clippy::enum_glob_use)]
-
 //! [![Documentation](https://docs.rs/jpegxl-rs/badge.svg)](https://docs.rs/jpegxl-rs/)
 //! [![Crates.io](https://img.shields.io/crates/v/jpegxl-rs.svg)](https://crates.io/crates/jpegxl-rs)
 //! [![dependency status](https://deps.rs/repo/github/inflation/jpegxl-rs/status.svg)](https://deps.rs/repo/github/inflation/jpegxl-rs)
