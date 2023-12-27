@@ -15,24 +15,23 @@ You should have received a copy of the GNU General Public License
 along with jpegxl-sys.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-use std::ffi::c_void;
+use std::ffi::{c_char, c_void};
 
 use crate::{
-    cms::JxlCmsInterface, memory_manager::JxlMemoryManager, parallel_runner::JxlParallelRunner,
-    JxlBasicInfo, JxlBitDepth, JxlBlendInfo, JxlBool, JxlBoxType, JxlColorEncoding,
-    JxlExtraChannelInfo, JxlExtraChannelType, JxlFrameHeader, JxlPixelFormat,
+    cms::JxlCmsInterface,
+    codestream_header::{
+        JxlBasicInfo, JxlBlendInfo, JxlExtraChannelInfo, JxlExtraChannelType, JxlFrameHeader,
+    },
+    color_encoding::JxlColorEncoding,
+    memory_manager::JxlMemoryManager,
+    parallel_runner::JxlParallelRunner,
+    stats::JxlEncoderStats,
+    types::{JxlBitDepth, JxlBool, JxlBoxType, JxlPixelFormat},
 };
 
 // Opaque type
 #[repr(C)]
 pub struct JxlEncoder {
-    _unused: [u8; 0],
-}
-
-#[deprecated(since = "0.7.0", note = "Use `JxlEncoderFrameSettings` instead")]
-// Opaque type
-#[repr(C)]
-pub struct JxlEncoderOptions {
     _unused: [u8; 0],
 }
 
@@ -47,11 +46,6 @@ pub enum JxlEncoderStatus {
     Success = 0,
     Error = 1,
     NeedMoreOutput = 2,
-    #[deprecated(
-        since = "0.7.0",
-        note = "JxlEncoderStatus::Error is returned with JxlEncoderError::NotSupported instead"
-    )]
-    NotSupported = 3,
 }
 
 #[repr(C)]
@@ -103,10 +97,68 @@ pub enum FrameSetting {
     IndexBox = 31,
     BrotliEffort = 32,
     JpegCompressBoxes = 33,
+    Buffering = 34,
+    JpegKeepExif = 35,
+    JpegKeepXmp = 36,
+    JpegKeepJumbf = 37,
     FillEnum = 65535,
 }
 
-#[allow(deprecated)]
+#[repr(C)]
+#[derive(Debug, Clone)]
+pub struct JxlEncoderOutputProcessor {
+    opaque: *mut c_void,
+    get_buffer: extern "C" fn(opaque: *mut c_void, size: *mut usize) -> *mut c_void,
+    release_buffer: extern "C" fn(opaque: *mut c_void, written_bytes: usize),
+    seek: Option<extern "C" fn(opaque: *mut c_void, position: u64)>,
+    set_finalized_position: extern "C" fn(opaque: *mut c_void, finalized_position: u64),
+}
+
+/**
+ * This struct provides callback functions to pass pixel data in a streaming
+ * manner instead of requiring the entire frame data in memory at once.
+ */
+#[repr(C)]
+#[derive(Debug, Clone)]
+pub struct JxlChunkedFrameInputSource {
+    opaque: *mut c_void,
+
+    get_color_channels_pixel_format:
+        extern "C" fn(opaque: *mut c_void, pixel_format: *mut JxlPixelFormat),
+
+    get_color_channels_data: extern "C" fn(
+        opaque: *mut c_void,
+        xpos: usize,
+        ypos: usize,
+        xsize: usize,
+        ysize: usize,
+        row_offset: *mut usize,
+    ) -> *const c_void,
+
+    get_extra_channel_pixel_format:
+        extern "C" fn(opaque: *mut c_void, ec_index: usize, pixel_format: *mut JxlPixelFormat),
+
+    get_extra_channel_data_at: extern "C" fn(
+        opaque: *mut c_void,
+        ec_index: usize,
+        xpos: usize,
+        ypos: usize,
+        xsize: usize,
+        ysize: usize,
+        row_offset: *mut usize,
+    ) -> *const c_void,
+    release_buffer: extern "C" fn(opaque: *mut c_void, buf: *const c_void),
+}
+
+pub type JxlDebugImageCallback = extern "C" fn(
+    opaque: *mut c_void,
+    label: *const c_char,
+    xsize: usize,
+    ysize: usize,
+    color: *const JxlColorEncoding,
+    pixels: *const u16,
+);
+
 extern "C" {
     pub fn JxlEncoderVersion() -> u32;
 
@@ -166,6 +218,19 @@ extern "C" {
         size: usize,
     ) -> JxlEncoderStatus;
 
+    pub fn JxlEncoderSetOutputProcessor(
+        enc: *mut JxlEncoder,
+        output_processor: JxlEncoderOutputProcessor,
+    ) -> JxlEncoderStatus;
+
+    pub fn JxlEncoderFlushInput(enc: *mut JxlEncoder) -> JxlEncoderStatus;
+
+    pub fn JxlEncoderAddChunkedFrame(
+        frame_settings: *const JxlEncoderFrameSettings,
+        is_last_frame: JxlBool,
+        chunked_frame_input: JxlChunkedFrameInputSource,
+    ) -> JxlEncoderStatus;
+
     pub fn JxlEncoderSetExtraChannelBuffer(
         frame_settings: *const JxlEncoderFrameSettings,
         pixel_format: *const JxlPixelFormat,
@@ -210,6 +275,12 @@ extern "C" {
     pub fn JxlEncoderSetBasicInfo(
         enc: *mut JxlEncoder,
         info: *const JxlBasicInfo,
+    ) -> JxlEncoderStatus;
+
+    pub fn JxlEncoderSetUpsamplingMode(
+        enc: *mut JxlEncoder,
+        factor: i64,
+        mode: i64,
     ) -> JxlEncoderStatus;
 
     pub fn JxlEncoderInitExtraChannelInfo(
@@ -258,48 +329,20 @@ extern "C" {
         lossless: bool,
     ) -> JxlEncoderStatus;
 
-    #[deprecated(since = "0.7.0", note = "Use `JxlEncoderSetFrameLossless` instead")]
-    pub fn JxlEncoderOptionsSetLossless(
-        options: *mut JxlEncoderOptions,
-        lossless: bool,
-    ) -> JxlEncoderStatus;
-
-    #[deprecated(
-        since = "0.7.0",
-        note = "Use `JxlEncoderFrameSettingsSetOption(frame_settings, FrameSetting::Effort, effort)` instead."
-    )]
-    pub fn JxlEncoderOptionsSetEffort(
-        options: *mut JxlEncoderOptions,
-        effort: i32,
-    ) -> JxlEncoderStatus;
-
-    #[deprecated(
-        since = "0.7.0",
-        note = "Use `JxlEncoderFrameSettingsSetOption(frame_settings, FrameSetting::DecodingSpeed, effort)` instead."
-    )]
-    pub fn JxlEncoderOptionsSetDecodingSpeed(
-        options: *mut JxlEncoderOptions,
-        tier: i32,
-    ) -> JxlEncoderStatus;
-
     pub fn JxlEncoderSetFrameDistance(
         options: *mut JxlEncoderFrameSettings,
         distance: f32,
     ) -> JxlEncoderStatus;
 
-    #[deprecated(since = "0.7.0", note = "Use `JxlEncoderSetFrameDistance` instead")]
-    pub fn JxlEncoderOptionsSetDistance(
-        options: *mut JxlEncoderOptions,
+    pub fn JxlEncoderSetExtraChannelDistance(
+        frame_settings: *mut JxlEncoderFrameSettings,
+        index: usize,
         distance: f32,
     ) -> JxlEncoderStatus;
 
-    pub fn JxlEncoderFrameSettingsCreate(
-        enc: *mut JxlEncoder,
-        source: *const JxlEncoderFrameSettings,
-    ) -> *mut JxlEncoderFrameSettings;
+    pub fn JxlEncoderDistanceFromQuality(quality: f32) -> f32;
 
-    #[deprecated(since = "0.7.0", note = "Use `JxlEncoderFrameSettingsCreate` instead")]
-    pub fn JxlEncoderOptionsCreate(
+    pub fn JxlEncoderFrameSettingsCreate(
         enc: *mut JxlEncoder,
         source: *const JxlEncoderFrameSettings,
     ) -> *mut JxlEncoderFrameSettings;
@@ -309,4 +352,15 @@ extern "C" {
     pub fn JxlColorEncodingSetToLinearSRGB(color_encoding: *mut JxlColorEncoding, is_gray: bool);
 
     pub fn JxlEncoderAllowExpertOptions(enc: *mut JxlEncoder);
+
+    pub fn JxlEncoderSetDebugImageCallback(
+        frame_settings: *mut JxlEncoderFrameSettings,
+        callback: JxlDebugImageCallback,
+        opaque: *mut c_void,
+    );
+
+    pub fn JxlEncoderCollectStats(
+        frame_settings: *mut JxlEncoderFrameSettings,
+        stats: *mut JxlEncoderStats,
+    );
 }

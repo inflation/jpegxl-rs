@@ -17,9 +17,14 @@ along with jpegxl-rs.  If not, see <https://www.gnu.org/licenses/>.
 
 //! Encoder of JPEG XL format
 
-#[allow(clippy::wildcard_imports)]
-use jpegxl_sys::*;
 use std::{marker::PhantomData, mem::MaybeUninit, ops::Deref, ptr::null};
+
+#[allow(clippy::wildcard_imports)]
+use jpegxl_sys::{
+    color_encoding::JxlColorEncoding,
+    encode::*,
+    types::{JxlEndianness, JxlPixelFormat},
+};
 
 use crate::{
     common::PixelType, errors::EncodeError, memory::MemoryManager, parallel::JxlParallelRunner,
@@ -165,7 +170,7 @@ impl<U: PixelType> Deref for EncoderResult<U> {
 pub struct JxlEncoder<'prl, 'mm> {
     /// Opaque pointer to the underlying encoder
     #[builder(setter(skip))]
-    enc: *mut jpegxl_sys::JxlEncoder,
+    enc: *mut jpegxl_sys::encode::JxlEncoder,
     /// Opaque pointer to the encoder options
     #[builder(setter(skip))]
     options_ptr: *mut JxlEncoderFrameSettings,
@@ -289,8 +294,6 @@ impl JxlEncoder<'_, '_> {
                 JxlEncoderError::NotSupported => Err(EncodeError::NotSupported),
                 JxlEncoderError::ApiUsage => Err(EncodeError::ApiUsage),
             },
-            #[allow(deprecated)]
-            JxlEncoderStatus::NotSupported => Err(EncodeError::NotSupported),
             JxlEncoderStatus::NeedMoreOutput => Err(EncodeError::NeedMoreOutput),
         }
     }

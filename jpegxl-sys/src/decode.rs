@@ -21,10 +21,12 @@ use std::{
 };
 
 use crate::{
-    cms::JxlCmsInterface, memory_manager::JxlMemoryManager, parallel_runner::JxlParallelRunner,
-    JxlBasicInfo, JxlBitDepth, JxlBlendInfo, JxlBool, JxlBoxType, JxlColorEncoding,
-    JxlColorProfileTarget, JxlExtraChannelInfo, JxlFrameHeader, JxlPixelFormat,
-    JxlProgressiveDetail,
+    cms::JxlCmsInterface,
+    codestream_header::{JxlBasicInfo, JxlBlendInfo, JxlExtraChannelInfo, JxlFrameHeader},
+    color_encoding::JxlColorEncoding,
+    memory_manager::JxlMemoryManager,
+    parallel_runner::JxlParallelRunner,
+    types::{JxlBitDepth, JxlBool, JxlBoxType, JxlPixelFormat},
 };
 
 #[repr(C)]
@@ -53,7 +55,6 @@ pub enum JxlDecoderStatus {
     JpegNeedMoreOutput = 6,
     BoxNeedMoreOutput = 7,
     BasicInfo = 0x40,
-    Extensions = 0x80,
     ColorEncoding = 0x100,
     PreviewImage = 0x200,
     Frame = 0x400,
@@ -61,6 +62,25 @@ pub enum JxlDecoderStatus {
     JpegReconstruction = 0x2000,
     Box = 0x4000,
     FrameProgression = 0x8000,
+}
+
+#[repr(C)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum JxlProgressiveDetail {
+    Frames = 0,
+    DC = 1,
+    LastPasses = 2,
+    Passes = 3,
+    DCProgressive = 4,
+    DCGroups = 5,
+    Groups = 6,
+}
+
+#[repr(C)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum JxlColorProfileTarget {
+    Original = 0,
+    Data = 1,
 }
 
 pub type JxlImageOutCallback = extern "C" fn(
@@ -98,12 +118,6 @@ extern "C" {
     pub fn JxlDecoderSkipFrames(dec: *mut JxlDecoder, amount: usize);
 
     pub fn JxlDecoderSkipCurrentFrame(dec: *mut JxlDecoder) -> JxlDecoderStatus;
-
-    #[deprecated(since = "0.7.0")]
-    pub fn JxlDecoderDefaultPixelFormat(
-        dec: *const JxlDecoder,
-        format: *mut JxlPixelFormat,
-    ) -> JxlDecoderStatus;
 
     pub fn JxlDecoderSetParallelRunner(
         dec: *mut JxlDecoder,
@@ -167,21 +181,18 @@ extern "C" {
 
     pub fn JxlDecoderGetColorAsEncodedProfile(
         dec: *const JxlDecoder,
-        unused_format: *const JxlPixelFormat,
         target: JxlColorProfileTarget,
         color_encoding: *mut JxlColorEncoding,
     ) -> JxlDecoderStatus;
 
     pub fn JxlDecoderGetICCProfileSize(
         dec: *const JxlDecoder,
-        unused_format: *const JxlPixelFormat,
         target: JxlColorProfileTarget,
         size: *mut usize,
     ) -> JxlDecoderStatus;
 
     pub fn JxlDecoderGetColorAsICCProfile(
         dec: *const JxlDecoder,
-        unused_format: *const JxlPixelFormat,
         target: JxlColorProfileTarget,
         icc_profile: *mut u8,
         size: usize,
@@ -204,7 +215,7 @@ extern "C" {
         icc_size: usize,
     ) -> JxlDecoderStatus;
 
-    pub fn JxlDecoderSetCms(dec: *mut JxlDecoder, cms: JxlCmsInterface);
+    pub fn JxlDecoderSetCms(dec: *mut JxlDecoder, cms: JxlCmsInterface) -> JxlDecoderStatus;
 
     pub fn JxlDecoderPreviewOutBufferSize(
         dec: *const JxlDecoder,

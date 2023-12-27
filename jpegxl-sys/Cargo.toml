@@ -9,7 +9,7 @@ links = "jxl"
 name = "jpegxl-sys"
 readme = "README.md"
 repository = "https://github.com/inflation/jpegxl-rs"
-version = "0.8.2+libjxl-0.8.2"
+version = "0.9.0+libjxl-0.9.1"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -21,10 +21,10 @@ module_name_repetitions = "allow"
 features = ["docs"]
 
 [build-dependencies]
-pkg-config = "0.3.27"
+pkg-config = "0.3.28"
 
 [build-dependencies.jpegxl-src]
-version = "0.8.2"
+version = "0.9.0"
 path = "../jpegxl-src"
 optional = true
 

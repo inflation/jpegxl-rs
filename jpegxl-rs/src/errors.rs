@@ -17,9 +17,9 @@ along with jpegxl-rs.  If not, see <https://www.gnu.org/licenses/>.
 
 //! Decoder and encoder errors
 
-#[allow(clippy::wildcard_imports)]
-use jpegxl_sys::*;
 use thiserror::Error;
+
+use jpegxl_sys::{decode::JxlDecoderStatus, encode::JxlEncoderError};
 
 /// Errors derived from [`JxlDecoderStatus`]
 #[derive(Error, Debug)]

@@ -17,7 +17,7 @@ along with jpegxl-rs.  If not, see <https://www.gnu.org/licenses/>.
 
 //! Utils functions when a decoder or encoder is not needed
 
-use jpegxl_sys::{JxlSignature, JxlSignatureCheck};
+use jpegxl_sys::decode::{JxlSignature, JxlSignatureCheck};
 
 /// Check if the signature of the input is valid.
 /// Return `None` if it needs more data.

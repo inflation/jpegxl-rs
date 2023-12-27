@@ -1,4 +1,4 @@
-use crate::JxlBool;
+use crate::types::JxlBool;
 
 #[repr(C)]
 #[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]
