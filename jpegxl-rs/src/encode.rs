@@ -486,9 +486,6 @@ impl<'prl, 'mm> JxlEncoder<'prl, 'mm> {
     /// # Errors
     /// Return [`EncodeError`] if the internal encoder fails to encode
     pub fn encode_jpeg(&mut self, data: &[u8]) -> Result<EncoderResult<u8>, EncodeError> {
-        // If using container format, store JPEG reconstruction metadata
-        self.check_enc_status(unsafe { JxlEncoderStoreJPEGMetadata(self.enc, true) })?;
-
         if let Some(runner) = self.parallel_runner {
             unsafe {
                 self.check_enc_status(JxlEncoderSetParallelRunner(
@@ -501,7 +498,8 @@ impl<'prl, 'mm> JxlEncoder<'prl, 'mm> {
 
         self.set_options()?;
 
-        unsafe { JxlEncoderSetColorEncoding(self.enc, &self.color_encoding.into()) };
+        // If using container format, store JPEG reconstruction metadata
+        self.check_enc_status(unsafe { JxlEncoderStoreJPEGMetadata(self.enc, true) })?;
 
         self.add_jpeg_frame(data)?;
         self.start_encoding()
