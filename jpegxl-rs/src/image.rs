@@ -22,7 +22,7 @@ along with jpegxl-rs.  If not, see <https://www.gnu.org/licenses/>.
 use std::mem::MaybeUninit;
 
 use image::{DynamicImage, ImageBuffer};
-use jpegxl_sys::{JxlDataType, JxlPixelFormat};
+use jpegxl_sys::types::{JxlDataType, JxlPixelFormat};
 
 use crate::{
     common::PixelType,

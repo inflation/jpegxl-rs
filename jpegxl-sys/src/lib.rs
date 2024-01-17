@@ -17,16 +17,15 @@ along with jpegxl-sys.  If not, see <https://www.gnu.org/licenses/>.
 
 #![cfg_attr(coverage_nightly, feature(coverage_attribute))]
 
-pub mod butteraugli;
 pub mod cms;
 pub mod codestream_header;
-pub mod common;
-pub mod decoder;
-pub mod encoder;
+pub mod color_encoding;
+pub mod decode;
+pub mod encode;
 pub mod memory_manager;
 pub mod parallel_runner;
-
-pub use {codestream_header::*, common::*, decoder::*, encoder::*};
+pub mod stats;
+pub mod types;
 
 #[cfg(feature = "threads")]
 pub mod thread_parallel_runner;
@@ -36,10 +35,14 @@ pub mod resizable_parallel_runner;
 
 #[cfg(test)]
 mod test {
-    use super::*;
-    use crate::thread_parallel_runner::{
-        JxlThreadParallelRunner, JxlThreadParallelRunnerCreate,
-        JxlThreadParallelRunnerDefaultNumWorkerThreads, JxlThreadParallelRunnerDestroy,
+    use crate::{
+        decode::*,
+        encode::*,
+        thread_parallel_runner::{
+            JxlThreadParallelRunner, JxlThreadParallelRunnerCreate,
+            JxlThreadParallelRunnerDefaultNumWorkerThreads, JxlThreadParallelRunnerDestroy,
+        },
+        types::*,
     };
     use std::{mem::MaybeUninit, ptr};
 
@@ -78,8 +81,8 @@ mod test {
     #[cfg_attr(coverage_nightly, coverage(off))]
     fn test_bindings_version() {
         unsafe {
-            assert_eq!(JxlDecoderVersion(), 8002);
-            assert_eq!(JxlEncoderVersion(), 8002);
+            assert_eq!(JxlDecoderVersion(), 9001);
+            assert_eq!(JxlEncoderVersion(), 9001);
         }
     }
 

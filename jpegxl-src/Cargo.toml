@@ -6,7 +6,7 @@ license = "BSD-3-Clause"
 name = "jpegxl-src"
 readme = "README.md"
 repository = "https://github.com/inflation/jpegxl-rs"
-version = "0.8.2"
+version = "0.9.1"
 exclude = [
     "libjxl/third_party/libpng",
     "libjxl/third_party/sjpeg",
@@ -33,3 +33,5 @@ exclude = [
 
 [dependencies]
 cmake = "0.1.50"
+
+[features]

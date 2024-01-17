@@ -2,7 +2,6 @@
 
 use std::{
     env,
-    num::NonZeroUsize,
     path::{Path, PathBuf},
 };
 
@@ -17,15 +16,9 @@ fn source_dir() -> PathBuf {
 pub fn build() {
     let source = source_dir();
 
-    env::set_var(
-        "CMAKE_BUILD_PARALLEL_LEVEL",
-        format!(
-            "{}",
-            std::thread::available_parallelism()
-                .map(NonZeroUsize::get)
-                .unwrap_or(1)
-        ),
-    );
+    if let Ok(p) = std::thread::available_parallelism() {
+        env::set_var("CMAKE_BUILD_PARALLEL_LEVEL", format!("{}", p))
+    }
 
     let mut config = cmake::Config::new(source);
     config
@@ -41,23 +34,17 @@ pub fn build() {
         .define("JPEGXL_ENABLE_OPENEXR", "OFF");
 
     let mut prefix = config.build();
+    prefix.push("lib");
+    println!("cargo:rustc-link-search=native={}", prefix.display());
+
     println!("cargo:rustc-link-lib=static=jxl");
+    println!("cargo:rustc-link-lib=static=jxl_cms");
     println!("cargo:rustc-link-lib=static=jxl_threads");
 
     println!("cargo:rustc-link-lib=static=hwy");
-    prefix.push("lib");
-    println!("cargo:rustc-link-search=native={}", prefix.display());
-    prefix.pop();
-
-    prefix.push("build");
-    prefix.push("third_party");
-    println!("cargo:rustc-link-search=native={}", prefix.display());
-
-    println!("cargo:rustc-link-lib=static=brotlicommon-static");
-    println!("cargo:rustc-link-lib=static=brotlidec-static");
-    println!("cargo:rustc-link-lib=static=brotlienc-static");
-    prefix.push("brotli");
-    println!("cargo:rustc-link-search=native={}", prefix.display());
+    println!("cargo:rustc-link-lib=static=brotlicommon");
+    println!("cargo:rustc-link-lib=static=brotlidec");
+    println!("cargo:rustc-link-lib=static=brotlienc");
 
     #[cfg(any(target_os = "macos", target_os = "ios", target_os = "freebsd"))]
     println!("cargo:rustc-link-lib=c++");

@@ -19,10 +19,11 @@ along with jpegxl-rs.  If not, see <https://www.gnu.org/licenses/>.
 
 use byteorder::{ByteOrder, NativeEndian, BE, LE};
 use half::f16;
-use jpegxl_sys::{JxlDataType, JxlPixelFormat};
+
+use jpegxl_sys::types::{JxlDataType, JxlPixelFormat};
 
 /// Endianness of the pixels
-pub type Endianness = jpegxl_sys::JxlEndianness;
+pub type Endianness = jpegxl_sys::types::JxlEndianness;
 
 mod private {
     pub trait Sealed {}

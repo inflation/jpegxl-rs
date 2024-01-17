@@ -17,13 +17,25 @@ along with jpegxl-sys.  If not, see <https://www.gnu.org/licenses/>.
 
 use std::ffi::c_void;
 
-use crate::{JxlBool, JxlColorEncoding};
+use crate::{color_encoding::JxlColorEncoding, types::JxlBool};
+
+extern "C" {
+    pub fn JxlGetDefaultCms() -> *const JxlCmsInterface;
+}
+
+pub type JpegXlCmsSetFieldsFromIccFunc = extern "C" fn(
+    user_data: *mut c_void,
+    icc_data: *const u8,
+    icc_size: usize,
+    c: *mut JxlColorEncoding,
+    cmyk: *mut JxlBool,
+) -> JxlBool;
 
 #[repr(C)]
 #[derive(Debug, Clone)]
 pub struct JxlColorProfileIcc {
-    pub data: *const u8,
-    pub size: usize,
+    data: *const u8,
+    size: usize,
 }
 
 #[repr(C)]
@@ -58,6 +70,8 @@ pub type JpegXlCmsDestroyFun = extern "C" fn(user_data: *mut c_void);
 #[repr(C)]
 #[derive(Debug, Clone)]
 pub struct JxlCmsInterface {
+    pub set_fields_data: *mut c_void,
+    pub set_fields_from_icc: JpegXlCmsSetFieldsFromIccFunc,
     pub init_data: *mut c_void,
     pub init: JpegXlCmsInitFunc,
     pub get_src_buf: JpegXlCmsGetBufferFunc,

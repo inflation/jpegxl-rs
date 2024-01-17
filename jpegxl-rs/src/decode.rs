@@ -20,7 +20,11 @@ along with jpegxl-rs.  If not, see <https://www.gnu.org/licenses/>.
 use std::{mem::MaybeUninit, ptr::null};
 
 #[allow(clippy::wildcard_imports)]
-use jpegxl_sys::*;
+use jpegxl_sys::{
+    codestream_header::{JxlBasicInfo, JxlOrientation},
+    decode::*,
+    types::{JxlDataType, JxlPixelFormat},
+};
 
 use crate::{
     common::{Endianness, PixelType},
@@ -84,7 +88,7 @@ impl Default for PixelFormat {
 pub struct JxlDecoder<'pr, 'mm> {
     /// Opaque pointer to the underlying decoder
     #[builder(setter(skip))]
-    dec: *mut jpegxl_sys::JxlDecoder,
+    dec: *mut jpegxl_sys::decode::JxlDecoder,
 
     /// Override desired pixel format
     pub pixel_format: Option<PixelFormat>,
@@ -298,7 +302,6 @@ impl<'pr, 'mm> JxlDecoder<'pr, 'mm> {
                 }
                 s::NeedPreviewOutBuffer => todo!(),
                 s::BoxNeedMoreOutput => todo!(),
-                s::Extensions => todo!(),
                 s::PreviewImage => todo!(),
                 s::Frame => todo!(),
                 s::Box => todo!(),
@@ -351,19 +354,13 @@ impl<'pr, 'mm> JxlDecoder<'pr, 'mm> {
     fn get_icc_profile(&self, icc_profile: &mut Vec<u8>) -> Result<(), DecodeError> {
         let mut icc_size = 0;
         check_dec_status(unsafe {
-            JxlDecoderGetICCProfileSize(
-                self.dec,
-                null(),
-                JxlColorProfileTarget::Data,
-                &mut icc_size,
-            )
+            JxlDecoderGetICCProfileSize(self.dec, JxlColorProfileTarget::Data, &mut icc_size)
         })?;
         icc_profile.resize(icc_size, 0);
 
         check_dec_status(unsafe {
             JxlDecoderGetColorAsICCProfile(
                 self.dec,
-                null(),
                 JxlColorProfileTarget::Data,
                 icc_profile.as_mut_ptr(),
                 icc_size,
