@@ -16,6 +16,8 @@ exclude = [
     "libjxl/third_party/brotli/java",
     "libjxl/third_party/brotli/csharp",
     "libjxl/third_party/brotli/research",
+    "libjxl/third_party/brotli/js",
+    "libjxl/third_party/libjpeg-turbo",
     "libjxl/third_party/highway/g3doc",
     "libjxl/third_party/skcms/profiles",
     "libjxl/third_party/zlib/contrib",
@@ -27,6 +29,7 @@ exclude = [
     "libjxl/.github",
     "libjxl/debian",
     "libjxl/plugins",
+    "libjxl/tools",
 ]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
