@@ -135,9 +135,7 @@ fn to_image(
 
 #[cfg(test)]
 mod tests {
-    use half::f16;
-    use testresult::TestResult;
-
+    use super::*;
     use crate::{
         decode::PixelFormat,
         decoder_builder,
@@ -145,7 +143,9 @@ mod tests {
         ThreadsRunner,
     };
 
-    use super::*;
+    use half::f16;
+    use pretty_assertions::assert_eq;
+    use testresult::TestResult;
 
     #[test]
     #[cfg_attr(coverage_nightly, coverage(off))]

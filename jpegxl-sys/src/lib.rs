@@ -44,7 +44,10 @@ mod test {
         },
         types::*,
     };
+
     use std::{mem::MaybeUninit, ptr};
+
+    use pretty_assertions::assert_eq;
 
     const SAMPLE_PNG: &[u8] = include_bytes!("../../samples/sample.png");
     const SAMPLE_JXL: &[u8] = include_bytes!("../../samples/sample.jxl");
@@ -81,8 +84,8 @@ mod test {
     #[cfg_attr(coverage_nightly, coverage(off))]
     fn test_bindings_version() {
         unsafe {
-            assert_eq!(JxlDecoderVersion(), 9001);
-            assert_eq!(JxlEncoderVersion(), 9001);
+            assert_eq!(JxlDecoderVersion(), 9002);
+            assert_eq!(JxlEncoderVersion(), 9002);
         }
     }
 

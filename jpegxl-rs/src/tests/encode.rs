@@ -1,5 +1,6 @@
 use half::f16;
 use image::DynamicImage;
+use pretty_assertions::assert_eq;
 use testresult::TestResult;
 
 use crate::{
