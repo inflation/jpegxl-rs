@@ -92,6 +92,14 @@ impl From<ColorEncoding> for JxlColorEncoding {
     }
 }
 
+/// Encoding box types
+#[derive(Debug, Clone, Copy)]
+pub enum BoxTypes {
+    Exif,
+    Xmp,
+    Jumb,
+}
+
 /// A frame for the encoder, consisting of the pixels and its options
 pub struct EncoderFrame<'data, T: PixelType> {
     data: &'data [T],
@@ -387,6 +395,25 @@ impl JxlEncoder<'_, '_> {
         })
     }
 
+    // Add box
+    fn add_box(&self, box_contents: &[u8], box_type: BoxTypes) -> Result<(), EncodeError> {
+        let mut box_type = match box_type {
+            BoxTypes::Exif => [69, 120, 105, 102],
+            BoxTypes::Xmp  => [120, 109, 108, 32],
+            BoxTypes::Jumb => [106, 117, 109, 98],
+        };
+        self.check_enc_status(unsafe { JxlEncoderUseBoxes(self.enc) })?;
+        self.check_enc_status(unsafe {
+            JxlEncoderAddBox(
+                self.enc,
+                &mut box_type,
+                box_contents.as_ptr().cast(),
+                box_contents.len(),
+                false.into(),
+            )
+        })
+    }
+
     // Add a frame
     fn add_frame<T: PixelType>(&self, frame: &EncoderFrame<T>) -> Result<(), EncodeError> {
         self.check_enc_status(unsafe {
@@ -522,6 +549,26 @@ impl<'prl, 'mm> JxlEncoder<'prl, 'mm> {
     ) -> Result<EncoderResult<U>, EncodeError> {
         self.setup_encoder(width, height, U::bits_per_sample(), self.has_alpha)?;
         self.add_frame(&EncoderFrame::new(data))?;
+        self.start_encoding::<U>()
+    }
+
+    /// Encode a JPEG XL image from pixels with exif metadata
+    ///
+    /// Note: Use RGB(3) channels, native endianness and no alignment. Ignore alpha channel settings and remain box uncompressed
+    ///
+    /// # Errors
+    /// Return [`EncodeError`] if the internal encoder fails to encode
+    pub fn encode_with_box<T: PixelType, U: PixelType>(
+        &mut self,
+        data: &[T],
+        width: u32,
+        height: u32,
+        box_contents: &[u8],
+        box_types: BoxTypes,
+    ) -> Result<EncoderResult<U>, EncodeError> {
+        self.setup_encoder(width, height, U::bits_per_sample(), self.has_alpha)?;
+        self.add_frame(&EncoderFrame::new(data))?;
+        self.add_box(box_contents, box_types)?;
         self.start_encoding::<U>()
     }
 
