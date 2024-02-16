@@ -95,8 +95,11 @@ impl From<ColorEncoding> for JxlColorEncoding {
 /// Encoding box types
 #[derive(Debug, Clone, Copy)]
 pub enum BoxTypes {
+    // "Exif", a box with EXIF metadata
     Exif,
+    // "xml ", a box with XML data, in particular XMP metadata
     Xmp,
+    // "jumb", a JUMBF superbox, which can contain boxes with different types of metadata inside
     Jumb,
 }
 
