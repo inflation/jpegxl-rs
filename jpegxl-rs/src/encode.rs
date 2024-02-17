@@ -119,7 +119,7 @@ impl<'data> Metadata<'data> {
             exif: None,
             xmp: None,
             jumb: None,
-            compress: false
+            compress: false,
         }
     }
 
@@ -444,10 +444,15 @@ impl JxlEncoder<'_, '_> {
     }
 
     // Add box
-    fn add_box(&self, box_contents: &[u8], box_type: BoxTypes, compress: bool) -> Result<(), EncodeError> {
+    fn add_box(
+        &self,
+        box_contents: &[u8],
+        box_type: BoxTypes,
+        compress: bool,
+    ) -> Result<(), EncodeError> {
         let mut box_type = match box_type {
             BoxTypes::Exif => [69, 120, 105, 102],
-            BoxTypes::Xmp  => [120, 109, 108, 32],
+            BoxTypes::Xmp => [120, 109, 108, 32],
             BoxTypes::Jumb => [106, 117, 109, 98],
         };
         self.check_enc_status(unsafe {
@@ -462,7 +467,7 @@ impl JxlEncoder<'_, '_> {
     }
 
     // Add metadata
-    fn add_metadata(&self, metadata: Metadata) -> Result<(), EncodeError>  {
+    fn add_metadata(&self, metadata: Metadata) -> Result<(), EncodeError> {
         self.check_enc_status(unsafe { JxlEncoderUseBoxes(self.enc) })?;
         let compress = metadata.compress;
         if let Some(data) = metadata.exif {
