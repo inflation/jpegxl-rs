@@ -27,7 +27,7 @@ docs = ["jpegxl-sys/docs"]
 bench = []
 
 [dependencies]
-derive_builder = "0.13.0"
+derive_builder = "0.20.0"
 image = { version = "0.24.8", optional = true, default-features = false }
 thiserror = "1.0.56"
 half = "2.3.1"
