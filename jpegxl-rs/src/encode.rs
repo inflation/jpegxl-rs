@@ -654,6 +654,23 @@ impl<'prl, 'mm> JxlEncoder<'prl, 'mm> {
         self.add_frame(frame)?;
         self.start_encoding::<U>()
     }
+
+    /// Encode a JPEG XL image from a frame with metadata. See [`EncoderFrame`] for custom options of the original pixels.
+    ///
+    /// # Errors
+    /// Return [`EncodeError`] if the internal encoder fails to encode
+    pub fn encode_frame_with_metadata<T: PixelType, U: PixelType>(
+        &mut self,
+        frame: &EncoderFrame<T>,
+        width: u32,
+        height: u32,
+        metadata: Metadata,
+    ) -> Result<EncoderResult<U>, EncodeError> {
+        self.setup_encoder(width, height, U::bits_per_sample(), self.has_alpha)?;
+        self.add_frame(frame)?;
+        self.add_metadata(metadata)?;
+        self.start_encoding::<U>()
+    }
 }
 
 impl Drop for JxlEncoder<'_, '_> {
