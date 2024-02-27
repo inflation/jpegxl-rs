@@ -101,6 +101,7 @@ pub enum FrameSetting {
     JpegKeepExif = 35,
     JpegKeepXmp = 36,
     JpegKeepJumbf = 37,
+    UseFullImageHeuristics = 38,
     FillEnum = 65535,
 }
 

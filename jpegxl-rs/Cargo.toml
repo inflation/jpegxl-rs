@@ -8,7 +8,7 @@ license = "GPL-3.0-or-later"
 name = "jpegxl-rs"
 readme = "README.md"
 repository = "https://github.com/inflation/jpegxl-rs"
-version = "0.9.1+libjxl-0.9.2"
+version = "0.10.0+libjxl-0.10.0"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -30,11 +30,11 @@ bench = []
 derive_builder = "0.20.0"
 image = { version = "0.24.8", optional = true, default-features = false }
 thiserror = "1.0.56"
-half = "2.3.1"
+half = "2.4.0"
 byteorder = "1.5.0"
 
 [dependencies.jpegxl-sys]
-version = "0.9.1"
+version = "0.10.0"
 path = "../jpegxl-sys"
 
 [dev-dependencies]
@@ -42,7 +42,7 @@ image = { version = "0.24.8", default-features = false, features = [
     "jpeg",
     "png",
 ] }
-lcms2 = "6.0.4"
+lcms2 = "6.1.0"
 pretty_assertions.workspace = true
 testresult = "0.3.0"
 

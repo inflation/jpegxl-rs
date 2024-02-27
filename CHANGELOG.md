@@ -5,20 +5,17 @@
 
 ### Changed
 
-- ⬆️ Upgrade libjxl v0.9.0 ([#32](https://github.com/inflation/jpegxl-rs/issues/32)) [[0fd2388](https://github.com/inflation/jpegxl-rs/commit/0fd238801acf9409329426b38730d31bd69026b2)]
-- ⬆️ Upgrade libjxl v0.9.0 [[f4498b1](https://github.com/inflation/jpegxl-rs/commit/f4498b178534512888492fa66fa353383d0ea674)]
-- ♻️ Add back derived traits for &#x60;JxlBitDepth&#x60; [[a72176a](https://github.com/inflation/jpegxl-rs/commit/a72176ae03eb47ed957b5e4f19d8fa7e1c093a8d)]
-- ♻️ Use [lints] in Cargo.toml [[ff1bc74](https://github.com/inflation/jpegxl-rs/commit/ff1bc74e513e23179d444d11ebe3f536c120a06d)]
+- ⬆️ Upgrade libjxl v0.9.0
+- ♻️ Add back derived traits for `JxlBitDepth`
 
 ### Fixed
 
-- 💚 Update coverage attribute [[59a7cf1](https://github.com/inflation/jpegxl-rs/commit/59a7cf17b18deba5cded4712f1655c21c5cce618)]
+- 💚 Update coverage attribute
 
 ### Miscellaneous
 
-- 🔀 : Bump actions/cache from 3 to 4 ([#33](https://github.com/inflation/jpegxl-rs/issues/33)) [[c609f18](https://github.com/inflation/jpegxl-rs/commit/c609f18d54b9c7f4899839a35a42cf65e366cda6)]
--  ️👷 (deps): Bump actions/cache from 3 to 4 [[eff742e](https://github.com/inflation/jpegxl-rs/commit/eff742e21f5df614074725dd5db2d93b7126d27e)]
-- ⚰️ Remove unused color encoding setup when encoding JPEG [[8d285be](https://github.com/inflation/jpegxl-rs/commit/8d285be2260a24c7fdf2c2da50cd665c7342e1eb)]
+- 👷 (deps): Bump actions/cache from 3 to 4
+- ⚰️ Remove unused color encoding setup when encoding JPEG
 
 
 <a name="0.8.3"></a>
