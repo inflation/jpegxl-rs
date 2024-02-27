@@ -1,5 +1,16 @@
 # Change log
 
+<a name="0.10.0"></a>
+## 0.10.0 (2024-02-27)
+
+### Changed
+
+- ⬆️ Upgrade `libjxl` to v0.10.0
+
+### Miscellaneous
+
+- 👷 (deps): Bump codecov/codecov-action from 3 to 4
+
 <a name="0.9.0"></a>
 ## 0.9.0 (2024-01-27)
 
@@ -16,7 +27,6 @@
 
 - 👷 (deps): Bump actions/cache from 3 to 4
 - ⚰️ Remove unused color encoding setup when encoding JPEG
-
 
 <a name="0.8.3"></a>
 ## 0.8.3 (2023-10-13)

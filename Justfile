@@ -1,8 +1,8 @@
 default: test doc 
 
 test:
-    cargo nextest run -F vendored
-    cargo test --doc -F vendored
+    cargo nextest run --all-features
+    cargo test --doc --all-features
 
 doc:
     cargo readme -r jpegxl-rs > README.md
@@ -14,5 +14,5 @@ release: test doc
 
 publish:
     cargo publish -p jpegxl-src
-    cargo publish -p jpegxl-sys -F vendored
-    cargo publish -p jpegxl-rs -F vendored
+    cargo publish -p jpegxl-sys --all-features
+    cargo publish -p jpegxl-rs --all-features

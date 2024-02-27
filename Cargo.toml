@@ -1,6 +1,3 @@
 [workspace]
 members = ["jpegxl-src", "jpegxl-sys", "jpegxl-rs"]
 resolver = "2"
-
-[workspace.dependencies]
-pretty_assertions = "1.4.0"

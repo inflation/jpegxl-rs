@@ -31,7 +31,8 @@ pub fn build() {
         .define("JPEGXL_ENABLE_EXAMPLES", "OFF")
         .define("JPEGXL_ENABLE_JNI", "OFF")
         .define("JPEGXL_ENABLE_SJPEG", "OFF")
-        .define("JPEGXL_ENABLE_OPENEXR", "OFF");
+        .define("JPEGXL_ENABLE_OPENEXR", "OFF")
+        .define("JPEGXL_ENABLE_JPEGLI", "OFF");
 
     let mut prefix = config.build();
     prefix.push("lib");
