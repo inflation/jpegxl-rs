@@ -32,7 +32,8 @@ pub fn build() {
         .define("JPEGXL_ENABLE_JNI", "OFF")
         .define("JPEGXL_ENABLE_SJPEG", "OFF")
         .define("JPEGXL_ENABLE_OPENEXR", "OFF")
-        .define("JPEGXL_ENABLE_JPEGLI", "OFF");
+        .define("JPEGXL_ENABLE_JPEGLI", "OFF")
+        .define("CMAKE_INSTALL_LIBDIR", "lib");
 
     let mut prefix = config.build();
     prefix.push("lib");
