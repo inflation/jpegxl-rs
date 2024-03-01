@@ -318,7 +318,9 @@ extern "C" {
         decompressed: JxlBool,
     ) -> JxlDecoderStatus;
 
-    pub fn JxlDecoderGetBoxSizeRaw(dec: *mut JxlDecoder, size: *mut usize) -> JxlDecoderStatus;
+    pub fn JxlDecoderGetBoxSizeRaw(dec: *mut JxlDecoder, size: *mut u64) -> JxlDecoderStatus;
+
+    pub fn JxlDecoderGetBoxSizeContents(dec: *mut JxlDecoder, size: *mut u64) -> JxlDecoderStatus;
 
     pub fn JxlDecoderSetProgressiveDetail(
         dec: *mut JxlDecoder,
