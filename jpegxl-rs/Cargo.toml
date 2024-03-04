@@ -42,7 +42,7 @@ image = { version = "0.24.8", default-features = false, features = [
     "jpeg",
     "png",
 ] }
-lcms2 = "=6.0.4"
+lcms2 = "=6.1.0"
 pretty_assertions = "1.4.0"
 testresult = "0.3.0"
 
