@@ -29,7 +29,7 @@ path = "../jpegxl-src"
 optional = true
 
 [dev-dependencies]
-image = { version = "0.24.8", default-features = false, features = ["png"] }
+image = { version = "0.25.0", default-features = false, features = ["png"] }
 pretty_assertions = "1.4.0"
 
 [features]
