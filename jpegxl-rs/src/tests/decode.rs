@@ -1,3 +1,5 @@
+use std::io::Cursor;
+
 use half::f16;
 use image::ImageDecoder;
 use pretty_assertions::assert_eq;
@@ -96,7 +98,7 @@ fn jpeg() -> TestResult {
         return Err("Failed to reconstruct".into());
     };
 
-    let jpeg = image::codecs::jpeg::JpegDecoder::new(data.as_slice())?;
+    let jpeg = image::codecs::jpeg::JpegDecoder::new(Cursor::new(data.as_slice()))?;
     let mut v = vec![0; jpeg.total_bytes().try_into().unwrap()];
     jpeg.read_image(&mut v)?;
 
