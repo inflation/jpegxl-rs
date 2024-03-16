@@ -1,5 +1,14 @@
 # Change log
 
+<a name="0.10.1"></a>
+## 0.10.1 (2024-03-16)
+
+### Changed
+
+- ⬆️ (deps): Update image requirement from 0.24.8 to 0.25.0
+- ⬆️ (deps): Update lcms2 requirement from 6.0.4 to 6.1.0
+- ⬆️ Upgrade `libjxl` to v0.10.2
+
 <a name="0.10.0"></a>
 ## 0.10.0 (2024-02-27)
 
