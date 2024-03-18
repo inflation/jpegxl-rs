@@ -49,7 +49,12 @@ pub fn build() {
 
     #[cfg(any(target_os = "macos", target_os = "ios", target_os = "freebsd"))]
     println!("cargo:rustc-link-lib=c++");
-    #[cfg(not(any(target_os = "macos", target_os = "ios", target_os = "freebsd")))]
+    #[cfg(not(any(
+        target_os = "macos",
+        target_os = "ios",
+        target_os = "freebsd",
+        target_env = "msvc"
+    )))]
     println!("cargo:rustc-link-lib=stdc++");
 }
 
