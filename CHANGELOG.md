@@ -1,5 +1,17 @@
 # Change log
 
+<a name="0.10.2"></a>
+## 0.10.2 (2024-03-21)
+
+### Fixed
+
+- 🐛 Fix build using windows msvc [[48bc68a](https://github.com/inflation/jpegxl-rs/commit/48bc68aa3aa2f1f463c89a2e3f61d12d3f169e29)]
+
+### Miscellaneous
+
+-  👷 Add branch coverage [[e6e717b](https://github.com/inflation/jpegxl-rs/commit/e6e717b45e5d2dd662cf69a6bc4a9dfcc3f542db)]
+
+
 <a name="0.10.1"></a>
 ## 0.10.1 (2024-03-16)
 
