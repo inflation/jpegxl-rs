@@ -92,6 +92,62 @@ impl From<ColorEncoding> for JxlColorEncoding {
     }
 }
 
+/// BoxTypes
+#[derive(Debug, Clone, Copy)]
+enum BoxTypes {
+    /// "Exif", a box with EXIF metadata
+    Exif,
+    /// "xml ", a box with XML data, in particular XMP metadata
+    Xmp,
+    /// "jumb", a JUMBF superbox, which can contain boxes with different types of metadata inside
+    Jumb,
+}
+
+/// Metadata
+#[derive(Debug, Clone, Copy)]
+pub struct Metadata<'data> {
+    exif: Option<&'data [u8]>,
+    xmp: Option<&'data [u8]>,
+    jumb: Option<&'data [u8]>,
+    compress: bool,
+}
+
+impl<'data> Metadata<'data> {
+    /// Create a default empty metadata.
+    pub fn new() -> Self {
+        Self {
+            exif: None,
+            xmp: None,
+            jumb: None,
+            compress: false,
+        }
+    }
+
+    /// Add exif data
+    pub fn exif(mut self, data: &'data [u8]) -> Self {
+        self.exif = Some(data);
+        self
+    }
+
+    /// Add xmp data
+    pub fn xmp(mut self, data: &'data [u8]) -> Self {
+        self.xmp = Some(data);
+        self
+    }
+
+    /// Add jumb data
+    pub fn jumb(mut self, data: &'data [u8]) -> Self {
+        self.jumb = Some(data);
+        self
+    }
+
+    /// Set metadata compression
+    pub fn compress(mut self, compress: bool) -> Self {
+        self.compress = compress;
+        self
+    }
+}
+
 /// A frame for the encoder, consisting of the pixels and its options
 pub struct EncoderFrame<'data, T: PixelType> {
     data: &'data [T],
@@ -387,6 +443,46 @@ impl JxlEncoder<'_, '_> {
         })
     }
 
+    // Add box
+    fn add_box(
+        &self,
+        box_contents: &[u8],
+        box_type: BoxTypes,
+        compress: bool,
+    ) -> Result<(), EncodeError> {
+        let mut box_type = match box_type {
+            BoxTypes::Exif => [69, 120, 105, 102],
+            BoxTypes::Xmp => [120, 109, 108, 32],
+            BoxTypes::Jumb => [106, 117, 109, 98],
+        };
+        self.check_enc_status(unsafe {
+            JxlEncoderAddBox(
+                self.enc,
+                &mut box_type,
+                box_contents.as_ptr().cast(),
+                box_contents.len(),
+                compress.into(),
+            )
+        })
+    }
+
+    // Add metadata
+    fn add_metadata(&self, metadata: Metadata) -> Result<(), EncodeError> {
+        self.check_enc_status(unsafe { JxlEncoderUseBoxes(self.enc) })?;
+        let compress = metadata.compress;
+        if let Some(data) = metadata.exif {
+            self.add_box(data, BoxTypes::Exif, compress)?;
+        };
+        if let Some(data) = metadata.xmp {
+            self.add_box(data, BoxTypes::Xmp, compress)?;
+        };
+        if let Some(data) = metadata.jumb {
+            self.add_box(data, BoxTypes::Jumb, compress)?;
+        };
+        unsafe { JxlEncoderCloseBoxes(self.enc) };
+        Ok(())
+    }
+
     // Add a frame
     fn add_frame<T: PixelType>(&self, frame: &EncoderFrame<T>) -> Result<(), EncodeError> {
         self.check_enc_status(unsafe {
@@ -525,6 +621,25 @@ impl<'prl, 'mm> JxlEncoder<'prl, 'mm> {
         self.start_encoding::<U>()
     }
 
+    /// Encode a JPEG XL image from pixels with metadata
+    ///
+    /// Note: Use RGB(3) channels, native endianness and no alignment. Ignore alpha channel settings and remain box uncompressed
+    ///
+    /// # Errors
+    /// Return [`EncodeError`] if the internal encoder fails to encode
+    pub fn encode_with_metadata<T: PixelType, U: PixelType>(
+        &mut self,
+        data: &[T],
+        width: u32,
+        height: u32,
+        metadata: Metadata,
+    ) -> Result<EncoderResult<U>, EncodeError> {
+        self.setup_encoder(width, height, U::bits_per_sample(), self.has_alpha)?;
+        self.add_frame(&EncoderFrame::new(data))?;
+        self.add_metadata(metadata)?;
+        self.start_encoding::<U>()
+    }
+
     /// Encode a JPEG XL image from a frame. See [`EncoderFrame`] for custom options of the original pixels.
     ///
     /// # Errors
@@ -537,6 +652,23 @@ impl<'prl, 'mm> JxlEncoder<'prl, 'mm> {
     ) -> Result<EncoderResult<U>, EncodeError> {
         self.setup_encoder(width, height, U::bits_per_sample(), self.has_alpha)?;
         self.add_frame(frame)?;
+        self.start_encoding::<U>()
+    }
+
+    /// Encode a JPEG XL image from a frame with metadata. See [`EncoderFrame`] for custom options of the original pixels.
+    ///
+    /// # Errors
+    /// Return [`EncodeError`] if the internal encoder fails to encode
+    pub fn encode_frame_with_metadata<T: PixelType, U: PixelType>(
+        &mut self,
+        frame: &EncoderFrame<T>,
+        width: u32,
+        height: u32,
+        metadata: Metadata,
+    ) -> Result<EncoderResult<U>, EncodeError> {
+        self.setup_encoder(width, height, U::bits_per_sample(), self.has_alpha)?;
+        self.add_frame(frame)?;
+        self.add_metadata(metadata)?;
         self.start_encoding::<U>()
     }
 }
