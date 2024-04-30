@@ -30,6 +30,8 @@ use crate::{
     common::PixelType, errors::EncodeError, memory::MemoryManager, parallel::JxlParallelRunner,
 };
 
+// MARK: Utility types
+
 /// Encoding speed
 #[derive(Debug, Clone, Copy)]
 pub enum EncoderSpeed {
@@ -162,6 +164,8 @@ impl<U: PixelType> Deref for EncoderResult<U> {
     }
 }
 
+// MARK: Encoder
+
 /// JPEG XL Encoder
 #[derive(Builder)]
 #[builder(build_fn(skip, error = "None"))]
@@ -278,7 +282,7 @@ impl<'prl, 'mm> JxlEncoderBuilder<'prl, 'mm> {
     }
 }
 
-// Private helper functions
+// MARK: Private helper functions
 impl JxlEncoder<'_, '_> {
     /// Error mapping from underlying C const to [`EncodeError`] enum
     #[cfg_attr(coverage_nightly, coverage(off))]
@@ -453,7 +457,7 @@ impl JxlEncoder<'_, '_> {
     }
 }
 
-// Public interface
+// MARK: Public interface
 impl<'prl, 'mm> JxlEncoder<'prl, 'mm> {
     /// Set a specific encoder frame setting
     ///
@@ -584,6 +588,7 @@ pub fn encoder_builder<'prl, 'mm>() -> JxlEncoderBuilder<'prl, 'mm> {
     JxlEncoderBuilder::default()
 }
 
+// MARK: Tests
 #[cfg(test)]
 mod tests {
     use super::*;
