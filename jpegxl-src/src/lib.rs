@@ -17,11 +17,12 @@ pub fn build() {
     let source = source_dir();
 
     if let Ok(p) = std::thread::available_parallelism() {
-        env::set_var("CMAKE_BUILD_PARALLEL_LEVEL", format!("{}", p))
+        env::set_var("CMAKE_BUILD_PARALLEL_LEVEL", format!("{p}"));
     }
 
     let mut config = cmake::Config::new(source);
     config
+        .define("CMAKE_INSTALL_LIBDIR", "lib")
         .define("BUILD_SHARED_LIBS", "OFF")
         .define("BUILD_TESTING", "OFF")
         .define("JPEGXL_ENABLE_TOOLS", "OFF")
@@ -33,6 +34,12 @@ pub fn build() {
         .define("JPEGXL_ENABLE_SJPEG", "OFF")
         .define("JPEGXL_ENABLE_OPENEXR", "OFF")
         .define("JPEGXL_ENABLE_JPEGLI", "OFF");
+
+    #[cfg(target_os = "windows")]
+    config
+        .generator("Visual Studio 17 2022")
+        .generator_toolset("ClangCL")
+        .define("CMAKE_MSVC_RUNTIME_LIBRARY", "MultiThreadedDLL");
 
     let mut prefix = config.build();
     prefix.push("lib");
