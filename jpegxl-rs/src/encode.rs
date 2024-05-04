@@ -20,134 +20,22 @@ along with jpegxl-rs.  If not, see <https://www.gnu.org/licenses/>.
 use std::{marker::PhantomData, mem::MaybeUninit, ops::Deref, ptr::null};
 
 #[allow(clippy::wildcard_imports)]
-use jpegxl_sys::{
-    color_encoding::JxlColorEncoding,
-    encode::*,
-    types::{JxlEndianness, JxlPixelFormat},
-};
+use jpegxl_sys::encode::*;
 
 use crate::{
     common::PixelType, errors::EncodeError, memory::MemoryManager, parallel::JxlParallelRunner,
 };
 
+mod options;
+pub use options::*;
+
+mod metadata;
+pub use metadata::*;
+
+mod frame;
+pub use frame::*;
+
 // MARK: Utility types
-
-/// Encoding speed
-#[derive(Debug, Clone, Copy)]
-pub enum EncoderSpeed {
-    /// Fastest, 1
-    Lightning = 1,
-    /// 2
-    Thunder = 2,
-    /// 3
-    Falcon = 3,
-    /// 4
-    Cheetah,
-    /// 5
-    Hare,
-    /// 6
-    Wombat,
-    /// 7, default
-    Squirrel,
-    /// 8
-    Kitten,
-    /// Slowest, 9
-    Tortoise,
-}
-
-impl std::default::Default for EncoderSpeed {
-    fn default() -> Self {
-        Self::Squirrel
-    }
-}
-
-/// Encoding color profile
-#[derive(Debug, Clone, Copy)]
-pub enum ColorEncoding {
-    /// SRGB, default for uint pixel types
-    Srgb,
-    /// Linear SRGB, default for float pixel types
-    LinearSrgb,
-    /// SRGB, images with only luma channel
-    SrgbLuma,
-    /// Linear SRGB with only luma channel
-    LinearSrgbLuma,
-}
-
-impl From<ColorEncoding> for JxlColorEncoding {
-    fn from(val: ColorEncoding) -> Self {
-        use ColorEncoding::{LinearSrgb, LinearSrgbLuma, Srgb, SrgbLuma};
-
-        let mut color_encoding = MaybeUninit::uninit();
-
-        unsafe {
-            match val {
-                Srgb => JxlColorEncodingSetToSRGB(color_encoding.as_mut_ptr(), false),
-                LinearSrgb => JxlColorEncodingSetToLinearSRGB(color_encoding.as_mut_ptr(), false),
-                SrgbLuma => JxlColorEncodingSetToSRGB(color_encoding.as_mut_ptr(), true),
-                LinearSrgbLuma => {
-                    JxlColorEncodingSetToLinearSRGB(color_encoding.as_mut_ptr(), true);
-                }
-            }
-            color_encoding.assume_init()
-        }
-    }
-}
-
-/// A frame for the encoder, consisting of the pixels and its options
-pub struct EncoderFrame<'data, T: PixelType> {
-    data: &'data [T],
-    num_channels: Option<u32>,
-    endianness: Option<JxlEndianness>,
-    align: Option<usize>,
-}
-
-impl<'data, T: PixelType> EncoderFrame<'data, T> {
-    /// Create a default frame from the data.
-    ///
-    /// Use RGB(3) channels, native endianness and no alignment.
-    pub fn new(data: &'data [T]) -> Self {
-        Self {
-            data,
-            num_channels: None,
-            endianness: None,
-            align: None,
-        }
-    }
-
-    /// Set the number of channels of the source.
-    ///
-    /// _Note_: If you want to use alpha channel, add here
-    #[must_use]
-    pub fn num_channels(mut self, value: u32) -> Self {
-        self.num_channels = Some(value);
-        self
-    }
-
-    /// Set the endianness of the source.
-    #[must_use]
-    pub fn endianness(mut self, value: JxlEndianness) -> Self {
-        self.endianness = Some(value);
-        self
-    }
-
-    /// Set the align of the source.
-    /// Align scanlines to a multiple of align bytes, or 0 to require no alignment at all
-    #[must_use]
-    pub fn align(mut self, value: usize) -> Self {
-        self.align = Some(value);
-        self
-    }
-
-    fn pixel_format(&self) -> JxlPixelFormat {
-        JxlPixelFormat {
-            num_channels: self.num_channels.unwrap_or(3),
-            data_type: T::pixel_type(),
-            endianness: self.endianness.unwrap_or(JxlEndianness::Native),
-            align: self.align.unwrap_or(0),
-        }
-    }
-}
 
 /// Encoder result
 pub struct EncoderResult<U: PixelType> {
@@ -490,7 +378,29 @@ impl<'prl, 'mm> JxlEncoder<'prl, 'mm> {
         height: u32,
     ) -> Result<MultiFrames<'enc, 'prl, 'mm, U>, EncodeError> {
         self.setup_encoder(width, height, U::bits_per_sample(), self.has_alpha)?;
-        Ok(MultiFrames::<'enc, 'prl, '_, U>(self, PhantomData))
+        Ok(MultiFrames::<'enc, 'prl, 'mm, U>(self, PhantomData))
+    }
+
+    /// Add a metadata box to the encoder
+    ///
+    /// # Errors
+    /// Return [`EncodeError`] if it fails to add metadata
+    pub fn add_metadata(&mut self, metadata: &Metadata, compress: bool) -> Result<(), EncodeError> {
+        let (&t, &data) = match metadata {
+            Metadata::Exif(data) => (b"Exif", data),
+            Metadata::Xmp(data) => (b"xml ", data),
+            Metadata::Jumb(data) => (b"jumb", data),
+            Metadata::Custom(t, data) => (t, data),
+        };
+        self.check_enc_status(unsafe {
+            JxlEncoderAddBox(
+                self.enc,
+                Metadata::box_type(t),
+                data.as_ptr().cast(),
+                data.len(),
+                compress.into(),
+            )
+        })
     }
 
     /// Encode a JPEG XL image from existing raw JPEG data
@@ -521,7 +431,8 @@ impl<'prl, 'mm> JxlEncoder<'prl, 'mm> {
 
     /// Encode a JPEG XL image from pixels
     ///
-    /// Note: Use RGB(3) channels, native endianness and no alignment. Ignore alpha channel settings
+    /// Note: Use RGB(3) channels, native endianness and no alignment.
+    /// Ignore alpha channel settings
     ///
     /// # Errors
     /// Return [`EncodeError`] if the internal encoder fails to encode
@@ -536,7 +447,8 @@ impl<'prl, 'mm> JxlEncoder<'prl, 'mm> {
         self.start_encoding::<U>()
     }
 
-    /// Encode a JPEG XL image from a frame. See [`EncoderFrame`] for custom options of the original pixels.
+    /// Encode a JPEG XL image from a frame.
+    /// See [`EncoderFrame`] for custom options of the original pixels.
     ///
     /// # Errors
     /// Return [`EncodeError`] if the internal encoder fails to encode
@@ -555,37 +467,6 @@ impl<'prl, 'mm> JxlEncoder<'prl, 'mm> {
 impl Drop for JxlEncoder<'_, '_> {
     fn drop(&mut self) {
         unsafe { JxlEncoderDestroy(self.enc) };
-    }
-}
-
-/// A wrapper type for encoding multiple frames
-pub struct MultiFrames<'enc, 'prl, 'mm, U>(&'enc mut JxlEncoder<'prl, 'mm>, PhantomData<U>)
-where
-    'prl: 'enc,
-    'mm: 'enc;
-
-impl<U: PixelType> MultiFrames<'_, '_, '_, U> {
-    /// Add a frame to the encoder
-    /// # Errors
-    /// Return [`EncodeError`] if the internal encoder fails to add a frame
-    pub fn add_frame<T: PixelType>(self, frame: &EncoderFrame<T>) -> Result<Self, EncodeError> {
-        self.0.add_frame(frame)?;
-        Ok(self)
-    }
-
-    /// Add a JPEG raw frame to the encoder
-    /// # Errors
-    /// Return [`EncodeError`] if the internal encoder fails to add a jpeg frame
-    pub fn add_jpeg_frame(self, data: &[u8]) -> Result<Self, EncodeError> {
-        self.0.add_jpeg_frame(data)?;
-        Ok(self)
-    }
-
-    /// Encode a JPEG XL image from the frames
-    /// # Errors
-    /// Return [`EncodeError`] if the internal encoder fails to encode
-    pub fn encode(self) -> Result<EncoderResult<U>, EncodeError> {
-        self.0.start_encoding()
     }
 }
 

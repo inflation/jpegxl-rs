@@ -76,4 +76,5 @@ pub struct JxlBitDepth {
     exponent_bits_per_sample: u32,
 }
 
-pub type JxlBoxType = [c_char; 4];
+#[repr(transparent)]
+pub struct JxlBoxType(pub [c_char; 4]);

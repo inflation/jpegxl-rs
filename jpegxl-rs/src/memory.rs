@@ -39,7 +39,7 @@ pub trait MemoryManager {
     #[must_use]
     fn manager(&self) -> JxlMemoryManager {
         JxlMemoryManager {
-            opaque: (self as *const Self).cast_mut().cast(),
+            opaque: std::ptr::from_ref::<Self>(self).cast_mut().cast(),
             alloc: self.alloc(),
             free: self.free(),
         }
@@ -118,7 +118,7 @@ pub(crate) mod tests {
                         new = s + size;
                     } else {
                         let addr = mm.arena.get_unchecked_mut(footer);
-                        break (addr as *mut u8).cast();
+                        break std::ptr::from_mut::<u8>(addr).cast();
                     }
                 }
             }
