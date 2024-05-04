@@ -38,8 +38,9 @@ pub trait MemoryManager {
     /// Helper conversion function for C API
     #[must_use]
     fn manager(&self) -> JxlMemoryManager {
+        #[allow(clippy::ref_as_ptr)]
         JxlMemoryManager {
-            opaque: std::ptr::from_ref::<Self>(self).cast_mut().cast(),
+            opaque: (self as *const Self).cast_mut().cast(),
             alloc: self.alloc(),
             free: self.free(),
         }
@@ -118,7 +119,8 @@ pub(crate) mod tests {
                         new = s + size;
                     } else {
                         let addr = mm.arena.get_unchecked_mut(footer);
-                        break std::ptr::from_mut::<u8>(addr).cast();
+                        #[allow(clippy::ref_as_ptr)]
+                        break (addr as *mut u8).cast();
                     }
                 }
             }
