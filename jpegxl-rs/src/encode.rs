@@ -280,6 +280,13 @@ impl<'prl, 'mm> JxlEncoderBuilder<'prl, 'mm> {
             memory_manager: mm,
         })
     }
+
+    /// Set the `quality` parameter from a JPEG-style quality factor (0-100, higher is better
+    /// quality).
+    pub fn set_jpeg_quality(&mut self, quality: f32) {
+        // SAFETY: the C API has no safety requirements.
+        self.quality(unsafe { JxlEncoderDistanceFromQuality(quality) });
+    }
 }
 
 // MARK: Private helper functions
