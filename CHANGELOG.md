@@ -1,5 +1,18 @@
 # Change log
 
+<a name="0.10.3"></a>
+## 0.10.3 (2024-05-04)
+
+### Added
+
+- ✨ Add metadata when encoding [[15f4afb](https://github.com/inflation/jpegxl-rs/commit/15f4afbd23bfecb6256996e04a5ba97220315f5a)]
+- ✨ Use `JxlEncoderDistanceFromQuality` in the encoder builder. [[1fe7130](https://github.com/inflation/jpegxl-rs/commit/1fe7130ed8a9d78bcca142e996f70b4f2409123e)]
+
+### Miscellaneous
+
+- 👷 Add windows CI ([#46](https://github.com/inflation/jpegxl-rs/issues/46)) [[1fe2fa0](https://github.com/inflation/jpegxl-rs/commit/1fe2fa05c50ef88959f99525e170739b1b3badb0)]
+
+
 <a name="0.10.2"></a>
 ## 0.10.2 (2024-03-21)
 

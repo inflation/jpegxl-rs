@@ -10,7 +10,14 @@ doc:
 release: test doc 
     cd jpegxl-rs && gitmoji-changelog --preset cargo --output ../CHANGELOG.md
     git commit -am "🔖 v$(cargo metadata --format-version=1 | \
-        jaq -r '.packages[] | select(.name | contains("jpegxl-rs")) | .version')"
+        jaq -r '.packages[] | select(.name | contains("jpegxl-rs")) | .version')
+
+
+jpegxl-sys v$(cargo metadata --format-version=1 | \
+    jaq -r '.packages[] | select(.name | contains("jpegxl-sys")) | .version')\
+
+jpegxl-src v$(cargo metadata --format-version=1 | \
+    jaq -r '.packages[] | select(.name | contains("jpegxl-src")) | .version')"
 
 publish:
     cargo publish -p jpegxl-src
