@@ -23,7 +23,6 @@ use jpegxl_sys::{decode::JxlDecoderStatus, encode::JxlEncoderError};
 
 /// Errors derived from [`JxlDecoderStatus`]
 #[derive(Error, Debug)]
-#[non_exhaustive]
 pub enum DecodeError {
     /// Cannot create a decoder
     #[error("Cannot create a decoder")]
@@ -42,9 +41,9 @@ pub enum DecodeError {
     UnknownStatus(JxlDecoderStatus),
 }
 
-/// Errors derived from [`JxlEncoderStatus`]
+/// Errors derived from [`JxlEncoderStatus`][jpegxl_sys::encode::JxlEncoderStatus]
+/// and [`JxlEncoderError`]
 #[derive(Error, Debug)]
-#[non_exhaustive]
 pub enum EncodeError {
     /// Cannot create an encoder
     #[error("Cannot create an encoder")]
