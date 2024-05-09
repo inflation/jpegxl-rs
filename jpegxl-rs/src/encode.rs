@@ -123,6 +123,9 @@ pub struct JxlEncoder<'prl, 'mm> {
     /// Default: `None`, indicating single thread execution
     pub parallel_runner: Option<&'prl dyn JxlParallelRunner>,
 
+    /// Whether box is used in encoder
+    use_box: bool,
+
     /// Set memory manager
     #[allow(dead_code)]
     memory_manager: Option<&'mm dyn MemoryManager>,
@@ -165,6 +168,7 @@ impl<'prl, 'mm> JxlEncoderBuilder<'prl, 'mm> {
             init_buffer_size,
             color_encoding: self.color_encoding.unwrap_or(ColorEncoding::Srgb),
             parallel_runner: self.parallel_runner.flatten(),
+            use_box: self.use_box.unwrap_or_default(),
             memory_manager: mm,
         })
     }
@@ -392,10 +396,14 @@ impl<'prl, 'mm> JxlEncoder<'prl, 'mm> {
             Metadata::Jumb(data) => (b"jumb", data),
             Metadata::Custom(t, data) => (t, data),
         };
+        if !self.use_box {
+            self.check_enc_status(unsafe { JxlEncoderUseBoxes(self.enc) })?;
+            self.use_box = true;
+        }
         self.check_enc_status(unsafe {
             JxlEncoderAddBox(
                 self.enc,
-                Metadata::box_type(t),
+                &mut Metadata::box_type(t),
                 data.as_ptr().cast(),
                 data.len(),
                 compress.into(),
