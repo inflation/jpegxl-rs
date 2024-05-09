@@ -242,7 +242,7 @@ extern "C" {
 
     pub fn JxlEncoderAddBox(
         enc: *mut JxlEncoder,
-        box_type: JxlBoxType,
+        box_type: *const JxlBoxType,
         contents: *const u8,
         size: usize,
         compress_box: JxlBool,

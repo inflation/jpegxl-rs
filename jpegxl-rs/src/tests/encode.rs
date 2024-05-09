@@ -23,7 +23,7 @@ use testresult::TestResult;
 use crate::decode::Data;
 use crate::{
     decoder_builder,
-    encode::{ColorEncoding, EncoderFrame, EncoderResult},
+    encode::{ColorEncoding, EncoderFrame, EncoderResult, Metadata},
     encoder_builder, Endianness,
 };
 #[cfg(feature = "threads")]
@@ -62,6 +62,19 @@ fn jpeg() -> TestResult {
     };
 
     assert_eq!(super::SAMPLE_JPEG, reconstructed);
+
+    Ok(())
+}
+
+#[test]
+fn metadata() -> TestResult {
+    let sample = get_sample().to_rgb8();
+    let mut encoder = encoder_builder().build()?;
+    encoder.add_metadata(&Metadata::Exif(super::SAMPLE_EXIF), true)?;
+    encoder.add_metadata(&Metadata::Xmp(super::SAMPLE_XMP), true)?;
+
+    let _res: EncoderResult<u8> =
+        encoder.encode(sample.as_raw(), sample.width(), sample.height())?;
 
     Ok(())
 }
