@@ -54,6 +54,7 @@ fn metadata() -> TestResult {
     let exif = Reader::new().read_raw(super::SAMPLE_EXIF.to_vec())?;
     let mut encoder = encoder_builder().build()?;
     encoder.add_metadata(&Metadata::Exif(exif.buf()), true)?;
+
     let _res: EncoderResult<u8> =
         encoder.encode(sample.as_raw(), sample.width(), sample.height())?;
 
