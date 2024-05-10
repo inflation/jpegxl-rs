@@ -1,3 +1,4 @@
+use exif::Reader;
 use half::f16;
 use image::DynamicImage;
 use pretty_assertions::assert_eq;
@@ -5,7 +6,7 @@ use testresult::TestResult;
 
 use crate::{
     decoder_builder,
-    encode::{ColorEncoding, EncoderFrame, EncoderResult},
+    encode::{ColorEncoding, EncoderFrame, EncoderResult, Metadata},
     encoder_builder, Endianness,
 };
 #[cfg(feature = "threads")]
@@ -43,6 +44,18 @@ fn jpeg() -> TestResult {
 
     encoder.parallel_runner = None;
     let _res = encoder.encode_jpeg(super::SAMPLE_JPEG)?;
+
+    Ok(())
+}
+
+#[test]
+fn metadata() -> TestResult {
+    let sample = get_sample().to_rgb8();
+    let exif = Reader::new().read_raw(super::SAMPLE_EXIF.to_vec())?;
+    let mut encoder = encoder_builder().build()?;
+    encoder.add_metadata(&Metadata::Exif(exif.buf()), true)?;
+    let _res: EncoderResult<u8> =
+        encoder.encode(sample.as_raw(), sample.width(), sample.height())?;
 
     Ok(())
 }
