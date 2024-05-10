@@ -503,7 +503,6 @@ mod tests {
     }
 
     #[test]
-    #[allow(clippy::clone_on_copy)]
     fn test_usebox() -> TestResult {
         let mut encoder = encoder_builder().build().unwrap();
         encoder.add_metadata(&Metadata::Exif(&[0, 1, 2, 3]), true).unwrap();

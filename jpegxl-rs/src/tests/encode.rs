@@ -1,4 +1,3 @@
-use exif::Reader;
 use half::f16;
 use image::DynamicImage;
 use pretty_assertions::assert_eq;
@@ -51,9 +50,8 @@ fn jpeg() -> TestResult {
 #[test]
 fn metadata() -> TestResult {
     let sample = get_sample().to_rgb8();
-    let exif = Reader::new().read_raw(super::SAMPLE_EXIF.to_vec())?;
     let mut encoder = encoder_builder().build()?;
-    encoder.add_metadata(&Metadata::Exif(exif.buf()), true)?;
+    encoder.add_metadata(&Metadata::Exif(super::SAMPLE_EXIF), true)?;
 
     let _res: EncoderResult<u8> =
         encoder.encode(sample.as_raw(), sample.width(), sample.height())?;

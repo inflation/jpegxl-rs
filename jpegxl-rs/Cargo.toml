@@ -42,7 +42,6 @@ image = { version = "0.25.0", default-features = false, features = [
     "jpeg",
     "png",
 ] }
-kamadak-exif = "0.5.5"
 lcms2 = "6.1.0"
 pretty_assertions = "1.4.0"
 testresult = "0.4.0"
