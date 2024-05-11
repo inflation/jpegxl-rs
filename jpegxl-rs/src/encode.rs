@@ -504,10 +504,10 @@ mod tests {
 
     #[test]
     fn test_usebox() -> TestResult {
-        let mut encoder = encoder_builder().build().unwrap();
-        encoder.add_metadata(&Metadata::Exif(&[0, 1, 2, 3]), true).unwrap();
+        let mut encoder = encoder_builder().build()?;
+        let metadata = Metadata::Exif(&[0, 1, 2, 3]);
+        encoder.add_metadata(&metadata, true)?;
         assert!(encoder.use_box);
         Ok(())
     }
-
 }
