@@ -35,7 +35,7 @@ mod private {
 }
 
 /// Pixel data type.
-/// Currently `u8`, `u16`, `f16` and `f32` are supported.
+/// `u8`, `u16`, `f16` and `f32` are supported.
 pub trait PixelType: private::Sealed + Sized {
     /// Return the C const
     fn pixel_type() -> JxlDataType;

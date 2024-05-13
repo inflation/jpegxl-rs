@@ -57,17 +57,16 @@ pub struct PixelFormat {
     /// # Default
     /// 0, which means determined automatically from color channels and alpha bits
     pub num_channels: u32,
-    /// Whether multi-byte data types are represented in big endian or little
+    /// Whether multibyte data types are represented in big endian or little
     /// endian format. This applies to `u16`, `f16`, and `f32`.
     ///
     /// # Default
     /// [`Endianness::Native`]
     pub endianness: Endianness,
-    /// Align scanlines to a multiple of align bytes. _Currently not supported_
+    /// Align scanlines to a multiple of align bytes.
     ///
     /// # Default
     /// 0, which means requiring no alignment (which has the same effect as value 1)
-    // TODO: support custom scanlines alignment
     pub align: usize,
 }
 
@@ -397,7 +396,7 @@ impl<'pr, 'mm> JxlDecoder<'pr, 'mm> {
             },
             data_type,
             endianness: f.endianness,
-            align: 0, // TODO: support align
+            align: f.align,
         };
 
         let mut size = 0;
