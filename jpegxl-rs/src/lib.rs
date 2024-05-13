@@ -117,6 +117,7 @@ along with jpegxl-rs.  If not, see <https://www.gnu.org/licenses/>.
 //! The integration is enabled by default. If you don't need it, disable `image` feature.
 //!
 //! ```
+//! # || -> Result<(), Box<dyn std::error::Error>> {
 //! use jpegxl_rs::image::ToDynamic;
 //! use jpegxl_rs::decoder_builder;
 //! use image::DynamicImage;
@@ -125,7 +126,7 @@ along with jpegxl-rs.  If not, see <https://www.gnu.org/licenses/>.
 //! let mut decoder = decoder_builder().build()?;
 //! let img = decoder.decode_to_image(&sample)?;       
 //! let img = decoder.decode_to_image_with::<f32>(&sample)?;       
-//! # Ok::<(), Box<dyn std::error::Error>>(())
+//! # Ok(()) };
 //! ```
 
 #![cfg_attr(docsrs, feature(doc_cfg))]
