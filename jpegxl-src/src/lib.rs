@@ -22,9 +22,8 @@ pub fn build() {
 
     let mut config = cmake::Config::new(source);
     config
-        .define("CMAKE_INSTALL_LIBDIR", "lib")
-        .define("BUILD_SHARED_LIBS", "OFF")
         .define("BUILD_TESTING", "OFF")
+        .define("JPEGXL_STATIC", "ON")
         .define("JPEGXL_ENABLE_TOOLS", "OFF")
         .define("JPEGXL_ENABLE_DOXYGEN", "OFF")
         .define("JPEGXL_ENABLE_MANPAGES", "OFF")
@@ -36,33 +35,39 @@ pub fn build() {
         .define("JPEGXL_ENABLE_JPEGLI", "OFF");
 
     #[cfg(target_os = "windows")]
-    config
-        .generator("Visual Studio 17 2022")
-        .generator_toolset("ClangCL")
-        .define("CMAKE_MSVC_RUNTIME_LIBRARY", "MultiThreadedDLL");
+    {
+        config
+            .generator("Visual Studio 17 2022")
+            .generator_toolset("ClangCL")
+            .define("CMAKE_MSVC_RUNTIME_LIBRARY", "MultiThreaded")
+            .define("CMAKE_EXE_LINKER_FLAGS", "MSVCRTD.lib")
+            .cflag("-Zl");
+    }
 
     let mut prefix = config.build();
     prefix.push("lib");
-    println!("cargo:rustc-link-search=native={}", prefix.display());
+    println!("cargo::rustc-link-search=native={}", prefix.display());
+    prefix.pop();
+    prefix.push("lib64");
+    println!("cargo::rustc-link-search=native={}", prefix.display());
 
-    println!("cargo:rustc-link-lib=static=jxl");
-    println!("cargo:rustc-link-lib=static=jxl_cms");
-    println!("cargo:rustc-link-lib=static=jxl_threads");
+    println!("cargo::rustc-link-lib=static=jxl");
+    println!("cargo::rustc-link-lib=static=jxl_cms");
+    println!("cargo::rustc-link-lib=static=jxl_threads");
 
-    println!("cargo:rustc-link-lib=static=hwy");
-    println!("cargo:rustc-link-lib=static=brotlicommon");
-    println!("cargo:rustc-link-lib=static=brotlidec");
-    println!("cargo:rustc-link-lib=static=brotlienc");
+    println!("cargo::rustc-link-lib=static=hwy");
+    println!("cargo::rustc-link-lib=static=brotlicommon");
+    println!("cargo::rustc-link-lib=static=brotlidec");
+    println!("cargo::rustc-link-lib=static=brotlienc");
 
-    #[cfg(any(target_os = "macos", target_os = "ios", target_os = "freebsd"))]
-    println!("cargo:rustc-link-lib=c++");
-    #[cfg(not(any(
-        target_os = "macos",
-        target_os = "ios",
-        target_os = "freebsd",
-        target_env = "msvc"
-    )))]
-    println!("cargo:rustc-link-lib=stdc++");
+    #[cfg(any(target_vendor = "apple", target_os = "freebsd"))]
+    {
+        println!("cargo::rustc-link-lib=c++");
+    }
+    #[cfg(target_os = "linux")]
+    {
+        println!("cargo::rustc-link-lib=stdc++");
+    }
 }
 
 #[cfg(test)]
