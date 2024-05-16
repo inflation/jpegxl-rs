@@ -15,142 +15,6 @@
  * along with jpegxl-rs.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-/*
- * This file is part of jpegxl-rs.
- *
- * jpegxl-rs is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * jpegxl-rs is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with jpegxl-rs.  If not, see <https://www.gnu.org/licenses/>.
- */
-
-/*
- * This file is part of jpegxl-rs.
- *
- * jpegxl-rs is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * jpegxl-rs is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with jpegxl-rs.  If not, see <https://www.gnu.org/licenses/>.
- */
-
-/*
- * This file is part of jpegxl-rs.
- *
- * jpegxl-rs is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * jpegxl-rs is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with jpegxl-rs.  If not, see <https://www.gnu.org/licenses/>.
- */
-
-/*
- * This file is part of jpegxl-rs.
- *
- * jpegxl-rs is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * jpegxl-rs is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with jpegxl-rs.  If not, see <https://www.gnu.org/licenses/>.
- */
-
-/*
- * This file is part of jpegxl-rs.
- *
- * jpegxl-rs is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * jpegxl-rs is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with jpegxl-rs.  If not, see <https://www.gnu.org/licenses/>.
- */
-
-/*
- * This file is part of jpegxl-rs.
- *
- * jpegxl-rs is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * jpegxl-rs is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with jpegxl-rs.  If not, see <https://www.gnu.org/licenses/>.
- */
-
-/*
- * This file is part of jpegxl-rs.
- *
- * jpegxl-rs is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * jpegxl-rs is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with jpegxl-rs.  If not, see <https://www.gnu.org/licenses/>.
- */
-
-/*
- * This file is part of jpegxl-rs.
- *
- * jpegxl-rs is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * jpegxl-rs is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with jpegxl-rs.  If not, see <https://www.gnu.org/licenses/>.
- */
-
 use std::io::Cursor;
 
 use half::f16;
@@ -159,11 +23,12 @@ use pretty_assertions::assert_eq;
 use testresult::TestResult;
 
 use crate::{
+    common::Endianness,
     decode::{Data, Metadata, PixelFormat, Pixels},
     decoder_builder, DecodeError,
 };
 #[cfg(feature = "threads")]
-use crate::{Endianness, ResizableRunner, ThreadsRunner};
+use crate::{ResizableRunner, ThreadsRunner};
 
 #[test]
 fn invalid() -> TestResult {
@@ -211,6 +76,19 @@ fn sample_2bit() -> TestResult {
         return Err("Failed to decode".into());
     };
     assert_eq!(data.len(), (width * height * 3) as usize);
+
+    Ok(())
+}
+
+#[test]
+fn sample_gray() -> TestResult {
+    let decoder = decoder_builder().build()?;
+
+    let (Metadata { width, height, .. }, data) = decoder.decode(super::SAMPLE_JXL_GRAY)?;
+    let Pixels::Uint16(data) = data else {
+        return Err("Failed to decode".into());
+    };
+    assert_eq!(data.len(), (width * height) as usize);
 
     Ok(())
 }

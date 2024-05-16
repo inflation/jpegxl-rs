@@ -1,3 +1,20 @@
+/*
+ * This file is part of jpegxl-rs.
+ *
+ * jpegxl-rs is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * jpegxl-rs is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with jpegxl-rs.  If not, see <https://www.gnu.org/licenses/>.
+ */
+
 #![cfg_attr(coverage_nightly, feature(coverage_attribute))]
 
 use std::{
@@ -23,7 +40,7 @@ pub fn build() {
     let mut config = cmake::Config::new(source);
     config
         .define("BUILD_TESTING", "OFF")
-        .define("JPEGXL_STATIC", "ON")
+        .define("BUILD_SHARED_LIBS", "OFF")
         .define("JPEGXL_ENABLE_TOOLS", "OFF")
         .define("JPEGXL_ENABLE_DOXYGEN", "OFF")
         .define("JPEGXL_ENABLE_MANPAGES", "OFF")
@@ -46,27 +63,32 @@ pub fn build() {
 
     let mut prefix = config.build();
     prefix.push("lib");
-    println!("cargo::rustc-link-search=native={}", prefix.display());
+    println!("cargo:rustc-link-search=native={}", prefix.display());
     prefix.pop();
     prefix.push("lib64");
-    println!("cargo::rustc-link-search=native={}", prefix.display());
+    println!("cargo:rustc-link-search=native={}", prefix.display());
 
-    println!("cargo::rustc-link-lib=static=jxl");
-    println!("cargo::rustc-link-lib=static=jxl_cms");
-    println!("cargo::rustc-link-lib=static=jxl_threads");
+    println!("cargo:rustc-link-lib=static=jxl");
+    println!("cargo:rustc-link-lib=static=jxl_cms");
 
-    println!("cargo::rustc-link-lib=static=hwy");
-    println!("cargo::rustc-link-lib=static=brotlicommon");
-    println!("cargo::rustc-link-lib=static=brotlidec");
-    println!("cargo::rustc-link-lib=static=brotlienc");
+    #[cfg(feature = "threads")]
+    println!("cargo:rustc-link-lib=static=jxl_threads");
 
-    #[cfg(any(target_vendor = "apple", target_os = "freebsd"))]
+    println!("cargo:rustc-link-lib=static=hwy");
+    println!("cargo:rustc-link-lib=static=brotlicommon");
+    println!("cargo:rustc-link-lib=static=brotlidec");
+    println!("cargo:rustc-link-lib=static=brotlienc");
+
+    #[cfg(feature = "threads")]
     {
-        println!("cargo::rustc-link-lib=c++");
-    }
-    #[cfg(target_os = "linux")]
-    {
-        println!("cargo::rustc-link-lib=stdc++");
+        #[cfg(any(target_vendor = "apple", target_os = "freebsd"))]
+        {
+            println!("cargo:rustc-link-lib=c++");
+        }
+        #[cfg(target_os = "linux")]
+        {
+            println!("cargo:rustc-link-lib=stdc++");
+        }
     }
 }
 
