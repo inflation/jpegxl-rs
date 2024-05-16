@@ -7,6 +7,7 @@ name = "jpegxl-src"
 readme = "README.md"
 repository = "https://github.com/inflation/jpegxl-rs"
 version = "0.10.4"
+rust-version.workspace = true
 exclude = [
     "libjxl/third_party/libpng",
     "libjxl/third_party/sjpeg",
@@ -40,3 +41,4 @@ pedantic = "warn"
 cmake = "0.1.50"
 
 [features]
+threads = []
