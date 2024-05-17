@@ -1,19 +1,19 @@
 /*
-This file is part of jpegxl-rs.
-
-jpegxl-rs is free software: you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by
-the Free Software Foundation, either version 3 of the License, or
-(at your option) any later version.
-
-jpegxl-rs is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-GNU General Public License for more details.
-
-You should have received a copy of the GNU General Public License
-along with jpegxl-rs.  If not, see <https://www.gnu.org/licenses/>.
-*/
+ * This file is part of jpegxl-rs.
+ *
+ * jpegxl-rs is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * jpegxl-rs is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with jpegxl-rs.  If not, see <https://www.gnu.org/licenses/>.
+ */
 
 //! Memory manager interface
 
@@ -39,7 +39,7 @@ pub trait MemoryManager {
     #[must_use]
     fn manager(&self) -> JxlMemoryManager {
         JxlMemoryManager {
-            opaque: std::ptr::from_ref::<Self>(self).cast_mut().cast(),
+            opaque: (self as *const Self).cast_mut().cast(),
             alloc: self.alloc(),
             free: self.free(),
         }
@@ -118,7 +118,7 @@ pub(crate) mod tests {
                         new = s + size;
                     } else {
                         let addr = mm.arena.get_unchecked_mut(footer);
-                        break std::ptr::from_mut::<u8>(addr).cast();
+                        break (addr as *mut u8).cast();
                     }
                 }
             }

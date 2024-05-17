@@ -1,8 +1,26 @@
+/*
+ * This file is part of jpegxl-rs.
+ *
+ * jpegxl-rs is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * jpegxl-rs is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with jpegxl-rs.  If not, see <https://www.gnu.org/licenses/>.
+ */
+
 use half::f16;
 use image::DynamicImage;
 use pretty_assertions::assert_eq;
 use testresult::TestResult;
 
+use crate::decode::Data;
 use crate::{
     decoder_builder,
     encode::{ColorEncoding, EncoderFrame, EncoderResult, Metadata},
@@ -32,17 +50,18 @@ fn simple() -> TestResult {
 
 #[test]
 fn jpeg() -> TestResult {
-    let pr = ResizableRunner::default();
     let mut encoder = encoder_builder()
         .use_container(true)
         .uses_original_profile(true)
-        .parallel_runner(&pr)
         .build()?;
 
-    let _res = encoder.encode_jpeg(super::SAMPLE_JPEG)?;
+    let res = encoder.encode_jpeg(super::SAMPLE_JPEG)?;
 
-    encoder.parallel_runner = None;
-    let _res = encoder.encode_jpeg(super::SAMPLE_JPEG)?;
+    let (_, Data::Jpeg(reconstructed)) = decoder_builder().build()?.reconstruct(&res)? else {
+        return Err("Failed to reconstruct JPEG".into());
+    };
+
+    assert_eq!(super::SAMPLE_JPEG, reconstructed);
 
     Ok(())
 }

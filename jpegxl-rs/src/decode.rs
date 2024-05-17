@@ -1,19 +1,19 @@
 /*
-This file is part of jpegxl-rs.
-
-jpegxl-rs is free software: you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by
-the Free Software Foundation, either version 3 of the License, or
-(at your option) any later version.
-
-jpegxl-rs is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-GNU General Public License for more details.
-
-You should have received a copy of the GNU General Public License
-along with jpegxl-rs.  If not, see <https://www.gnu.org/licenses/>.
-*/
+ * This file is part of jpegxl-rs.
+ *
+ * jpegxl-rs is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * jpegxl-rs is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with jpegxl-rs.  If not, see <https://www.gnu.org/licenses/>.
+ */
 
 //! Decoder of JPEG XL format
 
@@ -57,17 +57,16 @@ pub struct PixelFormat {
     /// # Default
     /// 0, which means determined automatically from color channels and alpha bits
     pub num_channels: u32,
-    /// Whether multi-byte data types are represented in big endian or little
+    /// Whether multibyte data types are represented in big endian or little
     /// endian format. This applies to `u16`, `f16`, and `f32`.
     ///
     /// # Default
     /// [`Endianness::Native`]
     pub endianness: Endianness,
-    /// Align scanlines to a multiple of align bytes. _Currently not supported_
+    /// Align scanlines to a multiple of align bytes.
     ///
     /// # Default
     /// 0, which means requiring no alignment (which has the same effect as value 1)
-    // TODO: support custom scanlines alignment
     pub align: usize,
 }
 
@@ -145,7 +144,7 @@ pub struct JxlDecoder<'pr, 'mm> {
     pub icc_profile: bool,
 
     /// Set initial buffer for JPEG reconstruction
-    /// Larger buffer could make reconstruction faster by doing fewer reallocations
+    /// Larger buffer could make reconstruction faster by doing fewer reallocation
     ///
     /// Default: 512 KiB
     pub init_jpeg_buffer: usize,
@@ -397,7 +396,7 @@ impl<'pr, 'mm> JxlDecoder<'pr, 'mm> {
             },
             data_type,
             endianness: f.endianness,
-            align: 0, // TODO: support align
+            align: f.align,
         };
 
         let mut size = 0;
