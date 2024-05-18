@@ -82,13 +82,15 @@ pub fn build() {
     #[cfg(feature = "threads")]
     {
         #[cfg(any(target_vendor = "apple", target_os = "freebsd"))]
-        {
-            println!("cargo:rustc-link-lib=c++");
-        }
+        println!("cargo:rustc-link-lib=c++");
+
         #[cfg(target_os = "linux")]
-        {
-            println!("cargo:rustc-link-lib=stdc++");
-        }
+        println!("cargo:rustc-link-lib=stdc++");
+    }
+
+    #[cfg(target_vendor = "apple")]
+    {
+        println!("cargo:rustc-link-arg=-fapple-link-rtlib");
     }
 }
 
