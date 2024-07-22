@@ -29,7 +29,7 @@ bench = []
 
 [dependencies]
 derive_builder = "0.20.0"
-image = { version = "0.25.0", optional = true, default-features = false }
+image = { version = "0.25.2", optional = true, default-features = false }
 thiserror = "1.0.63"
 half = "2.4.0"
 byteorder = "1.5.0"
@@ -39,13 +39,13 @@ version = "0.10.3"
 path = "../jpegxl-sys"
 
 [dev-dependencies]
-image = { version = "0.25.0", default-features = false, features = [
+image = { version = "0.25.2", default-features = false, features = [
     "jpeg",
     "png",
 ] }
 lcms2 = "6.1.0"
 pretty_assertions = "1.4.0"
-testresult = "0.4.0"
+testresult = "0.4.1"
 
 [target.'cfg(not(target_family = "wasm"))'.dev-dependencies]
 criterion = "0.5.1"
