@@ -49,7 +49,8 @@ pub fn build() {
         .define("JPEGXL_ENABLE_JNI", "OFF")
         .define("JPEGXL_ENABLE_SJPEG", "OFF")
         .define("JPEGXL_ENABLE_OPENEXR", "OFF")
-        .define("JPEGXL_ENABLE_JPEGLI", "OFF");
+        .define("JPEGXL_ENABLE_JPEGLI", "OFF")
+        .define("JPEGXL_BUNDLE_LIBPNG", "OFF");
 
     #[cfg(target_os = "windows")]
     {
