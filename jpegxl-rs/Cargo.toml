@@ -8,7 +8,7 @@ license = "GPL-3.0-or-later"
 name = "jpegxl-rs"
 readme = "README.md"
 repository = "https://github.com/inflation/jpegxl-rs"
-version = "0.10.4+libjxl-0.10.3"
+version = "0.10.5+libjxl-0.10.3"
 rust-version.workspace = true
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
@@ -36,7 +36,7 @@ half = "2.4.0"
 byteorder = "1.5.0"
 
 [dependencies.jpegxl-sys]
-version = "0.10.3"
+version = "0.10.5"
 path = "../jpegxl-sys"
 
 [dev-dependencies]
