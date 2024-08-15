@@ -49,10 +49,14 @@ fn simple() -> TestResult {
 }
 
 #[test]
+#[cfg(feature = "threads")]
 fn jpeg() -> TestResult {
+    let threads_runner = ThreadsRunner::default();
     let mut encoder = encoder_builder()
+        .parallel_runner(&threads_runner)
         .use_container(true)
         .uses_original_profile(true)
+        .jpeg_quality(85.0)
         .build()?;
 
     let res = encoder.encode_jpeg(super::SAMPLE_JPEG)?;
