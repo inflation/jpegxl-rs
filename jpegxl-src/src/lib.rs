@@ -33,10 +33,6 @@ fn source_dir() -> PathBuf {
 pub fn build() {
     let source = source_dir();
 
-    if let Ok(p) = std::thread::available_parallelism() {
-        env::set_var("CMAKE_BUILD_PARALLEL_LEVEL", format!("{p}"));
-    }
-
     let mut config = cmake::Config::new(source);
     config
         .define("BUILD_TESTING", "OFF")
@@ -52,11 +48,18 @@ pub fn build() {
         .define("JPEGXL_ENABLE_JPEGLI", "OFF")
         .define("JPEGXL_BUNDLE_LIBPNG", "OFF");
 
+    if let Ok(p) = std::thread::available_parallelism() {
+        config.env("CMAKE_BUILD_PARALLEL_LEVEL", format!("{p}"));
+    }
+
     #[cfg(target_os = "windows")]
     {
         config
-            .generator("Visual Studio 17 2022")
             .generator_toolset("ClangCL")
+            .define(
+                "CMAKE_VS_GLOBALS",
+                "UseMultiToolTask=true;EnforceProcessCountAcrossBuilds=true",
+            ) // Enable parallel builds
             .define("CMAKE_MSVC_RUNTIME_LIBRARY", "MultiThreaded")
             .define("CMAKE_EXE_LINKER_FLAGS", "MSVCRTD.lib")
             .cflag("-Zl");

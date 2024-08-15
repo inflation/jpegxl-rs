@@ -15,8 +15,6 @@
  * along with jpegxl-rs.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-#![cfg_attr(docsrs, doc(cfg(feature = "image")))]
-
 //! `image` crate integration
 
 use std::mem::MaybeUninit;

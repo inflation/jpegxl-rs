@@ -25,8 +25,13 @@ Currently, `u8`, `u16`, `f16` and `f32` are supported as pixel types.
 ### Decoding
 
 ```rust
-let mut decoder = decoder_builder().build()?;
-let (Metadata { width, height, ..}, pixels) = decoder.decode(&sample)?;
+use jpegxl_rs::*;
+use jpegxl_rs::decode::*;
+
+let mut decoder = decoder_builder().build().unwrap();
+let sample = include_bytes!("../../samples/sample.jxl");
+
+let (Metadata { width, height, ..}, pixels) = decoder.decode(sample).unwrap();
 match pixels {
     Pixels::Float(data) => { /* do something with Vec<f32> data */ },
     Pixels::Uint8(data) => { /* do something with Vec<u8> data */ },
@@ -39,7 +44,8 @@ use jpegxl_rs::ThreadsRunner;
 let runner = ThreadsRunner::default();
 let mut decoder = decoder_builder()
                       .parallel_runner(&runner)
-                      .build()?;
+                      .build()
+                      .unwrap();
 
 // Customize pixel format
 let mut decoder = decoder_builder()
@@ -48,39 +54,42 @@ let mut decoder = decoder_builder()
                           endianness: Endianness::Big,
                           align: 8
                       })
-                      .build()?;
+                      .build()
+                      .unwrap();
 
-decoder.decode_with::<u8>(&sample);
+decoder.decode_with::<u8>(sample);
 
 // You can change the settings after initialization
 decoder.skip_reorientation = Some(true);
 
 // Reconstruct JPEG, fallback to pixels if JPEG reconstruction is not possible
 // This operation is finished in on pass
-let (metadata, data) = decoder.reconstruct(&sample)?;
+let (metadata, data) = decoder.reconstruct(sample).unwrap();
 match data {
     Data::Jpeg(jpeg) => {/* do something with the JPEG data */}
     Data::Pixels(pixels) => {/* do something with the pixels data */}
 }
-
 ```
 
 ### Encoding
 
 ```rust
-use image::io::Reader as ImageReader;
-let sample = ImageReader::open("../samples/sample.png")?.decode()?.to_rgba16();
-let mut encoder = encoder_builder().build()?;
-let buffer: EncoderResult<f32> = encoder.encode(&sample, sample.width(), sample.height())?;
-```
+use image::ImageReader;
+use jpegxl_rs::encoder_builder;
+use jpegxl_rs::encode::{EncoderResult, EncoderSpeed};
 
-Set encoder options
+let sample = ImageReader::open("../samples/sample.png").unwrap().decode().unwrap().to_rgba16();
+let mut encoder = encoder_builder().build().unwrap();
 
-```rust
+let buffer: EncoderResult<f32> = encoder.encode(&sample, sample.width(), sample.height()).unwrap();
+
+// Set encoder options
 let mut encoder = encoder_builder()
                     .lossless(true)
                     .speed(EncoderSpeed::Falcon)
-                    .build()?;
+                    .build()
+                    .unwrap();
+
 // You can change the settings after initialization
 encoder.lossless = false;
 encoder.quality = 3.0;
@@ -95,10 +104,10 @@ use jpegxl_rs::image::ToDynamic;
 use jpegxl_rs::decoder_builder;
 use image::DynamicImage;
 
-let sample = std::fs::read("../samples/sample.jxl")?;
-let mut decoder = decoder_builder().build()?;
-let img = decoder.decode_to_image(&sample)?;
-let img = decoder.decode_to_image_with::<f32>(&sample)?;
+let sample = std::fs::read("../samples/sample.jxl").unwrap();
+let mut decoder = decoder_builder().build().unwrap();
+let img = decoder.decode_to_image(&sample).unwrap();
+let img = decoder.decode_to_image_with::<f32>(&sample).unwrap();
 ```
 
 License: GPL-3.0-or-later
