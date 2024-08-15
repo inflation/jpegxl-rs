@@ -60,9 +60,9 @@ pub type RunFn = unsafe extern "C" fn(*mut c_void, u32, usize);
 ///
 /// # Returns
 /// - `0`: if the @p init call succeeded (returned 0) and no other error
-/// occurred in the runner code.
+///     occurred in the runner code.
 /// - `JXL_PARALLEL_RET_RUNNER_ERROR` if an error occurred in the runner
-/// code, for example, setting up the threads.
+///     code, for example, setting up the threads.
 /// - Return the return value of `init_func` if non-zero.
 pub type RunnerFn = unsafe extern "C" fn(
     runner_opaque: *mut c_void,

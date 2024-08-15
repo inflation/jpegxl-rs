@@ -15,6 +15,8 @@
  * along with jpegxl-rs.  If not, see <https://www.gnu.org/licenses/>.
  */
 
+//! Build script for jpegxl-sys.
+
 fn main() {
     #[cfg(all(not(feature = "vendored"), not(feature = "docs")))]
     {
