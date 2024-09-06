@@ -22,9 +22,9 @@ use std::ffi::c_void;
 use jpegxl_sys::memory_manager::JxlMemoryManager;
 
 /// Allocating function type
-pub type AllocFn = unsafe extern "C" fn(opaque: *mut c_void, size: usize) -> *mut c_void;
+pub type AllocFn = unsafe extern "C-unwind" fn(opaque: *mut c_void, size: usize) -> *mut c_void;
 /// Deallocating function type
-pub type FreeFn = unsafe extern "C" fn(opaque: *mut c_void, address: *mut c_void);
+pub type FreeFn = unsafe extern "C-unwind" fn(opaque: *mut c_void, address: *mut c_void);
 
 /// General trait for a memory manager
 
@@ -62,7 +62,7 @@ pub(crate) mod tests {
     impl MemoryManager for NoManager {
         fn alloc(&self) -> AllocFn {
             #[cfg_attr(coverage_nightly, coverage(off))]
-            unsafe extern "C" fn alloc(_opaque: *mut c_void, _size: usize) -> *mut c_void {
+            unsafe extern "C-unwind" fn alloc(_opaque: *mut c_void, _size: usize) -> *mut c_void {
                 null_mut()
             }
 
@@ -71,7 +71,7 @@ pub(crate) mod tests {
 
         fn free(&self) -> FreeFn {
             #[cfg_attr(coverage_nightly, coverage(off))]
-            unsafe extern "C" fn free(_opaque: *mut c_void, _address: *mut c_void) {
+            unsafe extern "C-unwind" fn free(_opaque: *mut c_void, _address: *mut c_void) {
                 debug_assert!(false, "Should not be called");
             }
 
@@ -97,7 +97,7 @@ pub(crate) mod tests {
     impl<const N: usize> MemoryManager for BumpManager<N> {
         fn alloc(&self) -> AllocFn {
             #[cfg_attr(coverage_nightly, coverage(off))]
-            unsafe extern "C" fn alloc<const N: usize>(
+            unsafe extern "C-unwind" fn alloc<const N: usize>(
                 opaque: *mut c_void,
                 size: usize,
             ) -> *mut c_void {
@@ -128,7 +128,28 @@ pub(crate) mod tests {
 
         fn free(&self) -> FreeFn {
             #[cfg_attr(coverage_nightly, coverage(off))]
-            unsafe extern "C" fn free(_opaque: *mut c_void, _address: *mut c_void) {}
+            unsafe extern "C-unwind" fn free(_opaque: *mut c_void, _address: *mut c_void) {}
+
+            free
+        }
+    }
+    pub struct PanicManager {}
+
+    impl MemoryManager for PanicManager {
+        fn alloc(&self) -> AllocFn {
+            #[cfg_attr(coverage_nightly, coverage(off))]
+            unsafe extern "C-unwind" fn alloc(_opaque: *mut c_void, _size: usize) -> *mut c_void {
+                panic!("Stack unwind test")
+            }
+
+            alloc
+        }
+
+        fn free(&self) -> FreeFn {
+            #[cfg_attr(coverage_nightly, coverage(off))]
+            unsafe extern "C-unwind" fn free(_opaque: *mut c_void, _address: *mut c_void) {
+                debug_assert!(false, "Should not be called");
+            }
 
             free
         }
@@ -143,5 +164,12 @@ pub(crate) mod tests {
         let mm = BumpManager::<{ 1024 * 10 }>::default();
         assert!(decoder_builder().memory_manager(&mm).build().is_ok());
         assert!(encoder_builder().memory_manager(&mm).build().is_ok());
+    }
+
+    #[test]
+    #[should_panic = "Stack unwind test"]
+    fn test_unwind() {
+        let mm = PanicManager {};
+        let _ = decoder_builder().memory_manager(&mm).build();
     }
 }

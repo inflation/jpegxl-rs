@@ -38,9 +38,9 @@ pub use jpegxl_sys::parallel_runner::JxlParallelRetCode;
 
 use crate::decode::BasicInfo;
 /// Parallel runner initialization callback type
-pub type InitFn = unsafe extern "C" fn(*mut c_void, usize) -> i32;
+pub type InitFn = unsafe extern "C-unwind" fn(*mut c_void, usize) -> i32;
 /// Parallel runner data processing callback type
-pub type RunFn = unsafe extern "C" fn(*mut c_void, u32, usize);
+pub type RunFn = unsafe extern "C-unwind" fn(*mut c_void, u32, usize);
 
 /// FFI runner function.
 ///
@@ -64,7 +64,7 @@ pub type RunFn = unsafe extern "C" fn(*mut c_void, u32, usize);
 /// - `JXL_PARALLEL_RET_RUNNER_ERROR` if an error occurred in the runner
 ///     code, for example, setting up the threads.
 /// - Return the return value of `init_func` if non-zero.
-pub type RunnerFn = unsafe extern "C" fn(
+pub type RunnerFn = unsafe extern "C-unwind" fn(
     runner_opaque: *mut c_void,
     jpegxl_opaque: *mut c_void,
     init_func: InitFn,
