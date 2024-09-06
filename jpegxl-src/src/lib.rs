@@ -82,17 +82,13 @@ pub fn build() {
     println!("cargo:rustc-link-lib=static=brotlicommon");
     println!("cargo:rustc-link-lib=static=brotlidec");
     println!("cargo:rustc-link-lib=static=brotlienc");
-
-    #[cfg(feature = "threads")]
+    #[cfg(any(target_vendor = "apple", target_os = "freebsd"))]
     {
-        #[cfg(any(target_vendor = "apple", target_os = "freebsd"))]
-        {
-            println!("cargo:rustc-link-lib=c++");
-        }
-        #[cfg(target_os = "linux")]
-        {
-            println!("cargo:rustc-link-lib=stdc++");
-        }
+        println!("cargo:rustc-link-lib=c++");
+    }
+    #[cfg(target_os = "linux")]
+    {
+        println!("cargo:rustc-link-lib=stdc++");
     }
 }
 
