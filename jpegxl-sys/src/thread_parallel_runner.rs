@@ -22,7 +22,7 @@ use crate::{
     parallel_runner::{JxlParallelRetCode, JxlParallelRunFunction, JxlParallelRunInit},
 };
 
-extern "C" {
+extern "C-unwind" {
     pub fn JxlThreadParallelRunner(
         runner_opaque: *mut c_void,
         jpegxl_opaque: *mut c_void,

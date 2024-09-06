@@ -2,13 +2,15 @@ use std::ffi::c_void;
 
 pub type JxlParallelRetCode = i32;
 
-pub type JxlParallelRunInit =
-    unsafe extern "C" fn(jpegxl_opaque: *mut c_void, num_threads: usize) -> JxlParallelRetCode;
+pub type JxlParallelRunInit = unsafe extern "C-unwind" fn(
+    jpegxl_opaque: *mut c_void,
+    num_threads: usize,
+) -> JxlParallelRetCode;
 
 pub type JxlParallelRunFunction =
-    unsafe extern "C" fn(jpegxl_opaque: *mut c_void, value: u32, thread_id: usize);
+    unsafe extern "C-unwind" fn(jpegxl_opaque: *mut c_void, value: u32, thread_id: usize);
 
-pub type JxlParallelRunner = unsafe extern "C" fn(
+pub type JxlParallelRunner = unsafe extern "C-unwind" fn(
     runner_opaque: *mut c_void,
     jpegxl_opaque: *mut c_void,
     init: JxlParallelRunInit,
