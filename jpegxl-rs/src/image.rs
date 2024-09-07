@@ -172,7 +172,6 @@ mod tests {
     }
 
     #[test]
-    #[cfg(feature = "threads")]
     #[cfg_attr(coverage_nightly, coverage(off))]
     fn pixel_type() -> TestResult {
         let parallel_runner = ThreadsRunner::default();

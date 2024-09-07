@@ -37,7 +37,6 @@ image = { version = "0.25.2", default-features = false, features = ["png"] }
 pretty_assertions = "1.4.0"
 
 [features]
-default = ["threads"]
+default = []
 vendored = ["jpegxl-src"]
-threads = ["jpegxl-src/threads"]
 docs = []

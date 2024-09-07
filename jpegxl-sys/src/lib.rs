@@ -27,11 +27,8 @@ pub mod parallel_runner;
 pub mod stats;
 pub mod types;
 
-#[cfg(feature = "threads")]
-pub mod thread_parallel_runner;
-
-#[cfg(feature = "threads")]
 pub mod resizable_parallel_runner;
+pub mod thread_parallel_runner;
 
 #[cfg(test)]
 mod test {
@@ -189,7 +186,6 @@ mod test {
     }
 
     #[test]
-    #[cfg(feature = "threads")]
     #[cfg_attr(coverage_nightly, coverage(off))]
     fn test_bindings_thread_pool() {
         unsafe {
@@ -213,7 +209,6 @@ mod test {
     }
 
     #[test]
-    #[cfg(feature = "threads")]
     #[cfg_attr(coverage_nightly, coverage(off))]
     fn test_bindings_resizable() {
         use JxlDecoderStatus::{

@@ -27,7 +27,6 @@ use crate::{
     decode::{Data, Metadata, PixelFormat, Pixels},
     decoder_builder, DecodeError,
 };
-#[cfg(feature = "threads")]
 use crate::{ResizableRunner, ThreadsRunner};
 
 #[test]
@@ -140,7 +139,6 @@ fn jpeg() -> TestResult {
 }
 
 #[test]
-#[cfg(feature = "threads")]
 fn builder() -> TestResult {
     use crate::decode::ProgressiveDetail;
 

@@ -21,9 +21,8 @@ unexpected_cfgs = { level = "warn", check-cfg = ['cfg(coverage_nightly)'] }
 pedantic = "warn"
 
 [features]
-default = ["image", "threads"]
+default = ["image"]
 image = ["dep:image"]
-threads = ["jpegxl-sys/threads"]
 vendored = ["jpegxl-sys/vendored"]
 docs = ["jpegxl-sys/docs"]
 bench = []
