@@ -26,7 +26,6 @@ use crate::{
     encode::{ColorEncoding, EncoderFrame, EncoderResult, Metadata},
     encoder_builder, Endianness,
 };
-#[cfg(feature = "threads")]
 use crate::{encode::EncoderSpeed, ResizableRunner, ThreadsRunner};
 
 fn get_sample() -> DynamicImage {
@@ -49,7 +48,6 @@ fn simple() -> TestResult {
 }
 
 #[test]
-#[cfg(feature = "threads")]
 fn jpeg() -> TestResult {
     let threads_runner = ThreadsRunner::default();
     let mut encoder = encoder_builder()
@@ -84,7 +82,6 @@ fn metadata() -> TestResult {
 }
 
 #[test]
-#[cfg(feature = "threads")]
 fn builder() -> TestResult {
     use crate::decode::Metadata;
 
@@ -124,7 +121,6 @@ fn builder() -> TestResult {
 }
 
 #[test]
-#[cfg(feature = "threads")]
 fn resizable() -> TestResult {
     let resizable_runner = ResizableRunner::default();
     let sample = get_sample().to_rgb8();

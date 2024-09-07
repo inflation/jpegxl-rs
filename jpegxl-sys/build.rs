@@ -30,14 +30,12 @@ fn main() {
         if let Ok(path) = env::var("DEP_JXL_LIB") {
             println!("cargo:rustc-link-search=native={path}");
             println!("cargo:rustc-link-lib=jxl");
-            #[cfg(feature = "threads")]
             println!("cargo:rustc-link-lib=jxl_threads");
         } else {
             pkg_config::Config::new()
                 .atleast_version(version)
                 .probe("libjxl")
                 .unwrap_or_else(|_| panic!("Cannot find `libjxl` with version >= {version}"));
-            #[cfg(feature = "threads")]
             pkg_config::Config::new()
                 .atleast_version(version)
                 .probe("libjxl_threads")

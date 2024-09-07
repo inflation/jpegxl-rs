@@ -17,9 +17,6 @@ along with jpegxl-rs.  If not, see <https://www.gnu.org/licenses/>.
 
 //! Wrapper for default thread pool implementation with C++ standard library
 
-#![cfg(feature = "threads")]
-#![cfg_attr(docsrs, doc(cfg(feature = "threads")))]
-
 use std::{ffi::c_void, ptr::null_mut};
 
 #[allow(clippy::wildcard_imports)]

@@ -18,6 +18,7 @@ along with jpegxl-rs.  If not, see <https://www.gnu.org/licenses/>.
 //! Parallel runner interface
 //! # Example
 //! ```
+//! #[cfg(feature = "image")]
 //! # || -> Result<(), Box<dyn std::error::Error>> {
 //! use jpegxl_rs::{decoder_builder, parallel::threads_runner::ThreadsRunner};
 //! // Use the default C++ Threads pool runner:
