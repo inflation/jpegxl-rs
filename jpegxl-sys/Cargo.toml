@@ -34,7 +34,7 @@ optional = true
 
 [dev-dependencies]
 image = { version = "0.25.2", default-features = false, features = ["png"] }
-pretty_assertions = "1.4.0"
+pretty_assertions = "1.4.1"
 
 [features]
 default = []
