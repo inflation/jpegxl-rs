@@ -45,7 +45,7 @@ image = { version = "0.25.2", default-features = false, features = [
     "png",
 ] }
 lcms2 = "6.1.0"
-pretty_assertions = "1.4.0"
+pretty_assertions = "1.4.1"
 testresult = "0.4.1"
 
 [target.'cfg(not(target_family = "wasm"))'.dev-dependencies]
