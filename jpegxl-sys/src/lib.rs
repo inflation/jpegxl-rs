@@ -17,29 +17,24 @@ along with jpegxl-sys.  If not, see <https://www.gnu.org/licenses/>.
 
 #![cfg_attr(coverage_nightly, feature(coverage_attribute))]
 
-pub mod cms;
-pub mod codestream_header;
-pub mod color_encoding;
 pub mod decode;
-pub mod encode;
-pub mod memory_manager;
-pub mod parallel_runner;
-pub mod stats;
-pub mod types;
 
-pub mod resizable_parallel_runner;
-pub mod thread_parallel_runner;
+pub mod color;
+pub mod common;
+pub mod encoder;
+pub mod metadata;
+pub mod threads;
 
 #[cfg(test)]
 mod test {
     use crate::{
+        common::types::*,
         decode::*,
-        encode::*,
-        thread_parallel_runner::{
+        encoder::encode::*,
+        threads::thread_parallel_runner::{
             JxlThreadParallelRunner, JxlThreadParallelRunnerCreate,
             JxlThreadParallelRunnerDefaultNumWorkerThreads, JxlThreadParallelRunnerDestroy,
         },
-        types::*,
     };
 
     use std::{mem::MaybeUninit, ptr};
@@ -215,7 +210,7 @@ mod test {
             BasicInfo, Error, FullImage, NeedImageOutBuffer, NeedMoreInput, Success,
         };
 
-        use crate::resizable_parallel_runner::{
+        use crate::threads::resizable_parallel_runner::{
             JxlResizableParallelRunner, JxlResizableParallelRunnerCreate,
             JxlResizableParallelRunnerDestroy, JxlResizableParallelRunnerSetThreads,
             JxlResizableParallelRunnerSuggestThreads,

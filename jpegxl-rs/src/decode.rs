@@ -21,16 +21,16 @@ use std::{mem::MaybeUninit, ptr::null};
 
 #[allow(clippy::wildcard_imports)]
 use jpegxl_sys::{
-    codestream_header::{JxlBasicInfo, JxlOrientation},
+    common::types::{JxlDataType, JxlPixelFormat},
     decode::*,
-    types::{JxlDataType, JxlPixelFormat},
+    metadata::codestream_header::{JxlBasicInfo, JxlOrientation},
 };
 
 use crate::{
     common::{Endianness, PixelType},
     errors::{check_dec_status, DecodeError},
     memory::MemoryManager,
-    parallel::JxlParallelRunner,
+    parallel::ParallelRunner,
     utils::check_valid_signature,
 };
 
@@ -87,7 +87,7 @@ impl Default for PixelFormat {
 pub struct JxlDecoder<'pr, 'mm> {
     /// Opaque pointer to the underlying decoder
     #[builder(setter(skip))]
-    dec: *mut jpegxl_sys::decode::JxlDecoder,
+    ptr: *mut jpegxl_sys::decode::JxlDecoder,
 
     /// Override desired pixel format
     pub pixel_format: Option<PixelFormat>,
@@ -150,7 +150,7 @@ pub struct JxlDecoder<'pr, 'mm> {
     pub init_jpeg_buffer: usize,
 
     /// Set parallel runner
-    pub parallel_runner: Option<&'pr dyn JxlParallelRunner>,
+    pub parallel_runner: Option<&'pr dyn ParallelRunner>,
 
     /// Set memory manager
     pub memory_manager: Option<&'mm dyn MemoryManager>,
@@ -161,7 +161,7 @@ impl<'pr, 'mm> JxlDecoderBuilder<'pr, 'mm> {
     ///
     /// # Errors
     /// Return [`DecodeError::CannotCreateDecoder`] if it fails to create the decoder.
-    pub fn build(&self) -> Result<JxlDecoder<'pr, 'mm>, DecodeError> {
+    pub fn build(&mut self) -> Result<JxlDecoder<'pr, 'mm>, DecodeError> {
         let mm = self.memory_manager.flatten();
         let dec = unsafe {
             mm.map_or_else(
@@ -175,7 +175,7 @@ impl<'pr, 'mm> JxlDecoderBuilder<'pr, 'mm> {
         }
 
         Ok(JxlDecoder {
-            dec,
+            ptr: dec,
             pixel_format: self.pixel_format.flatten(),
             skip_reorientation: self.skip_reorientation.flatten(),
             unpremul_alpha: self.unpremul_alpha.flatten(),
@@ -217,14 +217,14 @@ impl<'pr, 'mm> JxlDecoder<'pr, 'mm> {
         let next_in = data.as_ptr();
         let avail_in = std::mem::size_of_val(data) as _;
 
-        check_dec_status(unsafe { JxlDecoderSetInput(self.dec, next_in, avail_in) })?;
-        unsafe { JxlDecoderCloseInput(self.dec) };
+        check_dec_status(unsafe { JxlDecoderSetInput(self.ptr, next_in, avail_in) })?;
+        unsafe { JxlDecoderCloseInput(self.ptr) };
 
         let mut status;
         loop {
             use JxlDecoderStatus as s;
 
-            status = unsafe { JxlDecoderProcessInput(self.dec) };
+            status = unsafe { JxlDecoderProcessInput(self.ptr) };
 
             match status {
                 s::NeedMoreInput | s::Error => return Err(DecodeError::GenericError),
@@ -232,7 +232,7 @@ impl<'pr, 'mm> JxlDecoder<'pr, 'mm> {
                 // Get the basic info
                 s::BasicInfo => {
                     check_dec_status(unsafe {
-                        JxlDecoderGetBasicInfo(self.dec, basic_info.as_mut_ptr())
+                        JxlDecoderGetBasicInfo(self.ptr, basic_info.as_mut_ptr())
                     })?;
 
                     if let Some(pr) = self.parallel_runner {
@@ -246,26 +246,26 @@ impl<'pr, 'mm> JxlDecoder<'pr, 'mm> {
                 }
 
                 // Get JPEG reconstruction buffer
-                s::JpegReconstruction => {
+                s::JPEGReconstruction => {
                     // Safety: JpegReconstruction is only called when reconstruct_jpeg_buffer
                     // is not None
                     let buf = unsafe { reconstruct_jpeg_buffer.as_mut().unwrap_unchecked() };
                     buf.resize(self.init_jpeg_buffer, 0);
                     check_dec_status(unsafe {
-                        JxlDecoderSetJPEGBuffer(self.dec, buf.as_mut_ptr(), buf.len())
+                        JxlDecoderSetJPEGBuffer(self.ptr, buf.as_mut_ptr(), buf.len())
                     })?;
                 }
 
                 // JPEG buffer need more space
-                s::JpegNeedMoreOutput => {
+                s::JPEGNeedMoreOutput => {
                     // Safety: JpegNeedMoreOutput is only called when reconstruct_jpeg_buffer
                     // is not None
                     let buf = unsafe { reconstruct_jpeg_buffer.as_mut().unwrap_unchecked() };
-                    let need_to_write = unsafe { JxlDecoderReleaseJPEGBuffer(self.dec) };
+                    let need_to_write = unsafe { JxlDecoderReleaseJPEGBuffer(self.ptr) };
 
                     buf.resize(buf.len() + need_to_write, 0);
                     check_dec_status(unsafe {
-                        JxlDecoderSetJPEGBuffer(self.dec, buf.as_mut_ptr(), buf.len())
+                        JxlDecoderSetJPEGBuffer(self.ptr, buf.as_mut_ptr(), buf.len())
                     })?;
                 }
 
@@ -277,13 +277,13 @@ impl<'pr, 'mm> JxlDecoder<'pr, 'mm> {
                 s::FullImage => continue,
                 s::Success => {
                     if let Some(buf) = reconstruct_jpeg_buffer.as_mut() {
-                        let remaining = unsafe { JxlDecoderReleaseJPEGBuffer(self.dec) };
+                        let remaining = unsafe { JxlDecoderReleaseJPEGBuffer(self.ptr) };
 
                         buf.truncate(buf.len() - remaining);
                         buf.shrink_to_fit();
                     }
 
-                    unsafe { JxlDecoderReset(self.dec) };
+                    unsafe { JxlDecoderReset(self.ptr) };
 
                     let info = unsafe { basic_info.assume_init() };
                     return Ok(Metadata {
@@ -304,6 +304,7 @@ impl<'pr, 'mm> JxlDecoder<'pr, 'mm> {
                 s::PreviewImage => todo!(),
                 s::Frame => todo!(),
                 s::Box => todo!(),
+                s::BoxComplete => todo!(),
                 s::FrameProgression => todo!(),
             }
         }
@@ -312,39 +313,39 @@ impl<'pr, 'mm> JxlDecoder<'pr, 'mm> {
     fn setup_decoder(&self, icc: bool, reconstruct_jpeg: bool) -> Result<(), DecodeError> {
         if let Some(runner) = self.parallel_runner {
             check_dec_status(unsafe {
-                JxlDecoderSetParallelRunner(self.dec, runner.runner(), runner.as_opaque_ptr())
+                JxlDecoderSetParallelRunner(self.ptr, runner.runner(), runner.as_opaque_ptr())
             })?;
         }
 
         let events = {
-            use JxlDecoderStatus::{BasicInfo, ColorEncoding, FullImage, JpegReconstruction};
+            use JxlDecoderStatus::{BasicInfo, ColorEncoding, FullImage, JPEGReconstruction};
 
             let mut events = BasicInfo as i32 | FullImage as i32;
             if icc {
                 events |= ColorEncoding as i32;
             }
             if reconstruct_jpeg {
-                events |= JpegReconstruction as i32;
+                events |= JPEGReconstruction as i32;
             }
 
             events
         };
-        check_dec_status(unsafe { JxlDecoderSubscribeEvents(self.dec, events) })?;
+        check_dec_status(unsafe { JxlDecoderSubscribeEvents(self.ptr, events) })?;
 
         if let Some(val) = self.skip_reorientation {
-            check_dec_status(unsafe { JxlDecoderSetKeepOrientation(self.dec, val.into()) })?;
+            check_dec_status(unsafe { JxlDecoderSetKeepOrientation(self.ptr, val.into()) })?;
         }
         if let Some(val) = self.unpremul_alpha {
-            check_dec_status(unsafe { JxlDecoderSetUnpremultiplyAlpha(self.dec, val.into()) })?;
+            check_dec_status(unsafe { JxlDecoderSetUnpremultiplyAlpha(self.ptr, val.into()) })?;
         }
         if let Some(val) = self.render_spotcolors {
-            check_dec_status(unsafe { JxlDecoderSetRenderSpotcolors(self.dec, val.into()) })?;
+            check_dec_status(unsafe { JxlDecoderSetRenderSpotcolors(self.ptr, val.into()) })?;
         }
         if let Some(val) = self.coalescing {
-            check_dec_status(unsafe { JxlDecoderSetCoalescing(self.dec, val.into()) })?;
+            check_dec_status(unsafe { JxlDecoderSetCoalescing(self.ptr, val.into()) })?;
         }
         if let Some(val) = self.desired_intensity_target {
-            check_dec_status(unsafe { JxlDecoderSetDesiredIntensityTarget(self.dec, val) })?;
+            check_dec_status(unsafe { JxlDecoderSetDesiredIntensityTarget(self.ptr, val) })?;
         }
 
         Ok(())
@@ -353,13 +354,13 @@ impl<'pr, 'mm> JxlDecoder<'pr, 'mm> {
     fn get_icc_profile(&self, icc_profile: &mut Vec<u8>) -> Result<(), DecodeError> {
         let mut icc_size = 0;
         check_dec_status(unsafe {
-            JxlDecoderGetICCProfileSize(self.dec, JxlColorProfileTarget::Data, &mut icc_size)
+            JxlDecoderGetICCProfileSize(self.ptr, JxlColorProfileTarget::Data, &mut icc_size)
         })?;
         icc_profile.resize(icc_size, 0);
 
         check_dec_status(unsafe {
             JxlDecoderGetColorAsICCProfile(
-                self.dec,
+                self.ptr,
                 JxlColorProfileTarget::Data,
                 icc_profile.as_mut_ptr(),
                 icc_size,
@@ -401,12 +402,12 @@ impl<'pr, 'mm> JxlDecoder<'pr, 'mm> {
 
         let mut size = 0;
         check_dec_status(unsafe {
-            JxlDecoderImageOutBufferSize(self.dec, &pixel_format, &mut size)
+            JxlDecoderImageOutBufferSize(self.ptr, &pixel_format, &mut size)
         })?;
         pixels.resize(size, 0);
 
         check_dec_status(unsafe {
-            JxlDecoderSetImageOutBuffer(self.dec, &pixel_format, pixels.as_mut_ptr().cast(), size)
+            JxlDecoderSetImageOutBuffer(self.ptr, &pixel_format, pixels.as_mut_ptr().cast(), size)
         })?;
 
         unsafe { *format = pixel_format };
@@ -496,7 +497,7 @@ impl<'pr, 'mm> JxlDecoder<'pr, 'mm> {
 
 impl<'prl, 'mm> Drop for JxlDecoder<'prl, 'mm> {
     fn drop(&mut self) {
-        unsafe { JxlDecoderDestroy(self.dec) };
+        unsafe { JxlDecoderDestroy(self.ptr) };
     }
 }
 

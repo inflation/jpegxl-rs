@@ -19,7 +19,7 @@ along with jpegxl-rs.  If not, see <https://www.gnu.org/licenses/>.
 
 use thiserror::Error;
 
-use jpegxl_sys::{decode::JxlDecoderStatus, encode::JxlEncoderError};
+use jpegxl_sys::{decode::JxlDecoderStatus, encoder::encode::JxlEncoderError};
 
 /// Errors derived from [`JxlDecoderStatus`]
 #[derive(Error, Debug)]
@@ -28,7 +28,10 @@ pub enum DecodeError {
     #[error("Cannot create a decoder")]
     CannotCreateDecoder,
     /// Unknown Error
-    #[error("Generic Error")]
+    #[error(
+        "Generic Error. Please build `libjxl` from source (using `vendored` feature) 
+        in debug mode to get more information. Check `stderr` for any internal error messages."
+    )]
     GenericError,
     /// Invalid input
     #[error("The input does not contain a valid codestream or container")]
@@ -36,6 +39,9 @@ pub enum DecodeError {
     /// Unsupported Pixel bit width
     #[error("Unsupported Pixel bit width: {0}")]
     UnsupportedBitWidth(u32),
+    /// Internal error, usually invalid usages of the `libjxl` library
+    #[error("Internal error, please file an issus: {0}")]
+    InternalError(&'static str),
     /// Unknown status
     #[error("Unknown status: `{0:?}`")]
     UnknownStatus(JxlDecoderStatus),
@@ -49,7 +55,10 @@ pub enum EncodeError {
     #[error("Cannot create an encoder")]
     CannotCreateEncoder,
     /// Generic Error
-    #[error("Generic Error")]
+    #[error(
+        "Generic Error. Please build `libjxl` from source (using `vendored` feature) 
+        in debug mode to get more information. Check `stderr` for any internal error messages."
+    )]
     GenericError,
     /// Not Supported
     #[error("Encoder does not support it (yet)")]
@@ -66,7 +75,8 @@ pub enum EncodeError {
     /// Input is invalid (e.g. corrupt JPEG file or ICC profile)
     #[error("Input is invalid")]
     BadInput,
-    /// The encoder API is used in an incorrect way. In this case, a debug build of libjxl should output a specific error message
+    /// The encoder API is used in an incorrect way. In this case,
+    /// a debug build of libjxl should output a specific error message
     #[error("The encoder API is used in an incorrect way")]
     ApiUsage,
     /// Unknown status

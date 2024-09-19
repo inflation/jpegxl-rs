@@ -17,7 +17,7 @@ along with jpegxl-sys.  If not, see <https://www.gnu.org/licenses/>.
 
 //! Utility functions to compress and decompress ICC streams.
 
-use crate::{memory_manager, types::JxlBool};
+use crate::common::{memory_manager, types::JxlBool};
 
 extern "C" {
     /// Allocates a buffer using the memory manager, fills it with a compressed

@@ -17,7 +17,7 @@ along with jpegxl-sys.  If not, see <https://www.gnu.org/licenses/>.
 
 //! Utility functions to manipulate jhgm (gain map) boxes.
 
-use crate::{color::color_encoding::JxlColorEncoding, types::JxlBool};
+use crate::{color::color_encoding::JxlColorEncoding, common::types::JxlBool};
 
 /// Gain map bundle
 ///
