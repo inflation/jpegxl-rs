@@ -31,7 +31,7 @@ features = ["docs"]
 pkg-config = "0.3.31"
 
 [build-dependencies.jpegxl-src]
-version = "0.10.4"
+version = "0.11.0"
 path = "../jpegxl-src"
 optional = true
 

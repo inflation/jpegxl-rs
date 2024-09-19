@@ -211,7 +211,10 @@ fn gray() -> TestResult {
     )?;
     _ = decoder.decode(&result)?;
 
-    encoder.set_frame_option(jpegxl_sys::encoder::encode::FrameSetting::BrotliEffort, 1)?;
+    encoder.set_frame_option(
+        jpegxl_sys::encoder::encode::JxlEncoderFrameSettingId::BrotliEffort,
+        1,
+    )?;
 
     Ok(())
 }

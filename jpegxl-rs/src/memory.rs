@@ -17,31 +17,24 @@
 
 //! Memory manager interface
 
-use std::ffi::c_void;
-
-use jpegxl_sys::memory_manager::JxlMemoryManager;
-
-/// Allocating function type
-pub type AllocFn = unsafe extern "C-unwind" fn(opaque: *mut c_void, size: usize) -> *mut c_void;
-/// Deallocating function type
-pub type FreeFn = unsafe extern "C-unwind" fn(opaque: *mut c_void, address: *mut c_void);
+use jpegxl_sys::common::memory_manager::{JpegxlAllocFunc, JpegxlFreeFunc, JxlMemoryManager};
 
 /// General trait for a memory manager
 
 #[allow(clippy::module_name_repetitions)]
 pub trait MemoryManager {
     /// Return a custom allocating function
-    fn alloc(&self) -> AllocFn;
+    fn alloc(&self) -> JpegxlAllocFunc;
     /// Return a custom deallocating function
-    fn free(&self) -> FreeFn;
+    fn free(&self) -> JpegxlFreeFunc;
 
     /// Helper conversion function for C API
     #[must_use]
     fn manager(&self) -> JxlMemoryManager {
         JxlMemoryManager {
             opaque: (self as *const Self).cast_mut().cast(),
-            alloc: self.alloc(),
-            free: self.free(),
+            alloc: Some(self.alloc()),
+            free: Some(self.free()),
         }
     }
 }
@@ -49,65 +42,43 @@ pub trait MemoryManager {
 #[cfg(test)]
 pub(crate) mod tests {
     use std::{
+        ffi::c_void,
         ptr::null_mut,
         sync::atomic::{AtomicUsize, Ordering},
     };
 
+    use testresult::TestResult;
+
     use crate::{decoder_builder, encoder_builder};
 
     use super::*;
-
-    pub struct NoManager {}
-
-    impl MemoryManager for NoManager {
-        fn alloc(&self) -> AllocFn {
-            #[cfg_attr(coverage_nightly, coverage(off))]
-            unsafe extern "C-unwind" fn alloc(_opaque: *mut c_void, _size: usize) -> *mut c_void {
-                null_mut()
-            }
-
-            alloc
-        }
-
-        fn free(&self) -> FreeFn {
-            #[cfg_attr(coverage_nightly, coverage(off))]
-            unsafe extern "C-unwind" fn free(_opaque: *mut c_void, _address: *mut c_void) {
-                debug_assert!(false, "Should not be called");
-            }
-
-            free
-        }
-    }
-
     /// Example implementation of [`MemoryManager`] of a fixed size allocator
-    pub struct BumpManager<const N: usize> {
-        arena: Box<[u8; N]>,
+    pub struct BumpManager {
+        arena: Vec<u8>,
         footer: AtomicUsize,
     }
 
-    impl<const N: usize> Default for BumpManager<N> {
-        fn default() -> Self {
+    impl BumpManager {
+        pub(crate) fn new(n: usize) -> Self {
             Self {
-                arena: Box::new([0_u8; N]),
+                arena: vec![0; n],
                 footer: AtomicUsize::new(0),
             }
         }
     }
 
-    impl<const N: usize> MemoryManager for BumpManager<N> {
-        fn alloc(&self) -> AllocFn {
+    impl MemoryManager for BumpManager {
+        fn alloc(&self) -> JpegxlAllocFunc {
             #[cfg_attr(coverage_nightly, coverage(off))]
-            unsafe extern "C-unwind" fn alloc<const N: usize>(
-                opaque: *mut c_void,
-                size: usize,
-            ) -> *mut c_void {
-                let mm = &mut *opaque.cast::<BumpManager<{ N }>>();
+            unsafe extern "C-unwind" fn alloc(opaque: *mut c_void, size: usize) -> *mut c_void {
+                let mm = &mut *opaque.cast::<BumpManager>();
 
                 let footer = mm.footer.load(Ordering::Acquire);
                 let mut new = footer + size;
 
                 loop {
-                    if new > N {
+                    if new > mm.arena.len() {
+                        println!("Out of memory");
                         break null_mut();
                     } else if let Err(s) = mm.footer.compare_exchange_weak(
                         footer,
@@ -123,10 +94,10 @@ pub(crate) mod tests {
                 }
             }
 
-            alloc::<N>
+            alloc
         }
 
-        fn free(&self) -> FreeFn {
+        fn free(&self) -> JpegxlFreeFunc {
             #[cfg_attr(coverage_nightly, coverage(off))]
             unsafe extern "C-unwind" fn free(_opaque: *mut c_void, _address: *mut c_void) {}
 
@@ -136,7 +107,7 @@ pub(crate) mod tests {
     pub struct PanicManager {}
 
     impl MemoryManager for PanicManager {
-        fn alloc(&self) -> AllocFn {
+        fn alloc(&self) -> JpegxlAllocFunc {
             #[cfg_attr(coverage_nightly, coverage(off))]
             unsafe extern "C-unwind" fn alloc(_opaque: *mut c_void, _size: usize) -> *mut c_void {
                 panic!("Stack unwind test")
@@ -145,7 +116,7 @@ pub(crate) mod tests {
             alloc
         }
 
-        fn free(&self) -> FreeFn {
+        fn free(&self) -> JpegxlFreeFunc {
             #[cfg_attr(coverage_nightly, coverage(off))]
             unsafe extern "C-unwind" fn free(_opaque: *mut c_void, _address: *mut c_void) {
                 debug_assert!(false, "Should not be called");
@@ -156,20 +127,21 @@ pub(crate) mod tests {
     }
 
     #[test]
-    fn test_mm() {
-        let mm = NoManager {};
-        assert!(decoder_builder().memory_manager(&mm).build().is_err());
-        assert!(encoder_builder().memory_manager(&mm).build().is_err());
+    fn test_mm() -> TestResult {
+        let mm = BumpManager::new(1024 * 1024 * 50);
+        let dec = decoder_builder().memory_manager(&mm).build()?;
+        let (meta, img) = dec.decode_with::<u8>(crate::tests::SAMPLE_JXL)?;
 
-        let mm = BumpManager::<{ 1024 * 10 }>::default();
-        assert!(decoder_builder().memory_manager(&mm).build().is_ok());
-        assert!(encoder_builder().memory_manager(&mm).build().is_ok());
+        let mut enc = encoder_builder().memory_manager(&mm).build()?;
+        let _ = enc.encode::<u8, u8>(&img, meta.width, meta.height)?;
+
+        Ok(())
     }
 
     #[test]
     #[should_panic = "Stack unwind test"]
     fn test_unwind() {
         let mm = PanicManager {};
-        let _ = decoder_builder().memory_manager(&mm).build();
+        let _ = decoder_builder().memory_manager(&mm).build().unwrap();
     }
 }
