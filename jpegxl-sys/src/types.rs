@@ -63,9 +63,9 @@ pub struct JxlPixelFormat {
 #[repr(C)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum JxlBitDepthType {
-    BitDepthFromPixelFormat = 0,
-    BitDepthFromCodestream = 1,
-    BitDepthCustom = 2,
+    FromPixelFormat = 0,
+    FromCodestream = 1,
+    Custom = 2,
 }
 
 #[repr(C)]
