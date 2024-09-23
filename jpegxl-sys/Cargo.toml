@@ -25,7 +25,7 @@ module_name_repetitions = "allow"
 features = ["docs"]
 
 [build-dependencies]
-pkg-config = "0.3.29"
+pkg-config = "0.3.31"
 
 [build-dependencies.jpegxl-src]
 version = "0.10.4"
