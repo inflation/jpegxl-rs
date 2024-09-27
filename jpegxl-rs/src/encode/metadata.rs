@@ -1,4 +1,4 @@
-use jpegxl_sys::types::JxlBoxType;
+use jpegxl_sys::common::types::JxlBoxType;
 
 /// Metadata box
 pub enum Metadata<'d> {

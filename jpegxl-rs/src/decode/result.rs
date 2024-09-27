@@ -16,7 +16,7 @@ along with jpegxl-rs.  If not, see <https://www.gnu.org/licenses/>.
 */
 
 use half::f16;
-use jpegxl_sys::types::{JxlDataType, JxlPixelFormat};
+use jpegxl_sys::common::types::{JxlDataType, JxlPixelFormat};
 
 use super::Orientation;
 use crate::common::PixelType;

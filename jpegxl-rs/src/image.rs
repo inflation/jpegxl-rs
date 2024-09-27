@@ -20,7 +20,7 @@
 use std::mem::MaybeUninit;
 
 use image::{DynamicImage, ImageBuffer};
-use jpegxl_sys::types::{JxlDataType, JxlPixelFormat};
+use jpegxl_sys::common::types::{JxlDataType, JxlPixelFormat};
 
 use crate::{
     common::PixelType,

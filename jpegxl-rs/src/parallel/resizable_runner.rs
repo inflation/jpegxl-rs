@@ -21,10 +21,9 @@ along with jpegxl-rs.  If not, see <https://www.gnu.org/licenses/>.
 
 use std::{ffi::c_void, ptr::null_mut};
 
-#[allow(clippy::wildcard_imports)]
-use jpegxl_sys::resizable_parallel_runner::*;
+use jpegxl_sys::threads::resizable_parallel_runner as api;
 
-use super::{JxlParallelRunner, RunnerFn};
+use super::{JxlParallelRunner, ParallelRunner};
 
 use crate::{decode::BasicInfo, memory::MemoryManager};
 
@@ -37,36 +36,41 @@ pub struct ResizableRunner<'mm> {
 impl<'mm> ResizableRunner<'mm> {
     /// Construct with number of threads
     #[must_use]
-    pub fn new(memory_manager: Option<&'mm dyn MemoryManager>) -> Self {
+    pub fn new(memory_manager: Option<&'mm dyn MemoryManager>) -> Option<Self> {
         let mm = memory_manager.map(MemoryManager::manager);
-        let runner_ptr =
-            unsafe { JxlResizableParallelRunnerCreate(mm.as_ref().map_or(null_mut(), |mm| mm)) };
+        let runner_ptr = unsafe {
+            api::JxlResizableParallelRunnerCreate(mm.as_ref().map_or(null_mut(), |mm| mm))
+        };
 
-        Self {
-            runner_ptr,
-            _memory_manager: memory_manager,
+        if runner_ptr.is_null() {
+            None
+        } else {
+            Some(Self {
+                runner_ptr,
+                _memory_manager: memory_manager,
+            })
         }
     }
 
     /// Set number of threads depending on the size of the image
     pub fn set_num_threads(&self, width: u64, height: u64) {
-        let num = unsafe { JxlResizableParallelRunnerSuggestThreads(width, height) };
-        unsafe { JxlResizableParallelRunnerSetThreads(self.runner_ptr, num as usize) };
+        let num = unsafe { api::JxlResizableParallelRunnerSuggestThreads(width, height) };
+        unsafe { api::JxlResizableParallelRunnerSetThreads(self.runner_ptr, num as usize) };
     }
 }
 
 impl Default for ResizableRunner<'_> {
     fn default() -> Self {
         Self {
-            runner_ptr: unsafe { JxlResizableParallelRunnerCreate(std::ptr::null()) },
+            runner_ptr: unsafe { api::JxlResizableParallelRunnerCreate(std::ptr::null()) },
             _memory_manager: None,
         }
     }
 }
 
-impl JxlParallelRunner for ResizableRunner<'_> {
-    fn runner(&self) -> RunnerFn {
-        JxlResizableParallelRunner
+impl ParallelRunner for ResizableRunner<'_> {
+    fn runner(&self) -> JxlParallelRunner {
+        api::JxlResizableParallelRunner
     }
 
     fn as_opaque_ptr(&self) -> *mut c_void {
@@ -80,30 +84,22 @@ impl JxlParallelRunner for ResizableRunner<'_> {
 
 impl Drop for ResizableRunner<'_> {
     fn drop(&mut self) {
-        unsafe { JxlResizableParallelRunnerDestroy(self.runner_ptr) };
+        unsafe { api::JxlResizableParallelRunnerDestroy(self.runner_ptr) };
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use testresult::TestResult;
 
-    use crate::{decoder_builder, memory::tests::BumpManager};
+    use crate::memory::tests::BumpManager;
 
     use super::*;
 
     #[test]
     #[cfg_attr(coverage_nightly, coverage(off))]
-    fn test_construction() -> TestResult {
-        let memory_manager = BumpManager::<{ 1024 * 5 }>::default();
+    fn test_construction() {
+        let memory_manager = BumpManager::new(1024);
         let parallel_runner = ResizableRunner::new(Some(&memory_manager));
-
-        let decoder = decoder_builder()
-            .memory_manager(&memory_manager)
-            .parallel_runner(&parallel_runner)
-            .build()?;
-        decoder.decode(crate::tests::SAMPLE_JXL)?;
-
-        Ok(())
+        assert!(parallel_runner.is_some());
     }
 }

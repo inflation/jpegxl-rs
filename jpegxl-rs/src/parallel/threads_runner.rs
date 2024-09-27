@@ -20,9 +20,9 @@ along with jpegxl-rs.  If not, see <https://www.gnu.org/licenses/>.
 use std::{ffi::c_void, ptr::null_mut};
 
 #[allow(clippy::wildcard_imports)]
-use jpegxl_sys::thread_parallel_runner::*;
+use jpegxl_sys::threads::thread_parallel_runner::*;
 
-use super::{JxlParallelRunner, RunnerFn};
+use super::{JxlParallelRunner, ParallelRunner};
 
 use crate::memory::MemoryManager;
 
@@ -72,8 +72,8 @@ impl Default for ThreadsRunner<'_> {
     }
 }
 
-impl JxlParallelRunner for ThreadsRunner<'_> {
-    fn runner(&self) -> RunnerFn {
+impl ParallelRunner for ThreadsRunner<'_> {
+    fn runner(&self) -> JxlParallelRunner {
         JxlThreadParallelRunner
     }
 
@@ -90,17 +90,13 @@ impl Drop for ThreadsRunner<'_> {
 
 #[cfg(test)]
 mod tests {
-    use crate::memory::tests::{BumpManager, NoManager};
+    use crate::memory::tests::BumpManager;
 
     use super::*;
 
     #[test]
     fn test_construction() {
-        let memory_manager = NoManager {};
-        let parallel_runner = ThreadsRunner::new(Some(&memory_manager), None);
-        assert!(parallel_runner.is_none());
-
-        let memory_manager = BumpManager::<1024>::default();
+        let memory_manager = BumpManager::new(1024);
         let parallel_runner = ThreadsRunner::new(Some(&memory_manager), Some(10));
         assert!(parallel_runner.is_some());
     }

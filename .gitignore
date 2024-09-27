@@ -5,3 +5,5 @@ sweep.timestamp
 build/
 lcov.info
 .pijul
+compile_commands.json
+.cache/

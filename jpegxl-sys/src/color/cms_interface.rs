@@ -15,13 +15,18 @@ You should have received a copy of the GNU General Public License
 along with jpegxl-sys.  If not, see <https://www.gnu.org/licenses/>.
 */
 
+//! Interface to allow the injection of different color management systems
+//! (CMSes, also called color management modules, or CMMs) in JPEG XL.
+//!
+//! A CMS is needed by the JPEG XL encoder and decoder to perform colorspace
+//! conversions. This defines an interface that can be implemented for different
+//! CMSes and then passed to the library.
+
 use std::ffi::c_void;
 
-use crate::{color_encoding::JxlColorEncoding, types::JxlBool};
+use crate::common::types::JxlBool;
 
-extern "C" {
-    pub fn JxlGetDefaultCms() -> *const JxlCmsInterface;
-}
+use super::color_encoding::JxlColorEncoding;
 
 pub type JpegXlCmsSetFieldsFromIccFunc = extern "C" fn(
     user_data: *mut c_void,

@@ -20,10 +20,10 @@ along with jpegxl-rs.  If not, see <https://www.gnu.org/licenses/>.
 use std::{marker::PhantomData, mem::MaybeUninit, ops::Deref, ptr::null};
 
 #[allow(clippy::wildcard_imports)]
-use jpegxl_sys::encode::*;
+use jpegxl_sys::encoder::encode::*;
 
 use crate::{
-    common::PixelType, errors::EncodeError, memory::MemoryManager, parallel::JxlParallelRunner,
+    common::PixelType, errors::EncodeError, memory::MemoryManager, parallel::ParallelRunner,
 };
 
 mod options;
@@ -62,7 +62,7 @@ impl<U: PixelType> Deref for EncoderResult<U> {
 pub struct JxlEncoder<'prl, 'mm> {
     /// Opaque pointer to the underlying encoder
     #[builder(setter(skip))]
-    enc: *mut jpegxl_sys::encode::JxlEncoder,
+    enc: *mut jpegxl_sys::encoder::encode::JxlEncoder,
     /// Opaque pointer to the encoder options
     #[builder(setter(skip))]
     options_ptr: *mut JxlEncoderFrameSettings,
@@ -121,7 +121,7 @@ pub struct JxlEncoder<'prl, 'mm> {
     /// Set parallel runner
     ///
     /// Default: `None`, indicating single thread execution
-    pub parallel_runner: Option<&'prl dyn JxlParallelRunner>,
+    pub parallel_runner: Option<&'prl dyn ParallelRunner>,
 
     /// Whether box is used in encoder
     use_box: bool,
@@ -211,7 +211,7 @@ impl JxlEncoder<'_, '_> {
         self.check_enc_status(unsafe {
             JxlEncoderFrameSettingsSetOption(
                 self.options_ptr,
-                FrameSetting::Effort,
+                JxlEncoderFrameSettingId::Effort,
                 self.speed as _,
             )
         })?;
@@ -221,7 +221,7 @@ impl JxlEncoder<'_, '_> {
         self.check_enc_status(unsafe {
             JxlEncoderFrameSettingsSetOption(
                 self.options_ptr,
-                FrameSetting::DecodingSpeed,
+                JxlEncoderFrameSettingId::DecodingSpeed,
                 self.decoding_speed,
             )
         })?;
@@ -365,7 +365,7 @@ impl<'prl, 'mm> JxlEncoder<'prl, 'mm> {
     /// Return [`EncodeError`] if it fails to set frame option
     pub fn set_frame_option(
         &mut self,
-        option: FrameSetting,
+        option: JxlEncoderFrameSettingId,
         value: i64,
     ) -> Result<(), EncodeError> {
         self.check_enc_status(unsafe {

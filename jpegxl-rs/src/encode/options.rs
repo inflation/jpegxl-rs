@@ -1,6 +1,6 @@
 use std::mem::MaybeUninit;
 
-use jpegxl_sys::{color_encoding::JxlColorEncoding, encode as api};
+use jpegxl_sys::{color::color_encoding::JxlColorEncoding, encoder::encode as api};
 
 /// Encoding speed
 #[derive(Debug, Clone, Copy)]
