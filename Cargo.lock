@@ -434,7 +434,7 @@ dependencies = [
 
 [[package]]
 name = "jpegxl-rs"
-version = "0.10.4+libjxl-0.10.3"
+version = "0.10.5+libjxl-0.10.3"
 dependencies = [
  "byteorder",
  "criterion",
@@ -457,7 +457,7 @@ dependencies = [
 
 [[package]]
 name = "jpegxl-sys"
-version = "0.10.4+libjxl-0.10.3"
+version = "0.10.5+libjxl-0.10.3"
 dependencies = [
  "image",
  "jpegxl-src",
