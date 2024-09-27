@@ -1,2 +1,9 @@
-[workspace]
+[[package]]
+name = "jpegxl-rs"
+changelog_include = ["jpegxl-sys"]
+publish_features = ["vendored"]
+
+[[package]]
+name = "jpegxl-sys"
+changelog_include = ["jpegxl-src"]
 publish_features = ["vendored"]
