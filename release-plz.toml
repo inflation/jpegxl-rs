@@ -1,2 +1,10 @@
 [workspace]
+allow_dirty = true
+
+[[package]]
+name = "jpegxl-rs"
+publish_features = ["vendored"]
+
+[[package]]
+name = "jpegxl-sys"
 publish_features = ["vendored"]
