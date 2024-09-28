@@ -31,7 +31,7 @@ use crate::{
 };
 
 #[cfg(doc)]
-use crate::{    
+use crate::{
     common::types::{JxlBitDepthType, JxlDataType},
     encoder::stats::JxlEncoderStatsCreate,
 };
