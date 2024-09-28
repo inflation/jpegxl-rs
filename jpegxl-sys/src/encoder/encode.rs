@@ -31,9 +31,9 @@ use crate::{
 };
 
 #[cfg(doc)]
-use crate::{
-    encoder::stats::JxlEncoderStatsCreate,
+use crate::{    
     common::types::{JxlBitDepthType, JxlDataType},
+    encoder::stats::JxlEncoderStatsCreate,
 };
 
 /// Opaque structure that holds the JPEG XL encoder.
