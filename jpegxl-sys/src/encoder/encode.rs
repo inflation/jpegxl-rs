@@ -31,9 +31,9 @@ use crate::{
 };
 
 #[cfg(doc)]
-use crate::common::{
+use crate::{
+    common::types::{JxlBitDepthType, JxlDataType},
     encoder::stats::JxlEncoderStatsCreate,
-    types::{JxlBitDepthType, JxlDataType},
 };
 
 /// Opaque structure that holds the JPEG XL encoder.
@@ -1281,7 +1281,7 @@ extern "C" {
     ) -> JxlEncoderStatus;
 
     /// Sets a frame-specific option of integer type to the encoder options.
-    /// The [`FrameSetting`] argument determines which option is set.
+    /// The [`JxlEncoderFrameSettingId`] argument determines which option is set.
     ///
     /// # Parameters
     /// - `frame_settings`: set of options and metadata for this frame. Also
@@ -1302,7 +1302,7 @@ extern "C" {
     ) -> JxlEncoderStatus;
 
     /// Sets a frame-specific option of float type to the encoder options.
-    /// The [`FrameSetting`] argument determines which option is set.
+    /// The [`JxlEncoderFrameSettingId`] argument determines which option is set.
     ///
     /// # Parameters
     /// - `frame_settings`: set of options and metadata for this frame. Also
