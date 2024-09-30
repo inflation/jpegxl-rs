@@ -47,7 +47,7 @@ pub enum DecodeError {
     UnknownStatus(JxlDecoderStatus),
 }
 
-/// Errors derived from [`JxlEncoderStatus`][jpegxl_sys::encode::JxlEncoderStatus]
+/// Errors derived from [`JxlEncoderStatus`][jpegxl_sys::encoder::encode::JxlEncoderStatus]
 /// and [`JxlEncoderError`]
 #[derive(Error, Debug)]
 pub enum EncodeError {
