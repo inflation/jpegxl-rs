@@ -34,8 +34,12 @@ use crate::{
     utils::check_valid_signature,
 };
 
+mod event;
+pub use event::*;
 mod result;
 pub use result::*;
+mod session;
+pub use session::*;
 
 /// Basic information
 pub type BasicInfo = JxlBasicInfo;
@@ -412,6 +416,24 @@ impl<'pr, 'mm> JxlDecoder<'pr, 'mm> {
 
         unsafe { *format = pixel_format };
         Ok(())
+    }
+
+    /// Start a new decoding session.
+    ///
+    /// Later event will overwrite the previous one if they are the same.
+    ///
+    /// # Arguments
+    ///
+    /// * `events` - The events to subscribe to during the session.
+    ///
+    /// # Errors
+    ///
+    /// Returns a [`DecodeError`] if the decoding session encounters an error.
+    pub fn session<I>(&mut self, events: I) -> Result<Session<'_, 'pr, 'mm>, DecodeError>
+    where
+        I: IntoIterator<Item = Event>,
+    {
+        Session::new(self, events)
     }
 
     /// Decode a JPEG XL image
