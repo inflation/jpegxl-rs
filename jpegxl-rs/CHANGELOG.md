@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+# Changelog
+
+## [Unreleased]
+
 ## [0.11.1+libjxl-0.11.0](https://github.com/inflation/jpegxl-rs/compare/jpegxl-rs-v0.11.0+libjxl-0.11.0...jpegxl-rs-v0.11.1+libjxl-0.11.0) - 2024-10-01
 
 ### 🐛 Bug Fixes

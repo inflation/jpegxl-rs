@@ -2,6 +2,16 @@
 
 ## [Unreleased]
 
+## [0.11.2+libjxl-0.11.0](https://github.com/inflation/jpegxl-rs/compare/jpegxl-sys-v0.11.1+libjxl-0.11.0...jpegxl-sys-v0.11.2+libjxl-0.11.0)
+
+### ⚙️ Miscellaneous Tasks
+
+- Updated the following local packages: jpegxl-src - ([0000000](https://github.com/inflation/jpegxl-rs/commit/0000000))
+
+# Changelog
+
+## [Unreleased]
+
 ## [0.11.1+libjxl-0.11.0](https://github.com/inflation/jpegxl-rs/compare/jpegxl-sys-v0.11.0+libjxl-0.11.0...jpegxl-sys-v0.11.1+libjxl-0.11.0) - 2024-10-01
 
 ### 🐛 Bug Fixes
