@@ -19,7 +19,7 @@ along with jpegxl-sys.  If not, see <https://www.gnu.org/licenses/>.
 
 use crate::common::{memory_manager, types::JxlBool};
 
-extern "C" {
+extern "C-unwind" {
     /// Allocates a buffer using the memory manager, fills it with a compressed
     /// representation of an ICC profile, returns the result through `output_buffer`
     /// and indicates its size through `output_size`.

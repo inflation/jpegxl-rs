@@ -60,7 +60,7 @@ pub struct JxlGainMapBundle {
     pub gain_map: *const u8,
 }
 
-extern "C" {
+extern "C-unwind" {
     /// Calculates the total size required to serialize the gain map bundle into a
     /// binary buffer. This function accounts for all the necessary space to
     /// serialize fields such as gain map metadata, color encoding, compressed ICC

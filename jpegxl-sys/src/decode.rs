@@ -360,7 +360,7 @@ pub type JxlImageOutRunCallback = extern "C" fn(
 /// - `run_opaque`: user data returned by the [`init`](JxlImageOutInitCallback) callback.
 pub type JxlImageOutDestroyCallback = extern "C" fn(run_opaque: *mut c_void);
 
-extern "C" {
+extern "C-unwind" {
     /// Decoder library version.
     ///
     /// # Returns

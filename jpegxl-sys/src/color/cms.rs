@@ -19,6 +19,6 @@ along with jpegxl-sys.  If not, see <https://www.gnu.org/licenses/>.
 
 use super::cms_interface::JxlCmsInterface;
 
-extern "C" {
+extern "C-unwind" {
     pub fn JxlGetDefaultCms() -> *const JxlCmsInterface;
 }
