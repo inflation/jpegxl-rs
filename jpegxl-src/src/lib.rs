@@ -74,13 +74,12 @@ pub fn build() {
 
     println!("cargo:rustc-link-lib=static=jxl");
     println!("cargo:rustc-link-lib=static=jxl_cms");
-
     println!("cargo:rustc-link-lib=static=jxl_threads");
 
     println!("cargo:rustc-link-lib=static=hwy");
-    println!("cargo:rustc-link-lib=static=brotlicommon");
     println!("cargo:rustc-link-lib=static=brotlidec");
     println!("cargo:rustc-link-lib=static=brotlienc");
+    println!("cargo:rustc-link-lib=static=brotlicommon");
 
     #[cfg(any(target_vendor = "apple", target_os = "freebsd"))]
     {
