@@ -565,7 +565,7 @@ pub type JxlDebugImageCallback = extern "C-unwind" fn(
     pixels: *const u16,
 );
 
-extern "C" {
+extern "C-unwind" {
     /// Encoder library version.
     ///
     /// # Returns

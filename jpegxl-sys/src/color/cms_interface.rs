@@ -28,7 +28,7 @@ use crate::common::types::JxlBool;
 
 use super::color_encoding::JxlColorEncoding;
 
-pub type JpegXlCmsSetFieldsFromIccFunc = extern "C" fn(
+pub type JpegXlCmsSetFieldsFromIccFunc = extern "C-unwind" fn(
     user_data: *mut c_void,
     icc_data: *const u8,
     icc_size: usize,
@@ -51,7 +51,7 @@ pub struct JxlColorProfile {
     pub num_channels: usize,
 }
 
-pub type JpegXlCmsInitFunc = extern "C" fn(
+pub type JpegXlCmsInitFunc = extern "C-unwind" fn(
     init_data: *mut c_void,
     num_threads: usize,
     pixels_per_thread: usize,
@@ -60,9 +60,10 @@ pub type JpegXlCmsInitFunc = extern "C" fn(
     intensity_target: f32,
 ) -> *mut c_void;
 
-pub type JpegXlCmsGetBufferFunc = extern "C" fn(user_data: *mut c_void, thread: usize) -> *mut f32;
+pub type JpegXlCmsGetBufferFunc =
+    extern "C-unwind" fn(user_data: *mut c_void, thread: usize) -> *mut f32;
 
-pub type JpegXlCmsRunFunc = extern "C" fn(
+pub type JpegXlCmsRunFunc = extern "C-unwind" fn(
     user_data: *mut c_void,
     thread: usize,
     input_buffer: *const f32,
@@ -70,7 +71,7 @@ pub type JpegXlCmsRunFunc = extern "C" fn(
     num_pixels: usize,
 ) -> JxlBool;
 
-pub type JpegXlCmsDestroyFun = extern "C" fn(user_data: *mut c_void);
+pub type JpegXlCmsDestroyFun = extern "C-unwind" fn(user_data: *mut c_void);
 
 #[repr(C)]
 #[derive(Debug, Clone)]
