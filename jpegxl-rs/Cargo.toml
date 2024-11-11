@@ -29,7 +29,7 @@ bench = []
 
 [dependencies]
 derive_builder = "0.20.2"
-image = { version = "0.25.4", optional = true, default-features = false }
+image = { version = "0.25.5", optional = true, default-features = false }
 thiserror = "2.0.3"
 half = "2.4.1"
 byteorder = "1.5.0"
@@ -40,7 +40,7 @@ path = "../jpegxl-sys"
 default-features = false
 
 [dev-dependencies]
-image = { version = "0.25.4", default-features = false, features = [
+image = { version = "0.25.5", default-features = false, features = [
     "jpeg",
     "png",
 ] }
