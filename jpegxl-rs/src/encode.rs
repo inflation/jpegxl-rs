@@ -153,7 +153,7 @@ impl<'prl, 'mm> JxlEncoderBuilder<'prl, 'mm> {
 
         let init_buffer_size =
             self.init_buffer_size
-                .map_or(512 * 1024 * 1024, |v| if v < 32 { 32 } else { v });
+                .map_or(512 * 1024, |v| if v < 32 { 32 } else { v });
 
         Ok(JxlEncoder {
             enc,
