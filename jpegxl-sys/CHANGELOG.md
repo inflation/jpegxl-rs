@@ -2,6 +2,16 @@
 
 ## [Unreleased]
 
+## [0.11.2+libjxl-0.11.1](https://github.com/inflation/jpegxl-rs/compare/jpegxl-sys-v0.11.1+libjxl-0.11.0...jpegxl-sys-v0.11.2+libjxl-0.11.1)
+
+### 🐛 Bug Fixes
+
+- Update extern "C" to extern "C-unwind" in multiple files - ([793c23a](https://github.com/inflation/jpegxl-rs/commit/793c23a04b5f167ec46875cdc85e5b6eb64b260a))
+
+### 📦 Dependencies
+
+- Update `libjxl` to v0.11.1 - ([71f188a](https://github.com/inflation/jpegxl-rs/commit/71f188a331fcbc5c1ec9358ffbcc9e34f6f269c7))
+
 ## [0.11.1+libjxl-0.11.0](https://github.com/inflation/jpegxl-rs/compare/jpegxl-sys-v0.11.0+libjxl-0.11.0...jpegxl-sys-v0.11.1+libjxl-0.11.0) - 2024-10-01
 
 ### 🐛 Bug Fixes
