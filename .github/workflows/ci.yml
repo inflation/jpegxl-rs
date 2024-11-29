@@ -37,9 +37,6 @@ jobs:
         id: cache
         with:
           path: |
-            ~/.cargo/registry/index/
-            ~/.cargo/registry/cache/
-            ~/.cargo/git/db/
             target/
           key: ${{ runner.os }}-cargo-test-${{ hashFiles('**/Cargo.lock') }}
       - name: Tests
@@ -69,14 +66,12 @@ jobs:
         id: cache
         with:
           path: |
-            ~/.cargo/registry/index/
-            ~/.cargo/registry/cache/
-            ~/.cargo/git/db/
             target/
           key: ${{ runner.os }}-cargo-cov-${{ hashFiles('**/Cargo.lock') }}
       - name: Generate code coverage
         run: cargo +nightly llvm-cov nextest
           --all-features --workspace
+          --branch
           --ignore-filename-regex jpegxl-sys/
           --lcov --output-path lcov.info
       - name: Upload coverage to Codecov
@@ -91,9 +86,6 @@ jobs:
     strategy:
       matrix:
         sanitizer: [address, thread]
-        include:
-          - sanitizer: memory
-            rustflags: "-Zsanitizer-memory-track-origins"
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -112,17 +104,14 @@ jobs:
         id: cache
         with:
           path: |
-            ~/.cargo/registry/index/
-            ~/.cargo/registry/cache/
-            ~/.cargo/git/db/
             target/
           key: ${{ runner.os }}-cargo-sanitizer-${{ hashFiles('**/Cargo.lock') }}
-      - name: Address Sanitizer
+      - name: Test with Sanitizer
         run: cargo +nightly nextest run
           -Z build-std --target=x86_64-unknown-linux-gnu --all-features
         env:
-          RUSTFLAGS: "-Zsanitizer=${{matrix.sanitizer}} ${{matrix.rustflags}}"
-          RUSTDOCFLAGS: "-Zsanitizer=${{matrix.sanitizer}} ${{matrix.rustflags}}"
+          RUSTFLAGS: "-Zsanitizer=${{matrix.sanitizer}}"
+          RUSTDOCFLAGS: "-Zsanitizer=${{matrix.sanitizer}}"
 
   msrv:
     runs-on: ubuntu-latest
@@ -136,9 +125,6 @@ jobs:
         id: cache
         with:
           path: |
-            ~/.cargo/registry/index/
-            ~/.cargo/registry/cache/
-            ~/.cargo/git/db/
             target/
           key: ${{ runner.os }}-cargo-msrv-${{ hashFiles('**/Cargo.lock') }}
       - uses: taiki-e/install-action@cargo-hack
@@ -160,9 +146,6 @@ jobs:
         id: cache
         with:
           path: |
-            ~/.cargo/registry/index/
-            ~/.cargo/registry/cache/
-            ~/.cargo/git/db/
             target/
           key: ${{ runner.os }}-cargo-clippy-${{ hashFiles('**/Cargo.lock') }}
       - name: Run Clippy with reviewdog

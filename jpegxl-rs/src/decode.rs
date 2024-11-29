@@ -192,7 +192,7 @@ impl<'pr, 'mm> JxlDecoderBuilder<'pr, 'mm> {
     }
 }
 
-impl<'pr, 'mm> JxlDecoder<'pr, 'mm> {
+impl JxlDecoder<'_, '_> {
     pub(crate) fn decode_internal(
         &self,
         data: &[u8],
@@ -495,7 +495,7 @@ impl<'pr, 'mm> JxlDecoder<'pr, 'mm> {
     }
 }
 
-impl<'prl, 'mm> Drop for JxlDecoder<'prl, 'mm> {
+impl Drop for JxlDecoder<'_, '_> {
     fn drop(&mut self) {
         unsafe { JxlDecoderDestroy(self.ptr) };
     }

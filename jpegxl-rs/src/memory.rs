@@ -20,7 +20,6 @@
 use jpegxl_sys::common::memory_manager::{JpegxlAllocFunc, JpegxlFreeFunc, JxlMemoryManager};
 
 /// General trait for a memory manager
-
 #[allow(clippy::module_name_repetitions)]
 pub trait MemoryManager {
     /// Return a custom allocating function
