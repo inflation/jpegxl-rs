@@ -314,7 +314,7 @@ impl JxlEncoder<'_, '_> {
         })
     }
 
-    fn _internal(&mut self) -> Result<Vec<u8>, EncodeError> {
+    fn internal(&mut self) -> Result<Vec<u8>, EncodeError> {
         unsafe { JxlEncoderCloseInput(self.enc) };
 
         let mut buffer = vec![0; self.init_buffer_size];
@@ -351,7 +351,7 @@ impl JxlEncoder<'_, '_> {
     // Start encoding
     fn start_encoding<U: PixelType>(&mut self) -> Result<EncoderResult<U>, EncodeError> {
         Ok(EncoderResult {
-            data: self._internal()?,
+            data: self.internal()?,
             _pixel_type: PhantomData,
         })
     }

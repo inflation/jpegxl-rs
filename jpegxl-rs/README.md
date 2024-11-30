@@ -1,11 +1,18 @@
 # jpegxl-rs
 
-[![Documentation](https://docs.rs/jpegxl-rs/badge.svg)](https://docs.rs/jpegxl-rs/)
-[![Crates.io](https://img.shields.io/crates/v/jpegxl-rs.svg)](https://crates.io/crates/jpegxl-rs)
-[![dependency status](https://deps.rs/repo/github/inflation/jpegxl-rs/status.svg)](https://deps.rs/repo/github/inflation/jpegxl-rs)
-[![CI](https://github.com/inflation/jpegxl-rs/workflows/CI/badge.svg)](https://github.com/inflation/jpegxl-rs/actions?query=workflow%3ACI)
-[![codecov](https://codecov.io/gh/inflation/jpegxl-rs/branch/master/graph/badge.svg?token=3WMRUQ816H)](https://codecov.io/gh/inflation/jpegxl-rs)
-[![License: GPL-3.0-or-later](https://img.shields.io/crates/l/jpegxl-rs)](https://github.com/inflation/jpegxl-rs/blob/master/LICENSE)
+[![Documentation](https://docs.rs/jpegxl-rs/badge.svg)][1]
+[![Crates.io](https://img.shields.io/crates/v/jpegxl-rs.svg)][2]
+[![dependency status](https://deps.rs/repo/github/inflation/jpegxl-rs/status.svg)][3]
+[![CI](https://github.com/inflation/jpegxl-rs/workflows/CI/badge.svg)][4]
+[![codecov](https://codecov.io/gh/inflation/jpegxl-rs/branch/master/graph/badge.svg?token=3WMRUQ816H)][5]
+[![License: GPL-3.0-or-later](https://img.shields.io/crates/l/jpegxl-rs)][6]
+
+[1]: https://docs.rs/jpegxl-rs/
+[2]: https://crates.io/crates/jpegxl-rs
+[3]: https://deps.rs/repo/github/inflation/jpegxl-rs
+[4]: https://github.com/inflation/jpegxl-rs/actions?query=workflow%3ACI
+[5]: https://codecov.io/gh/inflation/jpegxl-rs
+[6]: https://github.com/inflation/jpegxl-rs/blob/master/LICENSE
 
 A safe JPEGXL wrapper over `libjxl` library. Check out the original [library](https://github.com/libjxl/libjxl)
 and the [bindings](https://github.com/inflation/jpegxl-rs/tree/master/jpegxl-sys).

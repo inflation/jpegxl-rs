@@ -48,7 +48,7 @@ pub trait ToDynamic {
     ) -> Result<Option<DynamicImage>, DecodeError>;
 }
 
-impl<'pr, 'mm> ToDynamic for JxlDecoder<'pr, 'mm> {
+impl ToDynamic for JxlDecoder<'_, '_> {
     fn decode_to_image(&self, data: &[u8]) -> Result<Option<DynamicImage>, DecodeError> {
         let mut buffer = vec![];
         let mut pixel_format = MaybeUninit::uninit();
