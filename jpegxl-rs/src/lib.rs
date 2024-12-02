@@ -19,9 +19,6 @@ along with jpegxl-rs.  If not, see <https://www.gnu.org/licenses/>.
 #![cfg_attr(coverage_nightly, feature(coverage_attribute))]
 #![doc = include_str!("../README.md")]
 
-#[macro_use]
-extern crate derive_builder;
-
 mod common;
 pub mod decode;
 pub mod encode;

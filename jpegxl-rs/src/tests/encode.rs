@@ -54,7 +54,6 @@ fn jpeg() -> TestResult {
         .parallel_runner(&threads_runner)
         .use_container(true)
         .uses_original_profile(true)
-        .jpeg_quality(85.0)
         .build()?;
 
     let res = encoder.encode_jpeg(super::SAMPLE_JPEG)?;
@@ -203,7 +202,7 @@ fn gray() -> TestResult {
     )?;
     _ = decoder.decode(&result)?;
 
-    encoder.color_encoding = ColorEncoding::LinearSrgbLuma;
+    encoder.color_encoding = Some(ColorEncoding::LinearSrgbLuma);
     let result: EncoderResult<u8> = encoder.encode_frame(
         &EncoderFrame::new(sample.as_raw()).num_channels(1),
         sample.width(),

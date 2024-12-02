@@ -97,6 +97,8 @@ pub(crate) fn check_dec_status(status: JxlDecoderStatus) -> Result<(), DecodeErr
 mod tests {
     use testresult::TestResult;
 
+    use crate::encode::JxlEncoder;
+
     use super::*;
 
     #[test]
@@ -132,15 +134,17 @@ mod tests {
     #[test]
     #[cfg_attr(coverage_nightly, coverage(off))]
     fn encode_invalid_data() -> TestResult {
-        let mut encoder = crate::encoder_builder().has_alpha(true).build()?;
+        let mut encoder = JxlEncoder::builder().has_alpha(true).build()?;
+
+        println!("{}", encoder.encode::<u8, u8>(&[], 0, 0).err().unwrap());
 
         assert!(matches!(
             encoder.encode::<u8, u8>(&[], 0, 0),
-            Err(EncodeError::ApiUsage)
+            Err(EncodeError::ApiUsage { .. })
         ));
         assert!(matches!(
             encoder.encode::<f32, f32>(&[1.0, 1.0, 1.0, 0.5], 1, 1),
-            Err(EncodeError::ApiUsage)
+            Err(EncodeError::ApiUsage { .. })
         ));
 
         println!(
