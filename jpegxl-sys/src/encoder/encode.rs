@@ -1342,7 +1342,8 @@ extern "C-unwind" {
     /// # Returns
     /// - [`JxlEncoderStatus::Success`] if the operation was successful.
     /// - [`JxlEncoderStatus::Error`] otherwise.
-    pub fn JxlEncoderUseContainer(enc: *mut JxlEncoder, use_container: bool) -> JxlEncoderStatus;
+    pub fn JxlEncoderUseContainer(enc: *mut JxlEncoder, use_container: JxlBool)
+        -> JxlEncoderStatus;
 
     /// Configure the encoder to store JPEG reconstruction metadata in the JPEG XL
     /// container.
@@ -1361,7 +1362,7 @@ extern "C-unwind" {
     /// - [`JxlEncoderStatus::Error`] otherwise.
     pub fn JxlEncoderStoreJPEGMetadata(
         enc: *mut JxlEncoder,
-        store_jpeg_metadata: bool,
+        store_jpeg_metadata: JxlBool,
     ) -> JxlEncoderStatus;
 
     /// Sets the feature level of the JPEG XL codestream. Valid values are 5 and
@@ -1444,7 +1445,7 @@ extern "C-unwind" {
     /// - [`JxlEncoderStatus::Success`] if the operation was successful, [`JxlEncoderStatus::Error`] otherwise.
     pub fn JxlEncoderSetFrameLossless(
         frame_settings: *mut JxlEncoderFrameSettings,
-        lossless: bool,
+        lossless: JxlBool,
     ) -> JxlEncoderStatus;
 
     /// Sets the distance level for lossy compression: target max butteraugli
@@ -1546,14 +1547,14 @@ extern "C-unwind" {
     /// # Parameters
     /// - `color_encoding`: color encoding instance.
     /// - `is_gray`: whether the color encoding should be gray scale or color.
-    pub fn JxlColorEncodingSetToSRGB(color_encoding: *mut JxlColorEncoding, is_gray: bool);
+    pub fn JxlColorEncodingSetToSRGB(color_encoding: *mut JxlColorEncoding, is_gray: JxlBool);
 
     /// Sets a color encoding to be linear sRGB.
     ///
     /// # Parameters
     /// - `color_encoding`: [color encoding instance](JxlColorEncoding).
     /// - `is_gray`: whether the color encoding should be gray scale or color.
-    pub fn JxlColorEncodingSetToLinearSRGB(color_encoding: *mut JxlColorEncoding, is_gray: bool);
+    pub fn JxlColorEncodingSetToLinearSRGB(color_encoding: *mut JxlColorEncoding, is_gray: JxlBool);
 
     /// Enables usage of expert options.
     ///
