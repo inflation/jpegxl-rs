@@ -1342,7 +1342,8 @@ extern "C-unwind" {
     /// # Returns
     /// - [`JxlEncoderStatus::Success`] if the operation was successful.
     /// - [`JxlEncoderStatus::Error`] otherwise.
-    pub fn JxlEncoderUseContainer(enc: *mut JxlEncoder, use_container: JxlBool) -> JxlEncoderStatus;
+    pub fn JxlEncoderUseContainer(enc: *mut JxlEncoder, use_container: JxlBool)
+        -> JxlEncoderStatus;
 
     /// Configure the encoder to store JPEG reconstruction metadata in the JPEG XL
     /// container.

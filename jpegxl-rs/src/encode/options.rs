@@ -58,7 +58,9 @@ impl From<ColorEncoding> for JxlColorEncoding {
                 LinearSrgb => {
                     api::JxlColorEncodingSetToLinearSRGB(color_encoding.as_mut_ptr(), false.into());
                 }
-                SrgbLuma => api::JxlColorEncodingSetToSRGB(color_encoding.as_mut_ptr(), true.into()),
+                SrgbLuma => {
+                    api::JxlColorEncodingSetToSRGB(color_encoding.as_mut_ptr(), true.into())
+                }
                 LinearSrgbLuma => {
                     api::JxlColorEncodingSetToLinearSRGB(color_encoding.as_mut_ptr(), true.into());
                 }
