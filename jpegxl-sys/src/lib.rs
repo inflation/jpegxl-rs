@@ -346,7 +346,7 @@ mod test {
                 align: 0,
             };
             let mut color_encoding = MaybeUninit::uninit();
-            JxlColorEncodingSetToSRGB(color_encoding.as_mut_ptr(), false);
+            JxlColorEncodingSetToSRGB(color_encoding.as_mut_ptr(), false.into());
             status = JxlEncoderSetColorEncoding(enc, color_encoding.as_ptr());
             jxl_enc_assert!(status, "Set Color Encoding");
 

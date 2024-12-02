@@ -54,13 +54,13 @@ impl From<ColorEncoding> for JxlColorEncoding {
 
         unsafe {
             match val {
-                Srgb => api::JxlColorEncodingSetToSRGB(color_encoding.as_mut_ptr(), false),
+                Srgb => api::JxlColorEncodingSetToSRGB(color_encoding.as_mut_ptr(), false.into()),
                 LinearSrgb => {
-                    api::JxlColorEncodingSetToLinearSRGB(color_encoding.as_mut_ptr(), false);
+                    api::JxlColorEncodingSetToLinearSRGB(color_encoding.as_mut_ptr(), false.into());
                 }
-                SrgbLuma => api::JxlColorEncodingSetToSRGB(color_encoding.as_mut_ptr(), true),
+                SrgbLuma => api::JxlColorEncodingSetToSRGB(color_encoding.as_mut_ptr(), true.into()),
                 LinearSrgbLuma => {
-                    api::JxlColorEncodingSetToLinearSRGB(color_encoding.as_mut_ptr(), true);
+                    api::JxlColorEncodingSetToLinearSRGB(color_encoding.as_mut_ptr(), true.into());
                 }
             }
             color_encoding.assume_init()
