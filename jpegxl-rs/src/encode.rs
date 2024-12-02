@@ -19,6 +19,7 @@ along with jpegxl-rs.  If not, see <https://www.gnu.org/licenses/>.
 
 use std::{marker::PhantomData, mem::MaybeUninit, ops::Deref, ptr::null};
 
+use bon::bon;
 #[allow(clippy::wildcard_imports)]
 use jpegxl_sys::encoder::encode::*;
 
@@ -55,16 +56,11 @@ impl<U: PixelType> Deref for EncoderResult<U> {
 // MARK: Encoder
 
 /// JPEG XL Encoder
-#[derive(Builder)]
-#[builder(build_fn(skip, error = "None"))]
-#[builder(setter(strip_option))]
 #[allow(clippy::struct_excessive_bools)]
 pub struct JxlEncoder<'prl, 'mm> {
     /// Opaque pointer to the underlying encoder
-    #[builder(setter(skip))]
     enc: *mut jpegxl_sys::encoder::encode::JxlEncoder,
     /// Opaque pointer to the encoder options
-    #[builder(setter(skip))]
     options_ptr: *mut JxlEncoderFrameSettings,
 
     /// Set alpha channel
@@ -74,7 +70,7 @@ pub struct JxlEncoder<'prl, 'mm> {
     /// Set lossless
     ///
     /// Default: false
-    pub lossless: bool,
+    pub lossless: Option<bool>,
     /// Set speed
     ///
     /// Default: `Squirrel` (7).
@@ -115,8 +111,8 @@ pub struct JxlEncoder<'prl, 'mm> {
 
     /// Set color encoding
     ///
-    /// Default: SRGB
-    pub color_encoding: ColorEncoding,
+    /// Default: SRGB for uint, Linear SRGB for float
+    pub color_encoding: Option<ColorEncoding>,
 
     /// Set parallel runner
     ///
@@ -131,15 +127,29 @@ pub struct JxlEncoder<'prl, 'mm> {
     memory_manager: Option<&'mm dyn MemoryManager>,
 }
 
-impl<'prl, 'mm> JxlEncoderBuilder<'prl, 'mm> {
+#[bon]
+impl<'prl, 'mm> JxlEncoder<'prl, 'mm> {
     /// Build a [`JxlEncoder`]
     ///
     /// # Errors
     /// Return [`EncodeError::CannotCreateEncoder`] if it fails to create the encoder
-    pub fn build(&self) -> Result<JxlEncoder<'prl, 'mm>, EncodeError> {
-        let mm = self.memory_manager.flatten();
+    #[builder]
+    pub fn new(
+        memory_manager: Option<&'mm dyn MemoryManager>,
+        #[builder(default)] has_alpha: bool,
+        lossless: Option<bool>,
+        #[builder(default)] speed: EncoderSpeed,
+        #[builder(default = 1.0)] quality: f32,
+        #[builder(default)] use_container: bool,
+        #[builder(default)] uses_original_profile: bool,
+        #[builder(default)] decoding_speed: i64,
+        init_buffer_size: Option<usize>,
+        color_encoding: Option<ColorEncoding>,
+        parallel_runner: Option<&'prl dyn ParallelRunner>,
+        #[builder(default)] use_box: bool,
+    ) -> Result<Self, EncodeError> {
         let enc = unsafe {
-            mm.map_or_else(
+            memory_manager.map_or_else(
                 || JxlEncoderCreate(null()),
                 |mm| JxlEncoderCreate(&mm.manager()),
             )
@@ -151,40 +161,44 @@ impl<'prl, 'mm> JxlEncoderBuilder<'prl, 'mm> {
 
         let options_ptr = unsafe { JxlEncoderFrameSettingsCreate(enc, null()) };
 
-        let init_buffer_size =
-            self.init_buffer_size
-                .map_or(512 * 1024, |v| if v < 32 { 32 } else { v });
-
-        Ok(JxlEncoder {
+        Ok(Self {
             enc,
             options_ptr,
-            has_alpha: self.has_alpha.unwrap_or_default(),
-            lossless: self.lossless.unwrap_or_default(),
-            speed: self.speed.unwrap_or_default(),
-            quality: self.quality.unwrap_or(1.0),
-            use_container: self.use_container.unwrap_or_default(),
-            uses_original_profile: self.uses_original_profile.unwrap_or_default(),
-            decoding_speed: self.decoding_speed.unwrap_or_default(),
-            init_buffer_size,
-            color_encoding: self.color_encoding.unwrap_or(ColorEncoding::Srgb),
-            parallel_runner: self.parallel_runner.flatten(),
-            use_box: self.use_box.unwrap_or_default(),
-            memory_manager: mm,
+            has_alpha,
+            lossless,
+            speed,
+            quality,
+            use_container,
+            uses_original_profile,
+            decoding_speed,
+            init_buffer_size: init_buffer_size.map_or(512 * 1024, |v| if v < 32 { 32 } else { v }),
+            color_encoding,
+            parallel_runner,
+            use_box,
+            memory_manager,
         })
     }
+}
 
+use jxl_encoder_builder::{IsUnset, SetQuality, State};
+
+impl<'prl, 'mm, S: State> JxlEncoderBuilder<'prl, 'mm, S> {
     /// Set the `quality` parameter from a JPEG-style quality factor (0-100, higher is better
     /// quality).
-    pub fn jpeg_quality(&mut self, quality: f32) -> &mut Self {
+    #[allow(dead_code)]
+    pub fn jpeg_quality(self, quality: f32) -> JxlEncoderBuilder<'prl, 'mm, SetQuality<S>>
+    where
+        S::Quality: IsUnset,
+    {
         // SAFETY: the C API has no safety requirements.
-        self.quality = Some(unsafe { JxlEncoderDistanceFromQuality(quality) });
-        self
+        self.quality(unsafe { JxlEncoderDistanceFromQuality(quality) })
     }
 }
 
 // MARK: Private helper functions
 impl JxlEncoder<'_, '_> {
     /// Error mapping from underlying C const to [`EncodeError`] enum
+    #[track_caller]
     #[cfg_attr(coverage_nightly, coverage(off))]
     fn check_enc_status(&self, status: JxlEncoderStatus) -> Result<(), EncodeError> {
         match status {
@@ -204,10 +218,14 @@ impl JxlEncoder<'_, '_> {
 
     // Set options
     fn set_options(&self) -> Result<(), EncodeError> {
-        self.check_enc_status(unsafe { JxlEncoderUseContainer(self.enc, self.use_container) })?;
         self.check_enc_status(unsafe {
-            JxlEncoderSetFrameLossless(self.options_ptr, self.lossless)
+            JxlEncoderUseContainer(self.enc, self.use_container.into())
         })?;
+        if let Some(lossless) = self.lossless {
+            self.check_enc_status(unsafe {
+                JxlEncoderSetFrameLossless(self.options_ptr, lossless.into())
+            })?;
+        }
         self.check_enc_status(unsafe {
             JxlEncoderFrameSettingsSetOption(
                 self.options_ptr,
@@ -273,11 +291,8 @@ impl JxlEncoder<'_, '_> {
             basic_info.alpha_exponent_bits = 0;
         }
 
-        match self.color_encoding {
-            ColorEncoding::SrgbLuma | ColorEncoding::LinearSrgbLuma => {
-                basic_info.num_color_channels = 1;
-            }
-            _ => (),
+        if let Some(ColorEncoding::SrgbLuma | ColorEncoding::LinearSrgbLuma) = self.color_encoding {
+            basic_info.num_color_channels = 1;
         }
 
         if let Some(pr) = self.parallel_runner {
@@ -286,9 +301,13 @@ impl JxlEncoder<'_, '_> {
 
         self.check_enc_status(unsafe { JxlEncoderSetBasicInfo(self.enc, &basic_info) })?;
 
-        self.check_enc_status(unsafe {
-            JxlEncoderSetColorEncoding(self.enc, &self.color_encoding.into())
-        })
+        if let Some(color_encoding) = self.color_encoding {
+            self.check_enc_status(unsafe {
+                JxlEncoderSetColorEncoding(self.enc, &color_encoding.into())
+            })?;
+        }
+
+        Ok(())
     }
 
     // Add a frame
@@ -432,7 +451,7 @@ impl<'prl, 'mm> JxlEncoder<'prl, 'mm> {
         self.set_options()?;
 
         // If using container format, store JPEG reconstruction metadata
-        self.check_enc_status(unsafe { JxlEncoderStoreJPEGMetadata(self.enc, true) })?;
+        self.check_enc_status(unsafe { JxlEncoderStoreJPEGMetadata(self.enc, true.into()) })?;
 
         self.add_jpeg_frame(data)?;
         self.start_encoding()
@@ -480,9 +499,8 @@ impl Drop for JxlEncoder<'_, '_> {
 }
 
 /// Return a [`JxlEncoderBuilder`] with default settings
-#[must_use]
 pub fn encoder_builder<'prl, 'mm>() -> JxlEncoderBuilder<'prl, 'mm> {
-    JxlEncoderBuilder::default()
+    JxlEncoder::builder()
 }
 
 // MARK: Tests
@@ -492,15 +510,13 @@ mod tests {
     use testresult::TestResult;
 
     #[test]
-    #[allow(clippy::clone_on_copy)]
-    fn test_derive() {
-        let e = EncoderSpeed::default().clone();
-        println!("{e:?}");
-
-        let e = ColorEncoding::Srgb.clone();
-        println!("{e:?}");
-
-        _ = encoder_builder().clone();
+    #[allow(clippy::float_cmp)]
+    fn test_jpeg_quality() -> TestResult {
+        let encoder = encoder_builder().jpeg_quality(100.0).build()?;
+        assert_eq!(encoder.quality, 0.0);
+        let encoder = encoder_builder().jpeg_quality(90.0).build()?;
+        assert_eq!(encoder.quality, 1.0);
+        Ok(())
     }
 
     #[test]
