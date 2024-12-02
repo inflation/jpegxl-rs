@@ -41,7 +41,7 @@ unexpected_cfgs = { level = "warn", check-cfg = ['cfg(coverage_nightly)'] }
 pedantic = "warn"
 
 [dependencies]
-cmake = "0.1.51"
+cmake = "0.1.52"
 
 [features]
 threads = []
