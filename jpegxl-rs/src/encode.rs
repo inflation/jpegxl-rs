@@ -133,7 +133,7 @@ impl<'prl, 'mm> JxlEncoder<'prl, 'mm> {
     ///
     /// # Errors
     /// Return [`EncodeError::CannotCreateEncoder`] if it fails to create the encoder
-    #[builder]
+    #[builder(derive(Clone))]
     pub fn new(
         memory_manager: Option<&'mm dyn MemoryManager>,
         #[builder(default)] has_alpha: bool,

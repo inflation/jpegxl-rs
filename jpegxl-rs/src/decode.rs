@@ -159,7 +159,7 @@ impl<'pr, 'mm> JxlDecoder<'pr, 'mm> {
     ///
     /// # Errors
     /// Return [`DecodeError::CannotCreateDecoder`] if it fails to create the decoder.
-    #[builder]
+    #[builder(derive(Clone))]
     pub fn new(
         pixel_format: Option<PixelFormat>,
         skip_reorientation: Option<bool>,
