@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+## [0.11.3+libjxl-0.11.1](https://github.com/inflation/jpegxl-rs/compare/jpegxl-sys-v0.11.2+libjxl-0.11.1...jpegxl-sys-v0.11.3+libjxl-0.11.1)
+
+### 🐛 Bug Fixes
+
+- Ensure to use JxlBool for FFI - ([8f42736](https://github.com/inflation/jpegxl-rs/commit/8f4273692ab02b0f07d8775aa1c9b537a3f27427))
+
 ## [0.11.2+libjxl-0.11.1](https://github.com/inflation/jpegxl-rs/compare/jpegxl-sys-v0.11.1+libjxl-0.11.0...jpegxl-sys-v0.11.2+libjxl-0.11.1)
 
 ### 🐛 Bug Fixes
