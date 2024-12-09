@@ -2,6 +2,20 @@
 
 ## [Unreleased]
 
+## [0.12.0+libjxl-0.11.1](https://github.com/inflation/jpegxl-rs/compare/jpegxl-rs-v0.11.2+libjxl-0.11.1...jpegxl-rs-v0.12.0+libjxl-0.11.1)
+
+### ⛰️ Features
+
+- Replace `derive_builder` with `bon` - ([68f0474](https://github.com/inflation/jpegxl-rs/commit/68f047448979409bad51acb0aed9db0475c37e30))
+
+### 🐛 Bug Fixes
+
+- Ensure to use JxlBool for FFI - ([8f42736](https://github.com/inflation/jpegxl-rs/commit/8f4273692ab02b0f07d8775aa1c9b537a3f27427))
+
+### ⚙️ Miscellaneous Tasks
+
+- Enable MSan and TSan (#114) - ([682cc5c](https://github.com/inflation/jpegxl-rs/commit/682cc5c805b6735ac4ab9d48a29f77f902bbe2cb))
+
 ## [0.11.2+libjxl-0.11.1](https://github.com/inflation/jpegxl-rs/compare/jpegxl-rs-v0.11.1+libjxl-0.11.0...jpegxl-rs-v0.11.2+libjxl-0.11.1)
 
 ### 📦 Dependencies
