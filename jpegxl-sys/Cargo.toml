@@ -41,5 +41,5 @@ pretty_assertions = "1.4.1"
 
 [features]
 default = []
-vendored = ["jpegxl-src"]
+vendored = ["dep:jpegxl-src"]
 docs = []
