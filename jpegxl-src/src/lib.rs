@@ -17,6 +17,7 @@
 
 #![cfg_attr(coverage_nightly, feature(coverage_attribute))]
 
+use core::panic;
 use std::{
     env,
     path::{Path, PathBuf},
@@ -30,8 +31,18 @@ fn source_dir() -> PathBuf {
 }
 
 #[cfg_attr(coverage_nightly, coverage(off))]
+
+/// Builds the JPEG XL library.
+///
+/// # Panics
+///
+/// This function will panic if the source directory does not exist or is not a directory.
 pub fn build() {
     let source = source_dir();
+    assert!(
+        source.exists() && source.is_dir(),
+        "Source directory {source:?} does not exist"
+    );
 
     let mut config = cmake::Config::new(source);
     config
@@ -52,8 +63,31 @@ pub fn build() {
         config.env("CMAKE_BUILD_PARALLEL_LEVEL", format!("{p}"));
     }
 
-    #[cfg(target_os = "windows")]
-    {
+    if cfg!(asan) {
+        config
+            .env("SANITIZER", "asan")
+            .cflag("-g -DADDRESS_SANITIZER -fsanitize=address")
+            .cxxflag("-g -DADDRESS_SANITIZER -fsanitize=address")
+            .define("JPEGXL_ENABLE_TCMALLOC", "OFF");
+    } else if cfg!(tsan) {
+        config
+            .env("SANITIZER", "tsan")
+            .cflag("-g -DTHREAD_SANITIZER -fsanitize=thread")
+            .cxxflag("-g -DTHREAD_SANITIZER -fsanitize=thread")
+            .define("JPEGXL_ENABLE_TCMALLOC", "OFF");
+    }
+
+    if cfg!(windows) {
+        assert!(!cfg!(tsan), "Thread sanitizer is not supported on Windows");
+
+        // For CMake pre-checking
+        let mut exeflags = "MSVCRTD.lib".to_string();
+        if cfg!(asan) {
+            exeflags.push_str(
+                " clang_rt.asan_dynamic-x86_64.lib clang_rt.asan_dynamic_runtime_thunk-x86_64.lib",
+            );
+        }
+
         config
             .generator_toolset("ClangCL")
             .define(
@@ -61,16 +95,29 @@ pub fn build() {
                 "UseMultiToolTask=true;EnforceProcessCountAcrossBuilds=true",
             ) // Enable parallel builds
             .define("CMAKE_MSVC_RUNTIME_LIBRARY", "MultiThreaded")
-            .define("CMAKE_EXE_LINKER_FLAGS", "MSVCRTD.lib")
-            .cflag("-Zl");
+            .define("CMAKE_EXE_LINKER_FLAGS", exeflags)
+            .cflag("/Zl");
     }
 
-    let mut prefix = config.build();
-    prefix.push("lib");
-    println!("cargo:rustc-link-search=native={}", prefix.display());
-    prefix.pop();
-    prefix.push("lib64");
-    println!("cargo:rustc-link-search=native={}", prefix.display());
+    let prefix = config.build();
+
+    let lib_dir = {
+        let mut lib_dir = prefix.join("lib");
+        if lib_dir.exists() {
+            lib_dir
+        } else {
+            lib_dir.pop();
+            lib_dir.push("lib64");
+            if lib_dir.exists() {
+                lib_dir
+            } else {
+                panic!(
+                    "Could not find the library directory, please check the files in {prefix:?}"
+                );
+            }
+        }
+    };
+    println!("cargo:rustc-link-search=native={}", lib_dir.display());
 
     println!("cargo:rustc-link-lib=static=jxl");
     println!("cargo:rustc-link-lib=static=jxl_cms");
@@ -81,12 +128,9 @@ pub fn build() {
     println!("cargo:rustc-link-lib=static=brotlienc");
     println!("cargo:rustc-link-lib=static=brotlicommon");
 
-    #[cfg(any(target_vendor = "apple", target_os = "freebsd"))]
-    {
+    if cfg!(any(target_vendor = "apple", target_os = "freebsd")) {
         println!("cargo:rustc-link-lib=c++");
-    }
-    #[cfg(target_os = "linux")]
-    {
+    } else if cfg!(target_os = "linux") {
         println!("cargo:rustc-link-lib=stdc++");
     }
 }

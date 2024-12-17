@@ -17,10 +17,10 @@
 
 //! Build script for jpegxl-sys.
 
+use std::env;
+
 fn main() {
-    #[cfg(all(not(feature = "vendored"), not(feature = "docs")))]
-    {
-        use std::env;
+    if cfg!(all(not(feature = "vendored"), not(feature = "docs"))) {
         let version = env!("CARGO_PKG_VERSION")
             .split('+')
             .nth(1)
@@ -43,8 +43,8 @@ fn main() {
                     panic!("Cannot find `libjxl_threads` with version >= {version}")
                 });
         }
+    } else {
+        #[cfg(feature = "vendored")]
+        jpegxl_src::build();
     }
-
-    #[cfg(feature = "vendored")]
-    jpegxl_src::build();
 }
