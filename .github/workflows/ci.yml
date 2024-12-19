@@ -32,7 +32,9 @@ jobs:
         with:
           sweep-cache: true
       - name: Tests
-        run: cargo nextest run --all-features --workspace
+        run: |
+          cargo nextest run --all-features --workspace
+          cargo test --doc --all-features --workspace
 
   coverage:
     name: Code Coverage
@@ -70,11 +72,7 @@ jobs:
     name: Sanitizers
     strategy:
       matrix:
-        include:
-          - sanitizer: address
-            cfg: asan
-          - sanitizer: thread
-            cfg: tsan
+        sanitizer: [address, thread]
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -90,12 +88,22 @@ jobs:
       - uses: Leafwing-Studios/cargo-cache@v2.5.0
         with:
           sweep-cache: true
+      - name: Setup Sanitizer
+        id: setup
+        run: |
+          if [ ${{ matrix.sanitizer }} == "address" ]; then
+            echo "CFG=asan" >> "$GITHUB_OUTPUT"
+          elif [ ${{ matrix.sanitizer }} == "thread" ]; then
+            echo "CFG=tsan" >> "$GITHUB_OUTPUT"
+          fi
       - name: Test with Sanitizer
-        run: cargo +nightly nextest run
-          -Z build-std --target=x86_64-unknown-linux-gnu --all-features
+        run: |
+          cargo +nightly nextest run -Z build-std --target=x86_64-unknown-linux-gnu --all-features
+          # FIXME: Nightly changed the behavior to start from `src` folder
+          # cargo +nightly test --doc -Z build-std --target=x86_64-unknown-linux-gnu --all-features
         env:
-          RUSTFLAGS: "-Zsanitizer=${{matrix.sanitizer}} --cfg=${{matrix.cfg}}"
-          RUSTDOCFLAGS: "-Zsanitizer=${{matrix.sanitizer}} --cfg=${{matrix.cfg}}"
+          RUSTFLAGS: "-Zsanitizer=${{ matrix.sanitizer }} --cfg=${{ steps.setup.outputs.CFG }}"
+          RUSTDOCFLAGS: "-Zsanitizer=${{ matrix.sanitizer }} --cfg=${{ steps.setup.outputs.CFG }}"
 
   msrv:
     runs-on: ubuntu-latest
