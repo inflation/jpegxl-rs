@@ -428,7 +428,7 @@ dependencies = [
 
 [[package]]
 name = "jpegxl-rs"
-version = "0.11.2+libjxl-0.11.1"
+version = "0.11.3+libjxl-0.11.1"
 dependencies = [
  "bon",
  "byteorder",
@@ -444,14 +444,14 @@ dependencies = [
 
 [[package]]
 name = "jpegxl-src"
-version = "0.11.2"
+version = "0.11.3"
 dependencies = [
  "cmake",
 ]
 
 [[package]]
 name = "jpegxl-sys"
-version = "0.11.2+libjxl-0.11.1"
+version = "0.12.0+libjxl-0.11.1"
 dependencies = [
  "image",
  "jpegxl-src",
