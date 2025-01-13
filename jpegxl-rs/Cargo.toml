@@ -29,7 +29,7 @@ bench = []
 
 [dependencies]
 image = { version = "0.25.5", optional = true, default-features = false }
-thiserror = "2.0.9"
+thiserror = "2.0.11"
 half = "2.4.1"
 byteorder = "1.5.0"
 bon = "3.3.2"
