@@ -36,7 +36,7 @@ use jpegxl_rs::*;
 use jpegxl_rs::decode::*;
 
 let mut decoder = decoder_builder().build().unwrap();
-let sample = include_bytes!("../samples/sample.jxl");
+let sample = include_bytes!("../../samples/sample.jxl");
 
 let (Metadata { width, height, ..}, pixels) = decoder.decode(sample).unwrap();
 match pixels {
