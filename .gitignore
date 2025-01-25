@@ -7,3 +7,4 @@ lcov.info
 .pijul
 compile_commands.json
 .cache/
+Cargo.lock

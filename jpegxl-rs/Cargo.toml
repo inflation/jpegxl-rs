@@ -25,6 +25,7 @@ default = ["image"]
 image = ["dep:image"]
 vendored = ["jpegxl-sys/vendored"]
 docs = ["jpegxl-sys/docs"]
+num-enum = ["jpegxl-sys/num-enum"]
 bench = []
 
 [dependencies]
