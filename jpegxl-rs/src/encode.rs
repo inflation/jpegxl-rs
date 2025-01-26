@@ -70,14 +70,16 @@ pub struct JxlEncoder<'prl, 'mm> {
     ///
     /// Default: false
     pub has_alpha: bool,
+
     /// Set lossless
     ///
     /// Default: false
     pub lossless: Option<bool>,
+
     /// Set speed
     ///
-    /// Default: `Squirrel` (7).
-    pub speed: EncoderSpeed,
+    /// Default: Fastest = 1.
+    pub speed: u8,
     /// Set quality for lossy compression: target max butteraugli distance, lower = higher quality
     ///
     ///  Range: 0 .. 15.<br />
@@ -125,7 +127,7 @@ pub struct JxlEncoder<'prl, 'mm> {
     /// Set orientation
     ///
     /// Default: `None`, indicating normal orientation
-    pub orientation: Option<Orientation>,
+    pub orientation: Orientation,
 
     /// Whether box is used in encoder
     use_box: bool,
@@ -146,7 +148,7 @@ impl<'prl, 'mm> JxlEncoder<'prl, 'mm> {
         memory_manager: Option<&'mm dyn MemoryManager>,
         #[builder(default)] has_alpha: bool,
         lossless: Option<bool>,
-        #[builder(default)] speed: EncoderSpeed,
+        #[builder(default = 1)] speed: u8,
         #[builder(default = 1.0)] quality: f32,
         #[builder(default)] use_container: bool,
         #[builder(default)] uses_original_profile: bool,
@@ -154,7 +156,7 @@ impl<'prl, 'mm> JxlEncoder<'prl, 'mm> {
         init_buffer_size: Option<usize>,
         color_encoding: Option<ColorEncoding>,
         parallel_runner: Option<&'prl dyn ParallelRunner>,
-        orientation: Option<Orientation>,
+        #[builder(default = Orientation::Identity)] orientation: Orientation,
         #[builder(default)] use_box: bool,
     ) -> Result<Self, EncodeError> {
         let enc = unsafe {
@@ -305,8 +307,8 @@ impl JxlEncoder<'_, '_> {
             basic_info.num_color_channels = 1;
         }
 
-        if let Some(orientation) = self.orientation {
-            basic_info.orientation = orientation;
+        if self.orientation != Orientation::Identity {
+            basic_info.orientation = self.orientation;
         }
 
         if let Some(pr) = self.parallel_runner {
