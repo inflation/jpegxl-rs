@@ -39,7 +39,11 @@ optional = true
 image = { version = "0.25.5", default-features = false, features = ["png"] }
 pretty_assertions = "1.4.1"
 
+[dependencies]
+num_enum = { version = "*", optional = true }
+
 [features]
-default = []
+default = ['num-enum']
+num-enum = ['dep:num_enum']
 vendored = ["dep:jpegxl-src"]
 docs = []

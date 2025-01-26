@@ -36,9 +36,12 @@ pub use metadata::*;
 mod frame;
 pub use frame::*;
 
+pub use jpegxl_sys::metadata::codestream_header::JxlOrientation as Orientation;
+
 // MARK: Utility types
 
 /// Encoder result
+/// FIXME: what is U for ?
 pub struct EncoderResult<U: PixelType> {
     /// Output binary data
     pub data: Vec<u8>,
@@ -67,14 +70,16 @@ pub struct JxlEncoder<'prl, 'mm> {
     ///
     /// Default: false
     pub has_alpha: bool,
+
     /// Set lossless
     ///
     /// Default: false
     pub lossless: Option<bool>,
+
     /// Set speed
     ///
-    /// Default: `Squirrel` (7).
-    pub speed: EncoderSpeed,
+    /// Default: Fastest = 1.
+    pub speed: u8,
     /// Set quality for lossy compression: target max butteraugli distance, lower = higher quality
     ///
     ///  Range: 0 .. 15.<br />
@@ -119,6 +124,11 @@ pub struct JxlEncoder<'prl, 'mm> {
     /// Default: `None`, indicating single thread execution
     pub parallel_runner: Option<&'prl dyn ParallelRunner>,
 
+    /// Set orientation
+    ///
+    /// Default: `None`, indicating normal orientation
+    pub orientation: Orientation,
+
     /// Whether box is used in encoder
     use_box: bool,
 
@@ -138,7 +148,7 @@ impl<'prl, 'mm> JxlEncoder<'prl, 'mm> {
         memory_manager: Option<&'mm dyn MemoryManager>,
         #[builder(default)] has_alpha: bool,
         lossless: Option<bool>,
-        #[builder(default)] speed: EncoderSpeed,
+        #[builder(default = 1)] speed: u8,
         #[builder(default = 1.0)] quality: f32,
         #[builder(default)] use_container: bool,
         #[builder(default)] uses_original_profile: bool,
@@ -146,6 +156,7 @@ impl<'prl, 'mm> JxlEncoder<'prl, 'mm> {
         init_buffer_size: Option<usize>,
         color_encoding: Option<ColorEncoding>,
         parallel_runner: Option<&'prl dyn ParallelRunner>,
+        #[builder(default = Orientation::Identity)] orientation: Orientation,
         #[builder(default)] use_box: bool,
     ) -> Result<Self, EncodeError> {
         let enc = unsafe {
@@ -174,6 +185,7 @@ impl<'prl, 'mm> JxlEncoder<'prl, 'mm> {
             init_buffer_size: init_buffer_size.map_or(512 * 1024, |v| if v < 32 { 32 } else { v }),
             color_encoding,
             parallel_runner,
+            orientation,
             use_box,
             memory_manager,
         })
@@ -293,6 +305,10 @@ impl JxlEncoder<'_, '_> {
 
         if let Some(ColorEncoding::SrgbLuma | ColorEncoding::LinearSrgbLuma) = self.color_encoding {
             basic_info.num_color_channels = 1;
+        }
+
+        if self.orientation != Orientation::Identity {
+            basic_info.orientation = self.orientation;
         }
 
         if let Some(pr) = self.parallel_runner {

@@ -35,8 +35,9 @@ use crate::{
 /// Values 1..8 match the EXIF definitions.
 /// The name indicates the operation to perform to transform from the encoded
 /// image to the display image.
-#[repr(C)]
+#[repr(u32)]
 #[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]
+#[cfg_attr(feature="num-enum", derive(num_enum::TryFromPrimitive))]
 pub enum JxlOrientation {
     Identity = 1,
     FlipHorizontal = 2,
