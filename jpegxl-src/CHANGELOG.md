@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+## [0.11.3](https://github.com/inflation/jpegxl-rs/compare/jpegxl-src-v0.11.2...jpegxl-src-v0.11.3)
+
+### ⚙️ Miscellaneous Tasks
+
+- Enable ASan and TSan on `libjxl` - ([ad4542f](https://github.com/inflation/jpegxl-rs/commit/ad4542f9bb47a30a8949a3b5d665a1ad59f71956))
+
 ## [0.11.2](https://github.com/inflation/jpegxl-rs/compare/jpegxl-src-v0.11.1...jpegxl-src-v0.11.2)
 
 ### 🐛 Bug Fixes
