@@ -30,7 +30,7 @@ bench = []
 [dependencies]
 image = { version = "0.25.6", optional = true, default-features = false }
 thiserror = "2.0.12"
-half = "2.4.1"
+half = "2.6.0"
 byteorder = "1.5.0"
 bon = "3.6.3"
 
@@ -49,7 +49,7 @@ pretty_assertions = "1.4.1"
 testresult = "0.4.1"
 
 [target.'cfg(not(target_family = "wasm"))'.dev-dependencies]
-criterion = "0.5.1"
+criterion = "0.6.0"
 
 
 [package.metadata.docs.rs]
