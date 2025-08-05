@@ -2,6 +2,19 @@
 
 ## [Unreleased]
 
+## [0.11.3](https://github.com/inflation/jpegxl-rs/compare/jpegxl-src-v0.11.2...jpegxl-src-v0.11.3)
+
+### ⚙️ Miscellaneous Tasks
+
+- Enable ASan and TSan on `libjxl` - ([ad4542f](https://github.com/inflation/jpegxl-rs/commit/ad4542f9bb47a30a8949a3b5d665a1ad59f71956))
+
+### Build
+
+- *(deps)* Bump cmake from 0.1.53 to 0.1.54 - ([aabcc3b](https://github.com/inflation/jpegxl-rs/commit/aabcc3b273428e623cd56f58d28e23e2727073d6))
+- *(deps)* Bump cmake from 0.1.52 to 0.1.53 - ([f2ce89c](https://github.com/inflation/jpegxl-rs/commit/f2ce89c4f83417800bb899a1c32bc94b6f136d91))
+- *(deps)* Bump cmake from 0.1.51 to 0.1.52 - ([fc222d1](https://github.com/inflation/jpegxl-rs/commit/fc222d136296311e32a204d5d1a85528170b5e05))
+- Bump MSRV to 1.81 - ([cc7a416](https://github.com/inflation/jpegxl-rs/commit/cc7a416c50a0ee514208f58f144bbf54603f7d90))
+
 ## [0.11.2](https://github.com/inflation/jpegxl-rs/compare/jpegxl-src-v0.11.1...jpegxl-src-v0.11.2)
 
 ### 🐛 Bug Fixes

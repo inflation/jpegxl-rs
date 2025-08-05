@@ -2,6 +2,22 @@
 
 ## [Unreleased]
 
+## [0.12.0+libjxl-0.11.1](https://github.com/inflation/jpegxl-rs/compare/jpegxl-sys-v0.11.2+libjxl-0.11.1...jpegxl-sys-v0.12.0+libjxl-0.11.1)
+
+### 🐛 Bug Fixes
+
+- Ensure to use JxlBool for FFI - ([8f42736](https://github.com/inflation/jpegxl-rs/commit/8f4273692ab02b0f07d8775aa1c9b537a3f27427))
+
+### ⚙️ Miscellaneous Tasks
+
+- Enable ASan and TSan on `libjxl` - ([ad4542f](https://github.com/inflation/jpegxl-rs/commit/ad4542f9bb47a30a8949a3b5d665a1ad59f71956))
+
+### Build
+
+- *(deps)* Bump image from 0.25.5 to 0.25.6 - ([2f3732a](https://github.com/inflation/jpegxl-rs/commit/2f3732af4d68a08662301bbc249a5cfa1d1ab2fa))
+- *(deps)* Bump pkg-config from 0.3.31 to 0.3.32 - ([004363c](https://github.com/inflation/jpegxl-rs/commit/004363ccf679e1eb9e645cd8da69b34f2fb1079e))
+- Bump MSRV to 1.81 - ([cc7a416](https://github.com/inflation/jpegxl-rs/commit/cc7a416c50a0ee514208f58f144bbf54603f7d90))
+
 ## [0.11.2+libjxl-0.11.1](https://github.com/inflation/jpegxl-rs/compare/jpegxl-sys-v0.11.1+libjxl-0.11.0...jpegxl-sys-v0.11.2+libjxl-0.11.1)
 
 ### 🐛 Bug Fixes
