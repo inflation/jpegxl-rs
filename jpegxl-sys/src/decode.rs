@@ -312,11 +312,11 @@ pub type JxlImageOutCallback = extern "C" fn(
 ///
 /// # Parameters
 /// - `init_opaque`: optional user data, as given to
-///     [`JxlDecoderSetMultithreadedImageOutCallback`].
+///   [`JxlDecoderSetMultithreadedImageOutCallback`].
 /// - `num_threads`: maximum number of threads that will call the [`run`](JxlImageOutRunCallback)
-///     callback concurrently.
+///   callback concurrently.
 /// - `num_pixels_per_thread`: maximum number of pixels that will be passed in
-///     one call to [`run`](JxlImageOutRunCallback).
+///   one call to [`run`](JxlImageOutRunCallback).
 ///
 /// # Returns
 /// - a pointer to data that will be passed to the [`run`](JxlImageOutRunCallback) callback, or
@@ -332,16 +332,16 @@ pub type JxlImageOutInitCallback = extern "C" fn(
 /// # Parameters
 /// - `run_opaque`: user data returned by the [`init`](JxlImageOutInitCallback) callback.
 /// - `thread_id`: number in `[0, num_threads)` identifying the thread of the
-///     current invocation of the callback.
+///   current invocation of the callback.
 /// - `x`: horizontal position of the first (leftmost) pixel of the pixel data.
 /// - `y`: vertical position of the pixel data.
 /// - `num_pixels`: number of pixels in the pixel data. May be less than the
-///     full `xsize` of the image, and will be at most equal to the `num_pixels_per_thread`
-///     that was passed to [`init`](JxlImageOutInitCallback).
+///   full `xsize` of the image, and will be at most equal to the `num_pixels_per_thread`
+///   that was passed to [`init`](JxlImageOutInitCallback).
 /// - `pixels`: pixel data as a horizontal stripe, in the format passed to
-///     [`JxlDecoderSetMultithreadedImageOutCallback`]. The data pointed to
-///     remains owned by the caller and is only guaranteed to outlive the current
-///     callback invocation.
+///   [`JxlDecoderSetMultithreadedImageOutCallback`]. The data pointed to
+///   remains owned by the caller and is only guaranteed to outlive the current
+///   callback invocation.
 pub type JxlImageOutRunCallback = extern "C" fn(
     run_opaque: *mut c_void,
     thread_id: usize,
@@ -729,7 +729,7 @@ extern "C-unwind" {
     /// # Parameters
     /// - `dec`: decoder object
     /// - `info`: struct to copy the information into, or `NULL` to only check
-    ///     whether the information is available through the return value.
+    ///   whether the information is available through the return value.
     ///
     /// # Returns
     /// - [`JxlDecoderStatus::Success`] if the value is available
@@ -747,7 +747,7 @@ extern "C-unwind" {
     /// - `dec`: decoder object
     /// - `index`: index of the extra channel to query.
     /// - `info`: struct to copy the information into, or `NULL` to only check
-    ///     whether the information is available through the return value.
+    ///   whether the information is available through the return value.
     ///
     /// # Returns
     /// - [`JxlDecoderStatus::Success`] if the value is available
@@ -848,17 +848,17 @@ extern "C-unwind" {
     /// # Parameters
     /// - `dec`: decoder object
     /// - `target`: whether to get the original color profile from the metadata
-    ///     or the color profile of the decoded pixels.
+    ///   or the color profile of the decoded pixels.
     /// - `size`: variable to output the size into, or `NULL` to only check the
-    ///     return status.
+    ///   return status.
     ///
     /// # Returns
     /// - [`JxlDecoderStatus::Success`] if the ICC profile is available
     /// - [`JxlDecoderStatus::NeedMoreInput`] if the decoder has not yet received enough
-    ///     input data to determine whether an ICC profile is available or what its
-    ///     size is
+    ///   input data to determine whether an ICC profile is available or what its
+    ///   size is
     /// - [`JxlDecoderStatus::Error`] in case the ICC profile is not available and
-    ///     cannot be generated.
+    ///   cannot be generated.
     pub fn JxlDecoderGetICCProfileSize(
         dec: *const JxlDecoder,
         target: JxlColorProfileTarget,
@@ -1010,13 +1010,13 @@ extern "C-unwind" {
     /// # Parameters
     /// - `dec`: decoder object
     /// - `format`: format of pixels. Object owned by user and its contents are
-    ///     copied internally.
+    ///   copied internally.
     /// - `buffer`: buffer type to output the pixel data to
     /// - `size`: size of buffer in bytes
     ///
     /// # Returns
     /// - [`JxlDecoderStatus::Success`] on success, [`JxlDecoderStatus::Error`] on error, such as
-    ///     size too small.
+    ///   size too small.
     pub fn JxlDecoderSetPreviewOutBuffer(
         dec: *mut JxlDecoder,
         format: *const JxlPixelFormat,
@@ -1031,7 +1031,7 @@ extern "C-unwind" {
     /// # Parameters
     /// - `dec`: decoder object
     /// - `header`: struct to copy the information into, or `NULL` to only check
-    ///     whether the information is available through the return value.
+    ///   whether the information is available through the return value.
     ///
     /// # Returns
     /// - [`JxlDecoderStatus::Success`] if the value is available
@@ -1096,7 +1096,7 @@ extern "C-unwind" {
     ///
     /// # Returns
     /// - [`JxlDecoderStatus::Success`] on success, [`JxlDecoderStatus::Error`] on error, such as
-    ///     information not available yet.
+    ///   information not available yet.
     pub fn JxlDecoderImageOutBufferSize(
         dec: *const JxlDecoder,
         format: *const JxlPixelFormat,
@@ -1113,13 +1113,13 @@ extern "C-unwind" {
     /// # Parameters
     /// - `dec`: decoder object
     /// - `format`: format of the pixels. Object owned by user and its contents
-    ///     are copied internally.
+    ///   are copied internally.
     /// - `buffer`: buffer type to output the pixel data to
     /// - `size`: size of buffer in bytes
     ///
     /// # Returns
     /// - [`JxlDecoderStatus::Success`] on success, [`JxlDecoderStatus::Error`] on error, such as
-    ///     size too small.
+    ///   size too small.
     pub fn JxlDecoderSetImageOutBuffer(
         dec: *mut JxlDecoder,
         format: *const JxlPixelFormat,
@@ -1160,15 +1160,15 @@ extern "C-unwind" {
     /// # Parameters
     /// - `dec`: decoder object
     /// - `format`: format of the pixels. Object owned by user; its contents are
-    ///     copied internally.
+    ///   copied internally.
     /// - `callback`: the callback function receiving partial scanlines of pixel
-    ///     data.
+    ///   data.
     /// - `opaque`: optional user data, which will be passed on to the callback,
-    ///     may be `NULL`.
+    ///   may be `NULL`.
     ///
     /// # Returns
     /// - [`JxlDecoderStatus::Success`] on success, [`JxlDecoderStatus::Error`] on error, such
-    ///     as [`JxlDecoderSetImageOutBuffer`] already set.
+    ///   as [`JxlDecoderSetImageOutBuffer`] already set.
     pub fn JxlDecoderSetImageOutCallback(
         dec: *mut JxlDecoder,
         format: *const JxlPixelFormat,
@@ -1184,19 +1184,19 @@ extern "C-unwind" {
     /// # Parameters
     /// - `dec`: decoder object
     /// - `format`: format of the pixels. Object owned by user; its contents are
-    ///     copied internally.
+    ///   copied internally.
     /// - `init_callback`: initialization callback.
     /// - `run_callback`: the callback function receiving partial scanlines of
-    ///     pixel data.
+    ///   pixel data.
     /// - `destroy_callback`: clean-up callback invoked after all calls to `run_callback`.
-    ///     May be `NULL` if no clean-up is necessary.
+    ///   May be `NULL` if no clean-up is necessary.
     /// - `init_opaque`: optional user data passed to `init_callback`, may be `NULL`
-    ///     (unlike the return value from `init_callback` which may only be `NULL` if
-    ///     initialization failed).
+    ///   (unlike the return value from `init_callback` which may only be `NULL` if
+    ///   initialization failed).
     ///
     /// # Returns
     /// - [`JxlDecoderStatus::Success`] on success, [`JxlDecoderStatus::Error`] on error, such
-    ///     as [`JxlDecoderSetImageOutBuffer`] having already been called.
+    ///   as [`JxlDecoderSetImageOutBuffer`] having already been called.
     pub fn JxlDecoderSetMultithreadedImageOutCallback(
         dec: *mut JxlDecoder,
         format: *const JxlPixelFormat,
@@ -1213,10 +1213,10 @@ extern "C-unwind" {
     /// # Parameters
     /// - `dec`: decoder object
     /// - `format`: format of the pixels. The `num_channels` value is ignored and is
-    ///     always treated to be `1`.
+    ///   always treated to be `1`.
     /// - `size`: output value, buffer size in bytes
     /// - `index`: which extra channel to get, matching the index used in [`JxlDecoderGetExtraChannelInfo`].
-    ///     Must be smaller than `num_extra_channels` in the associated [`JxlBasicInfo`].
+    ///   Must be smaller than `num_extra_channels` in the associated [`JxlBasicInfo`].
     ///
     /// # Returns
     /// - [`JxlDecoderStatus::Success`] on success
@@ -1245,16 +1245,16 @@ extern "C-unwind" {
     /// # Parameters
     /// - `dec`: decoder object
     /// - `format`: format of the pixels. Object owned by user and its contents
-    ///     are copied internally. The `num_channels` value is ignored and is always
-    ///     treated to be `1`.
+    ///   are copied internally. The `num_channels` value is ignored and is always
+    ///   treated to be `1`.
     /// - `buffer`: buffer type to output the pixel data to
     /// - `size`: size of buffer in bytes
     /// - `index`: which extra channel to get, matching the index used in [`JxlDecoderGetExtraChannelInfo`].
-    ///     Must be smaller than `num_extra_channels` in the associated [`JxlBasicInfo`].
+    ///   Must be smaller than `num_extra_channels` in the associated [`JxlBasicInfo`].
     ///
     /// # Returns
     /// - [`JxlDecoderStatus::Success`] on success, [`JxlDecoderStatus::Error`] on error, such as
-    ///     size too small or invalid index.
+    ///   size too small or invalid index.
     pub fn JxlDecoderSetExtraChannelBuffer(
         dec: *mut JxlDecoder,
         format: *const JxlPixelFormat,
@@ -1279,7 +1279,7 @@ extern "C-unwind" {
     ///
     /// # Returns
     /// - [`JxlDecoderStatus::Error`] if output buffer was already set and [`JxlDecoderReleaseJPEGBuffer`]
-    ///     was not called on it, [`JxlDecoderStatus::Success`] otherwise
+    ///   was not called on it, [`JxlDecoderStatus::Success`] otherwise
     pub fn JxlDecoderSetJPEGBuffer(
         dec: *mut JxlDecoder,
         data: *mut u8,
@@ -1300,8 +1300,8 @@ extern "C-unwind" {
     ///
     /// # Returns
     /// - The amount of bytes the decoder has not yet written to of the data
-    ///     set by [`JxlDecoderSetJPEGBuffer`], or `0` if no buffer is set or
-    ///     [`JxlDecoderReleaseJPEGBuffer`] was already called.
+    ///   set by [`JxlDecoderSetJPEGBuffer`], or `0` if no buffer is set or
+    ///   [`JxlDecoderReleaseJPEGBuffer`] was already called.
     pub fn JxlDecoderReleaseJPEGBuffer(dec: *mut JxlDecoder) -> usize;
 
     /// Sets output buffer for box output codestream.
@@ -1322,7 +1322,7 @@ extern "C-unwind" {
     ///
     /// # Returns
     /// - [`JxlDecoderStatus::Error`] if output buffer was already set and [`JxlDecoderReleaseBoxBuffer`]
-    ///     was not called on it, [`JxlDecoderStatus::Success`] otherwise
+    ///   was not called on it, [`JxlDecoderStatus::Success`] otherwise
     pub fn JxlDecoderSetBoxBuffer(
         dec: *mut JxlDecoder,
         data: *mut u8,
@@ -1342,7 +1342,7 @@ extern "C-unwind" {
     ///
     /// # Returns
     /// - The amount of bytes the decoder has not yet written to of the data set by [`JxlDecoderSetBoxBuffer`],
-    ///    or `0` if no buffer is set or [`JxlDecoderReleaseBoxBuffer`] was already called.,
+    ///   or `0` if no buffer is set or [`JxlDecoderReleaseBoxBuffer`] was already called.,
     pub fn JxlDecoderReleaseBoxBuffer(dec: *mut JxlDecoder) -> usize;
 
     /// Configures whether to get boxes in raw mode or in decompressed mode. In raw
@@ -1432,7 +1432,7 @@ extern "C-unwind" {
     /// - `dec`: decoder object
     /// - `type`: buffer to copy the type into
     /// - `decompressed`: which box type to get: [`JxlBool::False`] to get the raw box type,
-    ///     which can be `"brob"`, [`JxlBool::True`] to get the underlying box type.
+    ///   which can be `"brob"`, [`JxlBool::True`] to get the underlying box type.
     ///
     /// # Returns
     /// - [`JxlDecoderStatus::Success`] if the value is available
@@ -1466,7 +1466,7 @@ extern "C-unwind" {
     ///
     /// # Returns
     /// - [`JxlDecoderStatus::Error`] if no box size is available, [`JxlDecoderStatus::Success`]
-    ///     otherwise.
+    ///   otherwise.
     pub fn JxlDecoderGetBoxSizeContents(dec: *mut JxlDecoder, size: *mut u64) -> JxlDecoderStatus;
 
     /// Configures at which progressive steps in frame decoding the [`JxlDecoderStatus::FrameProgression`] event occurs.
@@ -1478,7 +1478,7 @@ extern "C-unwind" {
     ///
     /// # Returns
     /// - [`JxlDecoderStatus::Success`] on success, [`JxlDecoderStatus::Error`] on error, such as
-    ///     an invalid value for the progressive detail.
+    ///   an invalid value for the progressive detail.
     pub fn JxlDecoderSetProgressiveDetail(
         dec: *mut JxlDecoder,
         detail: JxlProgressiveDetail,
@@ -1524,7 +1524,7 @@ extern "C-unwind" {
     ///
     /// # Returns
     /// - [`JxlDecoderStatus::Success`] on success, [`JxlDecoderStatus::Error`] on error, such as
-    ///     incompatible custom bit depth and pixel data type.
+    ///   incompatible custom bit depth and pixel data type.
     pub fn JxlDecoderSetImageOutBitDepth(
         dec: *mut JxlDecoder,
         bit_depth: *const JxlBitDepth,

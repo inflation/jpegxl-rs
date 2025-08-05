@@ -31,7 +31,6 @@ fn source_dir() -> PathBuf {
 }
 
 #[cfg_attr(coverage_nightly, coverage(off))]
-
 /// Builds the JPEG XL library.
 ///
 /// # Panics
@@ -41,7 +40,8 @@ pub fn build() {
     let source = source_dir();
     assert!(
         source.exists() && source.is_dir(),
-        "Source directory {source:?} does not exist"
+        "Source directory {} does not exist",
+        source.display()
     );
 
     let mut config = cmake::Config::new(source);
