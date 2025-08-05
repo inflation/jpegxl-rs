@@ -156,7 +156,7 @@ mod test {
                     jxl_dec_assert!(status, "SetBuffer");
                 }
 
-                FullImage => continue,
+                FullImage => {}
                 Success => {
                     assert_eq!(buffer.len(), (x_size * y_size * 3) as usize);
                     return;
@@ -301,7 +301,7 @@ mod test {
                         jxl_dec_assert!(status, "SetBuffer");
                     }
 
-                    FullImage => continue,
+                    FullImage => {}
                     Success => {
                         assert_eq!(buffer.len(), (x_size * y_size * 3) as usize);
                         break;

@@ -1,4 +1,4 @@
-# jpegxl-rs
+# `jpegxl-rs`
 
 [![Documentation](https://docs.rs/jpegxl-rs/badge.svg)][1]
 [![Crates.io](https://img.shields.io/crates/v/jpegxl-rs.svg)][2]
@@ -21,13 +21,11 @@ and the [bindings](https://github.com/inflation/jpegxl-rs/tree/master/jpegxl-sys
 
 If you wish to specify a custom library path, set the `DEP_JXL_LIB` environment variable.
 
-Building `libjxl` and statically linking can be enabled by using the `vendored` feature.
-
-If you don't want to depend on C++ standard library, disable the feature `threads`.
+To build `libjxl` and statically link it, use the `vendored` feature.
 
 ## Usage
 
-Currently, `u8`, `u16`, `f16` and `f32` are supported as pixel types.
+Currently, you can use `u8`, `u16`, `f16`, and `f32` as pixel types.
 
 ### Decoding
 
@@ -104,7 +102,7 @@ encoder.quality = 3.0;
 
 ### [`image`](https://crates.io/crates/image) crate integration
 
-The integration is enabled by default. If you don't need it, disable `image` feature.
+By default, this integration uses the `image` integration. If you don't need it, turn off the `image` feature.
 
 ```rust
 use jpegxl_rs::image::ToDynamic;
@@ -117,4 +115,4 @@ let img = decoder.decode_to_image(&sample).unwrap();
 let img = decoder.decode_to_image_with::<f32>(&sample).unwrap();
 ```
 
-License: GPL-3.0-or-later
+License: `GPL-3.0-or-later`

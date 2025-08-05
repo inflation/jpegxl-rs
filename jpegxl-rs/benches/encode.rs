@@ -1,7 +1,9 @@
 #![allow(missing_docs)]
 #![allow(clippy::missing_panics_doc)]
 
-use criterion::{black_box, criterion_group, criterion_main, Criterion};
+use std::hint::black_box;
+
+use criterion::{criterion_group, criterion_main, Criterion};
 use jpegxl_rs::{encoder_builder, ResizableRunner, ThreadsRunner};
 
 const SAMPLE: &[u8] = include_bytes!("../../samples/bench.png");
