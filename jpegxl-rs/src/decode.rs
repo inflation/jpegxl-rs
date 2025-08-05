@@ -285,7 +285,7 @@ impl JxlDecoder<'_, '_> {
                     self.output(unsafe { &*basic_info.as_ptr() }, data_type, format, pixels)?;
                 }
 
-                s::FullImage => continue,
+                s::FullImage => {}
                 s::Success => {
                     if let Some(buf) = reconstruct_jpeg_buffer.as_mut() {
                         let remaining = unsafe { JxlDecoderReleaseJPEGBuffer(self.dec) };

@@ -1,6 +1,6 @@
 [workspace]
-members = ["jpegxl-src", "jpegxl-sys", "jpegxl-rs"]
+members  = ["jpegxl-src", "jpegxl-sys", "jpegxl-rs"]
 resolver = "2"
 
 [workspace.package]
-rust-version = "1.74.0"
+rust-version = "1.81.0"

@@ -140,11 +140,11 @@ mod tests {
 
         assert!(matches!(
             encoder.encode::<u8, u8>(&[], 0, 0),
-            Err(EncodeError::ApiUsage { .. })
+            Err(EncodeError::ApiUsage)
         ));
         assert!(matches!(
             encoder.encode::<f32, f32>(&[1.0, 1.0, 1.0, 0.5], 1, 1),
-            Err(EncodeError::ApiUsage { .. })
+            Err(EncodeError::ApiUsage)
         ));
 
         println!(
