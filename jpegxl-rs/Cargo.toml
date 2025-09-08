@@ -28,7 +28,7 @@ docs = ["jpegxl-sys/docs"]
 bench = []
 
 [dependencies]
-image = { version = "0.25.6", optional = true, default-features = false }
+image = { version = "0.25.8", optional = true, default-features = false }
 thiserror = "2.0.16"
 half = "2.6.0"
 byteorder = "1.5.0"
@@ -40,7 +40,7 @@ path = "../jpegxl-sys"
 default-features = false
 
 [dev-dependencies]
-image = { version = "0.25.6", default-features = false, features = [
+image = { version = "0.25.8", default-features = false, features = [
     "jpeg",
     "png",
 ] }
