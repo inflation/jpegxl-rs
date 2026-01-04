@@ -45,6 +45,9 @@ pub enum DecodeError {
     /// Unknown status
     #[error("Unknown status: `{0:?}`")]
     UnknownStatus(JxlDecoderStatus),
+    /// Feature not yet implemented in this wrapper
+    #[error("Feature not yet implemented: {0}")]
+    NotImplemented(&'static str),
 }
 
 /// Errors derived from [`JxlEncoderStatus`][jpegxl_sys::encoder::encode::JxlEncoderStatus]
