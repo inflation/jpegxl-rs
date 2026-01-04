@@ -285,7 +285,9 @@ impl JxlDecoder<'_, '_> {
                     self.output(unsafe { &*basic_info.as_ptr() }, data_type, format, pixels)?;
                 }
 
-                s::FullImage => {}
+                // Informational events - continue processing
+                s::FullImage | s::Frame | s::FrameProgression => {}
+
                 s::Success => {
                     if let Some(buf) = reconstruct_jpeg_buffer.as_mut() {
                         let remaining = unsafe { JxlDecoderReleaseJPEGBuffer(self.dec) };
@@ -310,13 +312,14 @@ impl JxlDecoder<'_, '_> {
                         icc_profile: icc,
                     });
                 }
-                s::NeedPreviewOutBuffer => todo!(),
-                s::BoxNeedMoreOutput => todo!(),
-                s::PreviewImage => todo!(),
-                s::Frame => todo!(),
-                s::Box => todo!(),
-                s::BoxComplete => todo!(),
-                s::FrameProgression => todo!(),
+                // Features not yet implemented in this wrapper
+                s::NeedPreviewOutBuffer => {
+                    return Err(DecodeError::NotImplemented("preview image output"))
+                }
+                s::BoxNeedMoreOutput => return Err(DecodeError::NotImplemented("box output")),
+                s::PreviewImage => return Err(DecodeError::NotImplemented("preview image")),
+                s::Box => return Err(DecodeError::NotImplemented("box handling")),
+                s::BoxComplete => return Err(DecodeError::NotImplemented("box complete")),
             }
         }
     }
