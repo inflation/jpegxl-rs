@@ -3,7 +3,7 @@ use std::mem::MaybeUninit;
 use jpegxl_sys::{color::color_encoding::JxlColorEncoding, encoder::encode as api};
 
 /// Encoding speed
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Default)]
 pub enum EncoderSpeed {
     /// Fastest, 1
     Lightning = 1,
@@ -18,6 +18,7 @@ pub enum EncoderSpeed {
     /// 6
     Wombat,
     /// 7, default
+    #[default]
     Squirrel,
     /// 8
     Kitten,
@@ -25,12 +26,6 @@ pub enum EncoderSpeed {
     Tortoise,
     /// Slowest, 10
     Glacier,
-}
-
-impl std::default::Default for EncoderSpeed {
-    fn default() -> Self {
-        Self::Squirrel
-    }
 }
 
 /// Encoding color profile

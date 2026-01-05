@@ -143,13 +143,17 @@ mod test {
                 // Get the output buffer
                 NeedImageOutBuffer => {
                     let mut size = 0;
-                    status = JxlDecoderImageOutBufferSize(decoder, &pixel_format, &mut size);
+                    status = JxlDecoderImageOutBufferSize(
+                        decoder,
+                        &raw const pixel_format,
+                        &raw mut size,
+                    );
                     jxl_dec_assert!(status, "BufferSize");
 
                     buffer.resize(size, 0f32);
                     status = JxlDecoderSetImageOutBuffer(
                         decoder,
-                        &pixel_format,
+                        &raw const pixel_format,
                         buffer.as_mut_ptr().cast(),
                         size,
                     );
@@ -288,13 +292,17 @@ mod test {
                     // Get the output buffer
                     NeedImageOutBuffer => {
                         let mut size = 0;
-                        status = JxlDecoderImageOutBufferSize(dec, &pixel_format, &mut size);
+                        status = JxlDecoderImageOutBufferSize(
+                            dec,
+                            &raw const pixel_format,
+                            &raw mut size,
+                        );
                         jxl_dec_assert!(status, "BufferSize");
 
                         buffer.resize(size, 0f32);
                         status = JxlDecoderSetImageOutBuffer(
                             dec,
-                            &pixel_format,
+                            &raw const pixel_format,
                             buffer.as_mut_ptr().cast(),
                             size,
                         );
@@ -336,7 +344,7 @@ mod test {
             basic_info.xsize = x_size;
             basic_info.ysize = ysize;
 
-            status = JxlEncoderSetBasicInfo(enc, &basic_info);
+            status = JxlEncoderSetBasicInfo(enc, &raw const basic_info);
             jxl_enc_assert!(status, "Set Basic Info");
 
             let pixel_format = JxlPixelFormat {
@@ -352,7 +360,7 @@ mod test {
 
             status = JxlEncoderAddImageFrame(
                 JxlEncoderFrameSettingsCreate(enc, std::ptr::null()),
-                &pixel_format,
+                &raw const pixel_format,
                 pixels.as_ptr().cast_mut().cast(),
                 pixels.len(),
             );
@@ -366,8 +374,11 @@ mod test {
             let mut avail_out = chunk_size;
 
             loop {
-                status =
-                    JxlEncoderProcessOutput(enc, std::ptr::addr_of_mut!(next_out), &mut avail_out);
+                status = JxlEncoderProcessOutput(
+                    enc,
+                    std::ptr::addr_of_mut!(next_out),
+                    &raw mut avail_out,
+                );
 
                 if status != JxlEncoderStatus::NeedMoreOutput {
                     break;

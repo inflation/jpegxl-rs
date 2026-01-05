@@ -59,7 +59,7 @@ fn jpeg() -> TestResult {
     let res = encoder.encode_jpeg(super::SAMPLE_JPEG)?;
 
     let (_, Data::Jpeg(reconstructed)) = decoder_builder().build()?.reconstruct(&res)? else {
-        return Err("Failed to reconstruct JPEG".into());
+        panic!("Failed to reconstruct JPEG");
     };
 
     assert_eq!(super::SAMPLE_JPEG, reconstructed);

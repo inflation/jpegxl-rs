@@ -115,4 +115,9 @@ let img = decoder.decode_to_image(&sample).unwrap();
 let img = decoder.decode_to_image_with::<f32>(&sample).unwrap();
 ```
 
+## MSRV
+
+Following the latest stable Debian rustc version.
+Currently: 1.85 (Debian Trixie)
+
 License: `GPL-3.0-or-later`

@@ -299,7 +299,7 @@ impl JxlEncoder<'_, '_> {
             pr.callback_basic_info(&basic_info);
         }
 
-        self.check_enc_status(unsafe { JxlEncoderSetBasicInfo(self.enc, &basic_info) })?;
+        self.check_enc_status(unsafe { JxlEncoderSetBasicInfo(self.enc, &raw const basic_info) })?;
 
         if let Some(color_encoding) = self.color_encoding {
             self.check_enc_status(unsafe {
@@ -342,7 +342,8 @@ impl JxlEncoder<'_, '_> {
 
         let mut status;
         loop {
-            status = unsafe { JxlEncoderProcessOutput(self.enc, &mut next_out, &mut avail_out) };
+            status =
+                unsafe { JxlEncoderProcessOutput(self.enc, &raw mut next_out, &raw mut avail_out) };
 
             if status != JxlEncoderStatus::NeedMoreOutput {
                 break;

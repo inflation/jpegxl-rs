@@ -77,9 +77,11 @@ pub fn build() {
             .define("JPEGXL_ENABLE_TCMALLOC", "OFF");
     }
 
-    if cfg!(windows) {
+    #[cfg(windows)]
+    const {
         assert!(!cfg!(tsan), "Thread sanitizer is not supported on Windows");
-
+    }
+    if cfg!(windows) {
         // For CMake pre-checking
         let mut exeflags = "MSVCRTD.lib".to_string();
         if cfg!(asan) {

@@ -56,11 +56,11 @@ fn simple() -> TestResult {
     ) = decoder.decode(super::SAMPLE_JXL)?;
 
     let Pixels::Uint16(data) = data else {
-        return Err("Failed to decode".into());
+        panic!("Failed to decode");
     };
 
     assert_eq!(data.len(), (width * height * 4) as usize);
-    // Check if icc profile is valid
+    // Check if ICC profile is valid
     lcms2::Profile::new_icc(&icc_profile.expect("ICC profile not retrieved"))?;
 
     Ok(())
@@ -72,7 +72,7 @@ fn sample_2bit() -> TestResult {
 
     let (Metadata { width, height, .. }, data) = decoder.decode(super::SAMPLE_JXL_2BIT)?;
     let Pixels::Uint8(data) = data else {
-        return Err("Failed to decode".into());
+        panic!("Failed to decode");
     };
     assert_eq!(data.len(), (width * height * 3) as usize);
 
@@ -85,7 +85,7 @@ fn sample_gray() -> TestResult {
 
     let (Metadata { width, height, .. }, data) = decoder.decode(super::SAMPLE_JXL_GRAY)?;
     let Pixels::Uint16(data) = data else {
-        return Err("Failed to decode".into());
+        panic!("Failed to decode");
     };
     assert_eq!(data.len(), (width * height) as usize);
 
@@ -125,7 +125,7 @@ fn jpeg() -> TestResult {
 
     let (_, data) = decoder.reconstruct(super::SAMPLE_JXL_JPEG)?;
     let Data::Jpeg(data) = data else {
-        return Err("Failed to reconstruct".into());
+        panic!("Failed to reconstruct");
     };
 
     let jpeg = image::codecs::jpeg::JpegDecoder::new(Cursor::new(data))?;
