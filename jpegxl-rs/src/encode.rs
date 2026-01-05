@@ -499,6 +499,17 @@ impl Drop for JxlEncoder<'_, '_> {
     }
 }
 
+// SAFETY: JxlEncoder can be safely sent between threads. The underlying libjxl
+// encoder does not store references to thread-local state. While libjxl uses a
+// thread-local LCMS context for color management (see lib/jxl/cms/jxl_cms.cc),
+// this context is looked up dynamically via GetContext() on each use, not stored
+// in the encoder. Moving an encoder to another thread will use that thread's
+// LCMS context for subsequent operations.
+//
+// Note: JxlEncoder is NOT Sync because the underlying C API is not safe for
+// concurrent access from multiple threads.
+unsafe impl Send for JxlEncoder<'_, '_> {}
+
 /// Return a [`JxlEncoderBuilder`] with default settings
 pub fn encoder_builder<'prl, 'mm>() -> JxlEncoderBuilder<'prl, 'mm> {
     JxlEncoder::builder()
