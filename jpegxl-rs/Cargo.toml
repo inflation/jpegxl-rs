@@ -48,7 +48,7 @@ pretty_assertions = "1.4.1"
 testresult = "0.4.1"
 
 [target.'cfg(not(target_family = "wasm"))'.dev-dependencies]
-criterion = "0.7.0"
+criterion = "0.8.1"
 
 
 [package.metadata.docs.rs]
