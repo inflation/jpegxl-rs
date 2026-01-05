@@ -517,6 +517,17 @@ impl Drop for JxlDecoder<'_, '_> {
     }
 }
 
+// SAFETY: JxlDecoder can be safely sent between threads. The underlying libjxl
+// decoder does not store references to thread-local state. While libjxl uses a
+// thread-local LCMS context for color management (see lib/jxl/cms/jxl_cms.cc),
+// this context is looked up dynamically via GetContext() on each use, not stored
+// in the decoder. Moving a decoder to another thread will use that thread's
+// LCMS context for subsequent operations.
+//
+// Note: JxlDecoder is NOT Sync because the underlying C API is not safe for
+// concurrent access from multiple threads.
+unsafe impl Send for JxlDecoder<'_, '_> {}
+
 /// Return a [`JxlDecoderBuilder`] with default settings
 pub fn decoder_builder<'prl, 'mm>() -> JxlDecoderBuilder<'prl, 'mm> {
     JxlDecoder::builder()
