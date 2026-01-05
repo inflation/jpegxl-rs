@@ -365,7 +365,7 @@ impl JxlDecoder<'_, '_> {
     fn get_icc_profile(&self, icc_profile: &mut Vec<u8>) -> Result<(), DecodeError> {
         let mut icc_size = 0;
         check_dec_status(unsafe {
-            JxlDecoderGetICCProfileSize(self.dec, JxlColorProfileTarget::Data, &mut icc_size)
+            JxlDecoderGetICCProfileSize(self.dec, JxlColorProfileTarget::Data, &raw mut icc_size)
         })?;
         icc_profile.resize(icc_size, 0);
 
@@ -413,12 +413,17 @@ impl JxlDecoder<'_, '_> {
 
         let mut size = 0;
         check_dec_status(unsafe {
-            JxlDecoderImageOutBufferSize(self.dec, &pixel_format, &mut size)
+            JxlDecoderImageOutBufferSize(self.dec, &raw const pixel_format, &raw mut size)
         })?;
         pixels.resize(size, 0);
 
         check_dec_status(unsafe {
-            JxlDecoderSetImageOutBuffer(self.dec, &pixel_format, pixels.as_mut_ptr().cast(), size)
+            JxlDecoderSetImageOutBuffer(
+                self.dec,
+                &raw const pixel_format,
+                pixels.as_mut_ptr().cast(),
+                size,
+            )
         })?;
 
         unsafe { *format = pixel_format };

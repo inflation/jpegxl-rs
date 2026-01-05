@@ -1,5 +1,4 @@
 [package]
-authors = ["Inflation <me@shimotsuki.ink>"]
 description = "Source of libjxl and logic to build it."
 edition = "2021"
 license = "BSD-3-Clause"
