@@ -312,9 +312,22 @@ impl JxlEncoder<'_, '_> {
 
     // Add a frame
     fn add_frame<T: PixelType>(&self, frame: &EncoderFrame<T>) -> Result<(), EncodeError> {
+        let options_ptr = if let Some(header) = frame.get_header() {
+            let ptr = unsafe { JxlEncoderFrameSettingsCreate(self.enc, self.options_ptr) };
+            if ptr.is_null() {
+                return Err(EncodeError::OutOfMemory);
+            }
+            unsafe {
+                JxlEncoderSetFrameHeader(ptr, header);
+            }
+            ptr
+        } else {
+            self.options_ptr
+        };
+
         self.check_enc_status(unsafe {
             JxlEncoderAddImageFrame(
-                self.options_ptr,
+                options_ptr,
                 &frame.pixel_format(),
                 frame.data.as_ptr().cast(),
                 std::mem::size_of_val(frame.data),
@@ -363,6 +376,9 @@ impl JxlEncoder<'_, '_> {
 
         unsafe { JxlEncoderReset(self.enc) };
         self.options_ptr = unsafe { JxlEncoderFrameSettingsCreate(self.enc, null()) };
+        if self.options_ptr.is_null() {
+            return Err(EncodeError::OutOfMemory);
+        }
 
         buffer.shrink_to_fit();
         Ok(buffer)
