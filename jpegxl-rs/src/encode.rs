@@ -20,6 +20,7 @@ along with jpegxl-rs.  If not, see <https://www.gnu.org/licenses/>.
 use std::{marker::PhantomData, mem::MaybeUninit, ops::Deref, ptr::null};
 
 use bon::bon;
+use jpegxl_sys::color::color_encoding;
 #[allow(clippy::wildcard_imports)]
 use jpegxl_sys::encoder::encode::*;
 
@@ -114,6 +115,16 @@ pub struct JxlEncoder<'prl, 'mm> {
     /// Default: SRGB for uint, Linear SRGB for float
     pub color_encoding: Option<ColorEncoding>,
 
+    /// Set custom color encoding
+    ///
+    /// Gets overridden by color_encoding
+    pub custom_color_encoding: Option<color_encoding::JxlColorEncoding>,
+
+    /// Set target intensity
+    ///
+    /// Set the nits of 1.0, used in tonemapping
+    pub target_intensity: Option<f32>,
+
     /// Set parallel runner
     ///
     /// Default: `None`, indicating single thread execution
@@ -145,6 +156,8 @@ impl<'prl, 'mm> JxlEncoder<'prl, 'mm> {
         #[builder(default)] decoding_speed: i64,
         init_buffer_size: Option<usize>,
         color_encoding: Option<ColorEncoding>,
+        custom_color_encoding: Option<color_encoding::JxlColorEncoding>,
+        target_intensity: Option<f32>,
         parallel_runner: Option<&'prl dyn ParallelRunner>,
         #[builder(default)] use_box: bool,
     ) -> Result<Self, EncodeError> {
@@ -173,6 +186,8 @@ impl<'prl, 'mm> JxlEncoder<'prl, 'mm> {
             decoding_speed,
             init_buffer_size: init_buffer_size.map_or(512 * 1024, |v| if v < 32 { 32 } else { v }),
             color_encoding,
+            custom_color_encoding,
+            target_intensity,
             parallel_runner,
             use_box,
             memory_manager,
@@ -295,6 +310,10 @@ impl JxlEncoder<'_, '_> {
             basic_info.num_color_channels = 1;
         }
 
+        if let Some(target_intensity) = self.target_intensity {
+            basic_info.intensity_target = target_intensity
+        }
+
         if let Some(pr) = self.parallel_runner {
             pr.callback_basic_info(&basic_info);
         }
@@ -304,6 +323,10 @@ impl JxlEncoder<'_, '_> {
         if let Some(color_encoding) = self.color_encoding {
             self.check_enc_status(unsafe {
                 JxlEncoderSetColorEncoding(self.enc, &color_encoding.into())
+            })?;
+        } else if let Some(custom_color_encoding) = &self.custom_color_encoding {
+            self.check_enc_status(unsafe {
+                JxlEncoderSetColorEncoding(self.enc, &*custom_color_encoding)
             })?;
         }
 
