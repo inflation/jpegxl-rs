@@ -17,6 +17,10 @@
 
 use half::f16;
 use image::DynamicImage;
+use jpegxl_sys::color::color_encoding::{
+    JxlColorEncoding, JxlColorSpace, JxlPrimaries, JxlRenderingIntent, JxlTransferFunction,
+    JxlWhitePoint,
+};
 use pretty_assertions::assert_eq;
 use testresult::TestResult;
 
@@ -225,5 +229,35 @@ fn initial_buffer() -> TestResult {
     let _: EncoderResult<u16> = encoder.encode(sample.as_raw(), sample.width(), sample.height())?;
     let _: EncoderResult<f16> = encoder.encode(sample.as_raw(), sample.width(), sample.height())?;
     let _: EncoderResult<f32> = encoder.encode(sample.as_raw(), sample.width(), sample.height())?;
+    Ok(())
+}
+
+#[test]
+fn custom_color_encoding() -> TestResult {
+    let mut encoder = encoder_builder().build()?;
+    let sample = get_sample().to_rgb8();
+
+    // scRGB: linear transfer with sRGB primaries and D65 white point.
+    let custom_color_encoding = JxlColorEncoding {
+        color_space: JxlColorSpace::Rgb,
+        white_point: JxlWhitePoint::D65,
+        white_point_xy: [0.0, 0.0],
+        primaries: JxlPrimaries::SRgb,
+        primaries_red_xy: [0.0, 0.0],
+        primaries_green_xy: [0.0, 0.0],
+        primaries_blue_xy: [0.0, 0.0],
+        transfer_function: JxlTransferFunction::Linear,
+        gamma: 0.0,
+        rendering_intent: JxlRenderingIntent::Relative,
+    };
+    encoder.color_encoding = Some(ColorEncoding::Custom(custom_color_encoding));
+    encoder.target_intensity = Some(1000.0);
+
+    let result: EncoderResult<u16> =
+        encoder.encode(sample.as_raw(), sample.width(), sample.height())?;
+
+    let decoder = decoder_builder().build()?;
+    let _res = decoder.decode(&result)?;
+
     Ok(())
 }

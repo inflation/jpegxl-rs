@@ -29,21 +29,23 @@ pub enum EncoderSpeed {
 }
 
 /// Encoding color profile
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 pub enum ColorEncoding {
-    /// SRGB, default for uint pixel types
+    /// sRGB, default for int pixel types
     Srgb,
-    /// Linear SRGB, default for float pixel types
+    /// Linear sRGB, default for float pixel types
     LinearSrgb,
-    /// SRGB, images with only luma channel
+    /// sRGB, images with only luma channel
     SrgbLuma,
-    /// Linear SRGB with only luma channel
+    /// Linear sRGB with only luma channel
     LinearSrgbLuma,
+    /// Custom
+    Custom(JxlColorEncoding),
 }
 
-impl From<ColorEncoding> for JxlColorEncoding {
-    fn from(val: ColorEncoding) -> Self {
-        use ColorEncoding::{LinearSrgb, LinearSrgbLuma, Srgb, SrgbLuma};
+impl From<&ColorEncoding> for JxlColorEncoding {
+    fn from(val: &ColorEncoding) -> Self {
+        use ColorEncoding::{Custom, LinearSrgb, LinearSrgbLuma, Srgb, SrgbLuma};
 
         let mut color_encoding = MaybeUninit::uninit();
 
@@ -58,6 +60,9 @@ impl From<ColorEncoding> for JxlColorEncoding {
                 }
                 LinearSrgbLuma => {
                     api::JxlColorEncodingSetToLinearSRGB(color_encoding.as_mut_ptr(), true.into());
+                }
+                Custom(e) => {
+                    return e.clone();
                 }
             }
             color_encoding.assume_init()
