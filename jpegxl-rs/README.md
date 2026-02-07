@@ -102,7 +102,8 @@ encoder.quality = 3.0;
 
 ### [`image`](https://crates.io/crates/image) crate integration
 
-By default, this integration uses the `image` integration. If you don't need it, turn off the `image` feature.
+By default, this integration uses the `image` integration.
+If you don't need it, turn off the `image` feature.
 
 ```rust
 use jpegxl_rs::image::ToDynamic;

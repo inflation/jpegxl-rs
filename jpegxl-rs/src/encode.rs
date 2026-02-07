@@ -86,7 +86,7 @@ pub struct JxlEncoder<'prl, 'mm> {
     pub quality: f32,
     /// Configure the encoder to use the JPEG XL container format
     ///
-    /// Using the JPEG XL container format allows to store metadata such as JPEG reconstruction;
+    /// Using the JPEG XL container format allows one to store metadata such as JPEG reconstruction;
     /// but it adds a few bytes to the encoded file for container headers
     /// even if there is no extra metadata.
     pub use_container: bool,
@@ -95,7 +95,7 @@ pub struct JxlEncoder<'prl, 'mm> {
     /// If the input image has a color profile, it will be used for the encoded image.
     /// Otherwise, an internal fixed color profile is chosen (which should be smaller).
     ///
-    /// When lossless recompressing JPEG image, you must set this to true.
+    /// When lossless re-compressing JPEG image, you must set this to true.
     ///
     /// Default: `false`
     pub uses_original_profile: bool,
@@ -111,8 +111,12 @@ pub struct JxlEncoder<'prl, 'mm> {
 
     /// Set color encoding
     ///
-    /// Default: SRGB for uint, Linear SRGB for float
+    /// Default: sRGB for int, Linear sRGB for float
     pub color_encoding: Option<ColorEncoding>,
+
+    /// Set HDR target intensity.
+    /// Specify the target intensity in nits for 1.0 value
+    pub target_intensity: Option<f32>,
 
     /// Set parallel runner
     ///
@@ -145,6 +149,7 @@ impl<'prl, 'mm> JxlEncoder<'prl, 'mm> {
         #[builder(default)] decoding_speed: i64,
         init_buffer_size: Option<usize>,
         color_encoding: Option<ColorEncoding>,
+        target_intensity: Option<f32>,
         parallel_runner: Option<&'prl dyn ParallelRunner>,
         #[builder(default)] use_box: bool,
     ) -> Result<Self, EncodeError> {
@@ -173,6 +178,7 @@ impl<'prl, 'mm> JxlEncoder<'prl, 'mm> {
             decoding_speed,
             init_buffer_size: init_buffer_size.map_or(512 * 1024, |v| if v < 32 { 32 } else { v }),
             color_encoding,
+            target_intensity,
             parallel_runner,
             use_box,
             memory_manager,
@@ -295,18 +301,21 @@ impl JxlEncoder<'_, '_> {
             basic_info.num_color_channels = 1;
         }
 
+        if let Some(target_intensity) = self.target_intensity {
+            basic_info.intensity_target = target_intensity;
+        }
+
         if let Some(pr) = self.parallel_runner {
             pr.callback_basic_info(&basic_info);
         }
 
         self.check_enc_status(unsafe { JxlEncoderSetBasicInfo(self.enc, &raw const basic_info) })?;
 
-        if let Some(color_encoding) = self.color_encoding {
+        if let Some(color_encoding) = &self.color_encoding {
             self.check_enc_status(unsafe {
                 JxlEncoderSetColorEncoding(self.enc, &color_encoding.into())
             })?;
         }
-
         Ok(())
     }
 
