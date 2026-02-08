@@ -2,6 +2,18 @@
 
 ## [Unreleased]
 
+## [0.13.0+libjxl-0.11.1](https://github.com/inflation/jpegxl-rs/compare/jpegxl-rs-v0.12.0+libjxl-0.11.1...jpegxl-rs-v0.13.0+libjxl-0.11.1)
+
+### ⛰️ Features
+
+- Allow custom color encoding - ([2db5bfe](https://github.com/inflation/jpegxl-rs/commit/2db5bfe9e817b1d066aad966770bb1c80633d226))
+
+### Build
+
+- *(deps)* Bump thiserror from 2.0.17 to 2.0.18 - ([d2895e1](https://github.com/inflation/jpegxl-rs/commit/d2895e1eeb927bd69d1964017fad982d398fe1a2))
+- *(deps)* Bump bon from 3.8.1 to 3.8.2 - ([5482433](https://github.com/inflation/jpegxl-rs/commit/5482433da202dae625e3d0965d2a5d829a355ee5))
+
+
 ## [0.12.0+libjxl-0.11.1](https://github.com/inflation/jpegxl-rs/compare/jpegxl-rs-v0.11.2+libjxl-0.11.1...jpegxl-rs-v0.12.0+libjxl-0.11.1)
 
 ### ⛰️ Features
