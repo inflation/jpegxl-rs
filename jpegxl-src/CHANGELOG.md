@@ -2,6 +2,13 @@
 
 ## [Unreleased]
 
+## [0.11.4]
+
+### Dep
+
+- Update `libjxl` to v0.11.2 - ([d45159f](https://github.com/inflation/jpegxl-rs/commit/d45159f0552b393289aa964b617fe7d6747a32ee))
+
+
 ## [0.11.3](https://github.com/inflation/jpegxl-rs/compare/jpegxl-src-v0.11.2...jpegxl-src-v0.11.3)
 
 ### 🚜 Refactor
