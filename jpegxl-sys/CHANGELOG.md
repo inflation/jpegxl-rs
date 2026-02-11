@@ -2,6 +2,13 @@
 
 ## [Unreleased]
 
+## [0.12.2+libjxl-0.11.2](https://github.com/inflation/jpegxl-rs/compare/jpegxl-sys-v0.12.1+libjxl-0.11.2...jpegxl-sys-v0.12.2+libjxl-0.11.2)
+
+### ⚙️ Miscellaneous Tasks
+
+- *(jpegxl-rs)* Release v0.13.0+libjxl-0.11.1 - ([0823539](https://github.com/inflation/jpegxl-rs/commit/082353906b6f355d037df63ed7c85ba7f3397313))
+
+
 ## [0.12.1+libjxl-0.11.2]
 
 ### Dep
