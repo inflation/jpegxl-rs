@@ -118,7 +118,7 @@ let img = decoder.decode_to_image_with::<f32>(&sample).unwrap();
 
 ## MSRV
 
-Following the latest stable Debian rustc version.
-Currently: 1.85 (Debian Trixie)
+Following the N-2 policy: the minimum supported Rust version is two releases behind the current stable.
+Currently: 1.92 (stable: 1.94)
 
 License: `GPL-3.0-or-later`
