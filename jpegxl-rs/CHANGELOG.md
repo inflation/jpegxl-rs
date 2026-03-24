@@ -2,6 +2,13 @@
 
 ## [Unreleased]
 
+## [0.14.1+libjxl-0.11.2](https://github.com/inflation/jpegxl-rs/compare/jpegxl-rs-v0.14.0+libjxl-0.11.2...jpegxl-rs-v0.14.1+libjxl-0.11.2)
+
+### 🐛 Bug Fixes
+
+- Replace doc_auto_cg with doc_cfg - ([4112954](https://github.com/inflation/jpegxl-rs/commit/411295443340ed6e5c97dc6b30113d853d3e2869))
+
+
 ## [0.13.1+libjxl-0.11.2]
 
 ### Dep

@@ -8,7 +8,7 @@ links = "jxl"
 name = "jpegxl-sys"
 readme = "README.md"
 repository = "https://github.com/inflation/jpegxl-rs"
-version = "0.12.1+libjxl-0.11.2"
+version = "0.12.2+libjxl-0.11.2"
 rust-version.workspace = true
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
@@ -30,7 +30,7 @@ features = ["docs"]
 pkg-config = "0.3.32"
 
 [build-dependencies.jpegxl-src]
-version = "0.11.4"
+version = "0.11.5"
 path = "../jpegxl-src"
 optional = true
 
