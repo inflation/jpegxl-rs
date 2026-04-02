@@ -2,6 +2,17 @@
 
 ## [Unreleased]
 
+## [0.11.5](https://github.com/inflation/jpegxl-rs/compare/jpegxl-src-v0.11.4...jpegxl-src-v0.11.5)
+
+### ⚙️ Miscellaneous Tasks
+
+- *(jpegxl-rs)* Release v0.13.0+libjxl-0.11.1 - ([0823539](https://github.com/inflation/jpegxl-rs/commit/082353906b6f355d037df63ed7c85ba7f3397313))
+
+### Build
+
+- *(deps)* Bump cmake from 0.1.57 to 0.1.58 - ([228cab8](https://github.com/inflation/jpegxl-rs/commit/228cab862f1930c70b50509b4a66cc6acd18507d))
+
+
 ## [0.11.4]
 
 ### Dep
