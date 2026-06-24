@@ -1,10 +1,100 @@
 use std::marker::PhantomData;
+use std::mem::MaybeUninit;
 
-use jpegxl_sys::common::types::{JxlEndianness, JxlPixelFormat};
+use jpegxl_sys::{
+    common::types::{JxlEndianness, JxlPixelFormat},
+    encoder::encode::{JxlEncoderInitBlendInfo, JxlEncoderInitFrameHeader},
+    metadata::codestream_header::{JxlBlendInfo, JxlBlendMode, JxlFrameHeader, JxlLayerInfo},
+};
 
 use crate::{common::PixelType, EncodeError};
 
 use super::{EncoderResult, JxlEncoder};
+
+/// Blend mode
+pub type BlendMode = JxlBlendMode;
+
+/// Blend Info
+#[derive(Debug, Clone)]
+pub struct BlendInfo(JxlBlendInfo);
+
+impl BlendInfo {
+    /// Create new blend info
+    pub fn new(blendmode: BlendMode, source: u32, alpha: u32, clamp: bool) -> Self {
+        let mut value = MaybeUninit::uninit();
+        let mut blend_info = unsafe {
+            JxlEncoderInitBlendInfo(value.as_mut_ptr());
+            value.assume_init()
+        };
+
+        blend_info.blendmode = blendmode;
+        blend_info.source = source;
+        blend_info.alpha = alpha;
+        blend_info.clamp = clamp.into();
+
+        Self(blend_info)
+    }
+}
+
+/// Layer Information
+#[derive(Debug, Clone)]
+pub struct LayerInfo(JxlLayerInfo);
+
+impl LayerInfo {
+    /// Create new layer info
+    pub fn new(
+        have_crop: bool,
+        crop_x0: i32,
+        crop_y0: i32,
+        xsize: u32,
+        ysize: u32,
+        blend_info: BlendInfo,
+        save_as_reference: u32,
+    ) -> Self {
+        LayerInfo(JxlLayerInfo {
+            have_crop: have_crop.into(),
+            crop_x0,
+            crop_y0,
+            xsize,
+            ysize,
+            blend_info: blend_info.0,
+            save_as_reference,
+        })
+    }
+}
+
+/// Additional informations for a frame
+#[derive(Debug, Clone)]
+pub struct FrameHeader(JxlFrameHeader);
+
+impl FrameHeader {
+    /// Create a default frame header
+    pub fn new() -> Self {
+        let mut value = MaybeUninit::uninit();
+        unsafe {
+            JxlEncoderInitFrameHeader(value.as_mut_ptr());
+            Self(value.assume_init())
+        }
+    }
+
+    /// Set duration
+    pub fn duration(mut self, duration: u32) -> Self {
+        self.0.duration = duration;
+        self
+    }
+
+    /// Set timecode
+    pub fn timecode(mut self, timecode: u32) -> Self {
+        self.0.timecode = timecode;
+        self
+    }
+
+    /// Set layer_info
+    pub fn layer_info(mut self, layer_info: LayerInfo) -> Self {
+        self.0.layer_info = layer_info.0;
+        self
+    }
+}
 
 /// A frame for the encoder, consisting of the pixels and its options
 #[allow(clippy::module_name_repetitions)]
@@ -13,6 +103,7 @@ pub struct EncoderFrame<'data, T: PixelType> {
     num_channels: Option<u32>,
     endianness: Option<JxlEndianness>,
     align: Option<usize>,
+    header: Option<FrameHeader>,
 }
 
 impl<'data, T: PixelType> EncoderFrame<'data, T> {
@@ -25,6 +116,7 @@ impl<'data, T: PixelType> EncoderFrame<'data, T> {
             num_channels: None,
             endianness: None,
             align: None,
+            header: None,
         }
     }
 
@@ -50,6 +142,18 @@ impl<'data, T: PixelType> EncoderFrame<'data, T> {
     pub fn align(mut self, value: usize) -> Self {
         self.align = Some(value);
         self
+    }
+
+    /// Set the frame header
+    #[must_use]
+    pub fn header(mut self, value: FrameHeader) -> Self {
+        self.header = Some(value);
+        self
+    }
+
+    /// Set the frame header
+    pub(crate) fn get_header(&self) -> Option<&JxlFrameHeader> {
+        self.header.as_ref().map(|f| &f.0)
     }
 
     pub(crate) fn pixel_format(&self) -> JxlPixelFormat {

@@ -33,6 +33,8 @@ pub mod image;
 #[cfg(test)]
 mod tests;
 
+pub use jpegxl_sys;
+
 pub use common::Endianness;
 pub use decode::decoder_builder;
 pub use encode::encoder_builder;
