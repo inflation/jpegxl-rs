@@ -56,7 +56,6 @@ pub fn build() {
         .define("JPEGXL_ENABLE_JNI", "OFF")
         .define("JPEGXL_ENABLE_SJPEG", "OFF")
         .define("JPEGXL_ENABLE_OPENEXR", "OFF")
-        .define("JPEGXL_ENABLE_JPEGLI", "OFF")
         .define("JPEGXL_BUNDLE_LIBPNG", "OFF");
 
     if let Ok(p) = std::thread::available_parallelism() {

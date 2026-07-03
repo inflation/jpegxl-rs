@@ -65,7 +65,9 @@ pub enum EncodeError {
         in debug mode to get more information. Check `stderr` for any internal error messages."
     )]
     GenericError,
-    /// Not Supported
+    /// Not Supported. Since libjxl v0.12, also returned when parsing the JPEG
+    /// given to [`encode_jpeg`][crate::encode::JxlEncoder::encode_jpeg] fails
+    /// due to features not supported for recompression
     #[error("Encoder does not support it (yet)")]
     NotSupported,
     /// Need more output

@@ -104,11 +104,10 @@ pub enum JxlDecoderStatus {
     /// The decoder is able to decode a preview image and requests setting a
     /// preview output buffer using [`JxlDecoderSetPreviewOutBuffer`]. This occurs
     /// if [`JxlDecoderStatus::PreviewImage`] is requested and it is possible to decode a
-    /// preview image from the codestream and the preview out buffer was not yet
-    /// set. There is maximum one preview image in a codestream.
-    /// In this case, [`JxlDecoderReleaseInput`] will return all bytes from the
-    /// end of the frame header (including `ToC`) of the preview frame as
-    /// unprocessed.
+    /// preview image from the codestream. There is maximum one preview image in
+    /// a codestream. In this case, [`JxlDecoderReleaseInput`] will return all
+    /// bytes from the end of the frame header (including `ToC`) of the preview
+    /// frame as unprocessed.
     NeedPreviewOutBuffer = 3,
 
     /// The decoder requests an output buffer to store the full resolution image,
@@ -1002,10 +1001,13 @@ extern "C-unwind" {
         size: *mut usize,
     ) -> JxlDecoderStatus;
 
-    /// Sets the buffer to write the low-resolution preview image
-    /// to. The size of the buffer must be at least as large as given by [`JxlDecoderPreviewOutBufferSize`].
+    /// Sets the buffer to write the low-resolution preview image to. This must be
+    /// set when the [`JxlDecoderStatus::NeedPreviewOutBuffer`] event occurs. The
+    /// size of the buffer must be at least as large as given by [`JxlDecoderPreviewOutBufferSize`].
     /// The buffer follows the format described by [`JxlPixelFormat`]. The preview image dimensions are given by the
-    /// [`JxlPreviewHeader`]. The buffer is owned by the caller.
+    /// [`JxlPreviewHeader`]. The buffer is owned by the caller. Attempt to set
+    /// preview buffer before [`JxlDecoderStatus::NeedPreviewOutBuffer`] or after
+    /// [`JxlDecoderStatus::PreviewImage`] will fail.
     ///
     /// # Parameters
     /// - `dec`: decoder object
@@ -1108,7 +1110,8 @@ extern "C-unwind" {
     /// [`JxlDecoderStatus::NeedImageOutBuffer`] event occurs, and applies only for the
     /// current frame. The size of the buffer must be at least as large as given
     /// by [`JxlDecoderImageOutBufferSize`]. The buffer follows the format described
-    /// by [`JxlPixelFormat`]. The buffer is owned by the caller.
+    /// by [`JxlPixelFormat`]. The buffer is owned by the caller. Attempt to set
+    /// image buffer while preview buffer is expected will fail.
     ///
     /// # Parameters
     /// - `dec`: decoder object
