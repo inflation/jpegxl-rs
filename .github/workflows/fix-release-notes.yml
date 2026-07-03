@@ -2,6 +2,11 @@ name: Fix release notes
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - claude/libjxl-v0.12-ffi-vlznep
+    paths:
+      - ".github/workflows/fix-release-notes.yml"
 
 permissions:
   contents: write
