@@ -71,6 +71,22 @@ fn jpeg() -> TestResult {
     Ok(())
 }
 
+// Recompressing a JPEG with an unsupported feature (here: 4-component CMYK)
+// must fail with a specific error, not succeed or crash. In libjxl v0.12.0
+// the component-count check fails while serializing the JPEG reconstruction
+// data (`Jbrd`); upstream is moving such failures to `NotSupported`
+#[test]
+fn jpeg_unsupported_features() -> TestResult {
+    let mut encoder = encoder_builder().build()?;
+
+    assert!(matches!(
+        encoder.encode_jpeg(super::SAMPLE_JPEG_CMYK),
+        Err(crate::EncodeError::Jbrd | crate::EncodeError::NotSupported)
+    ));
+
+    Ok(())
+}
+
 #[test]
 fn metadata() -> TestResult {
     let sample = get_sample().to_rgb8();

@@ -3,6 +3,7 @@ mod encode;
 
 pub const SAMPLE_PNG: &[u8] = include_bytes!("../../samples/sample.png");
 const SAMPLE_JPEG: &[u8] = include_bytes!("../../samples/sample.jpg");
+const SAMPLE_JPEG_CMYK: &[u8] = include_bytes!("../../samples/sample_cmyk.jpg");
 const SAMPLE_EXIF: &[u8] = include_bytes!("../../samples/sample.exif");
 const SAMPLE_XMP: &[u8] = include_bytes!("../../samples/sample.xmp");
 pub const SAMPLE_JXL: &[u8] = include_bytes!("../../samples/sample.jxl");

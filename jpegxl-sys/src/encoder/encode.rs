@@ -92,7 +92,9 @@ pub enum JxlEncoderError {
 
     /// The encoder doesn't (yet) support this. Either no version of libjxl
     /// supports this, and the API is used incorrectly, or the libjxl version
-    /// should have been checked before trying to do this.
+    /// should have been checked before trying to do this. Since libjxl v0.12,
+    /// also reported when parsing the JPEG given to [`JxlEncoderAddJPEGFrame`]
+    /// fails due to features not supported for recompression.
     NotSupported = 0x80,
 
     /// The encoder API is used in an incorrect way.
@@ -289,19 +291,18 @@ pub enum JxlEncoderFrameSettingId {
     /// compression, 1 = enable compression.
     JpegCompressBoxes = 33,
 
-    /// Control what kind of buffering is used, when using chunked image frames.
+    /// Control what kind of input buffering is used, when using chunked image frames.
+    /// When using streaming input the encoder minimizes memory usage, potentially at
+    /// a cost in compression density (though not necessarily).
     /// -1 = default (let the encoder decide)
     /// 0 = buffers everything, basically the same as non-streamed code path
     /// (mainly for testing)
-    /// 1 = buffers everything for images that are smaller than 2048 x 2048, and
-    ///     uses streaming input and output for larger images
-    /// 2 = uses streaming input and output for all images that are larger than
-    ///     one group, i.e. 256 x 256 pixels by default
-    /// 3 = currently same as 2
+    /// 1 = buffers everything for images that are 2048 x 2048 or smaller, and
+    ///     uses streaming input and buffered output for larger images
+    /// 2 = same as 1, but the threshold to use streaming input is lower
+    /// 3 = deprecated; same as 2, but also sets output mode to 1.
     ///
-    /// When using streaming input and output the encoder minimizes memory usage at
-    /// the cost of compression density. Also note that images produced with
-    /// streaming mode might not be progressively decodeable.
+    /// Output buffering is controlled via [`Self::OutputMode`].
     Buffering = 34,
 
     /// Keep or discard Exif metadata boxes derived from a JPEG frame when using
@@ -335,6 +336,30 @@ pub enum JxlEncoderFrameSettingId {
     /// Disable perceptual optimizations. 0 = optimizations enabled (default), 1 =
     /// optimizations disabled.
     DisablePerceptualHeuristics = 39,
+
+    /// Control how codestream bytes are written to the output. Unlike
+    /// [`Self::Buffering`] (which controls input buffering), this setting
+    /// controls the output ordering and memory trade-offs.
+    ///
+    /// Modes 1 and 2 reduce peak memory usage by avoiding buffering the output
+    /// bitstream, but produce codestreams in an order not suitable for
+    /// progressive decoding.
+    ///
+    /// -1 = default (let the encoder decide).
+    /// 0 = buffer the output bitstream internally; write frames in normal order.
+    ///     No seeking required. The codestream can be decoded progressively.
+    ///     This is the most compatible mode.
+    /// 1 = seek-based streaming: write group data first, then seek back to write
+    ///     the frame header and TOC. Reduces peak memory for large images.
+    ///     Requires a seekable output stream. Produces maximally compatible files.
+    /// 2 = out-of-order `jxlp` streaming: each codestream section is a separate
+    ///     `jxlp` box written in encoding order; `jxlp` counters reflect codestream
+    ///     order so a decoder can reassemble a standard, progressively decodable
+    ///     codestream by sorting the boxes. Reduces peak memory without requiring
+    ///     output seeking. Requires `ftyp` version 1, which is not supported by
+    ///     older decoders. If mode 2 is used for any frame, it must also be used
+    ///     for the first frame (the `ftyp` version cannot be changed once written).
+    OutputMode = 40,
 
     /// Enum value not to be used as an option. This value is added to force the
     /// C compiler to have the enum to take a known size.
@@ -799,6 +824,10 @@ extern "C-unwind" {
     /// encode with lossy compression, the JPEG must be decoded manually and a pixel
     /// buffer added using [`JxlEncoderAddImageFrame`].
     ///
+    /// Since libjxl v0.12, if parsing the input JPEG fails because it uses
+    /// features that are not supported for recompression, the reported error is
+    /// [`JxlEncoderError::NotSupported`] instead of [`JxlEncoderError::BadInput`].
+    ///
     /// # Parameters
     /// - `frame_settings`: set of options and metadata for this frame. Also
     ///   includes reference to the encoder object.
@@ -999,8 +1028,9 @@ extern "C-unwind" {
     /// case metadata cannot be added.
     ///
     /// Each box generally has the following byte structure in the file:
-    /// - 4 bytes: box size including box header (Big endian. If set to 0, an
-    ///   8-byte 64-bit size follows instead).
+    /// - 4 bytes: box size including box header (Big endian. If set to 1, an
+    ///   8-byte 64-bit size follows instead. If set to 0, the box extends to the
+    ///   end of the file.)
     /// - 4 bytes: type, e.g. "JXL " for the signature box, "jxlc" for a codestream
     ///   box.
     /// - N bytes: box contents.
@@ -1529,6 +1559,8 @@ extern "C-unwind" {
     /// functions taking both a [`JxlEncoder`] and a [`JxlEncoderFrameSettings`],
     /// only [`JxlEncoderFrameSettings`] created with this function for the same
     /// encoder instance can be used.
+    ///
+    /// The returned value could be `NULL` in case of an out of memory situation.
     ///
     /// # Parameters
     /// - `enc`: encoder object.
