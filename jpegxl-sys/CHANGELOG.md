@@ -2,6 +2,7 @@
 
 ## [Unreleased]
 
+
 ## [0.13.0+libjxl-0.12.0]
 
 ### ⚙️ Miscellaneous Tasks
