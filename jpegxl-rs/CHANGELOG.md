@@ -2,6 +2,23 @@
 
 ## [Unreleased]
 
+## [0.16.0+libjxl-0.12.0](https://github.com/inflation/jpegxl-rs/compare/jpegxl-rs-v0.15.0+libjxl-0.12.0...jpegxl-rs-v0.16.0+libjxl-0.12.0)
+
+### ⛰️ Features
+
+- *(encode)* Add animation, frame names and image bit depth - ([a52be4d](https://github.com/inflation/jpegxl-rs/commit/a52be4d298d66519cce7d0287046b50a2c12dcd8))
+- *(encode)* [**breaking**] Add a caller-driven Session - ([f99567b](https://github.com/inflation/jpegxl-rs/commit/f99567bffa2dd383993b80a5ded5fa93e162af03))
+
+### 🚜 Refactor
+
+- *(encode)* [**breaking**] Take the bit depth from the input pixels - ([b4f7015](https://github.com/inflation/jpegxl-rs/commit/b4f7015a6817bb525e896a687dd373e35cd3fa19))
+- Require SAFETY comments on unsafe blocks - ([7237727](https://github.com/inflation/jpegxl-rs/commit/723772763dd32fde5a79592c654ca9b0da05b255))
+
+### 🧪 Testing
+
+- Cover more session, allocation and metadata paths - ([67ddff7](https://github.com/inflation/jpegxl-rs/commit/67ddff7271da901d7d50f290736748eba335b334))
+
+
 ## [0.15.0+libjxl-0.12.0]
 
 ### 🐛 Bug Fixes
