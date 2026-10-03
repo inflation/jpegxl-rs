@@ -91,10 +91,10 @@ fn jpeg_unsupported_features() -> TestResult {
 fn metadata() -> TestResult {
     let sample = get_sample().to_rgb8();
     let mut encoder = encoder_builder().build()?;
-    encoder.add_metadata(&Metadata::Exif(super::SAMPLE_EXIF), true)?;
-    encoder.add_metadata(&Metadata::Xmp(super::SAMPLE_XMP), true)?;
-    encoder.add_metadata(&Metadata::Jumb(b"jumb"), false)?;
-    encoder.add_metadata(&Metadata::Custom(*b"abcd", b"custom"), false)?;
+    encoder.add_metadata(&Metadata::Exif(super::SAMPLE_EXIF), true);
+    encoder.add_metadata(&Metadata::Xmp(super::SAMPLE_XMP), true);
+    encoder.add_metadata(&Metadata::Jumb(b"jumb"), false);
+    encoder.add_metadata(&Metadata::Custom(*b"abcd", b"custom"), false);
 
     let _res: EncoderResult<u8> =
         encoder.encode(sample.as_raw(), sample.width(), sample.height())?;
@@ -232,11 +232,6 @@ fn gray() -> TestResult {
     )?;
     _ = decoder.decode(&result)?;
 
-    encoder.set_frame_option(
-        jpegxl_sys::encoder::encode::JxlEncoderFrameSettingId::BrotliEffort,
-        1,
-    )?;
-
     Ok(())
 }
 
@@ -276,6 +271,67 @@ fn custom_color_encoding() -> TestResult {
 
     let decoder = decoder_builder().build()?;
     let _res = decoder.decode(&result)?;
+
+    Ok(())
+}
+
+#[test]
+fn reuse_keeps_options_and_boxes() -> TestResult {
+    use jpegxl_sys::encoder::encode::JxlEncoderFrameSettingId;
+
+    let sample = get_sample().to_rgb8();
+    let (w, h) = (sample.width(), sample.height());
+    let mut encoder = encoder_builder().build()?;
+    let plain: EncoderResult<u8> = encoder.encode(sample.as_raw(), w, h)?;
+
+    encoder.set_frame_option(JxlEncoderFrameSettingId::Modular, 1);
+    let first: EncoderResult<u8> = encoder.encode(sample.as_raw(), w, h)?;
+    let second: EncoderResult<u8> = encoder.encode(sample.as_raw(), w, h)?;
+    assert_ne!(plain.data, first.data);
+    assert_eq!(first.data, second.data);
+
+    for _ in 0..2 {
+        encoder.add_metadata(&Metadata::Exif(super::SAMPLE_EXIF), false);
+        let _: EncoderResult<u8> = encoder.encode(sample.as_raw(), w, h)?;
+    }
+
+    encoder.set_frame_option(JxlEncoderFrameSettingId::Effort, 100);
+    assert!(encoder.encode::<u8, u8>(sample.as_raw(), w, h).is_err());
+
+    Ok(())
+}
+
+#[test]
+fn session_frames() -> TestResult {
+    use crate::encode::{FrameSettings, ImageInfo};
+
+    let sample = get_sample().to_rgb8();
+    let info = ImageInfo::builder()
+        .width(sample.width())
+        .height(sample.height())
+        .build();
+    let mut encoder = encoder_builder().uses_original_profile(true).build()?;
+    let lossless = FrameSettings {
+        lossless: Some(true),
+        ..encoder.frame_settings()
+    };
+
+    let mut session = encoder.session(&info)?;
+    session.add_metadata(&Metadata::Xmp(super::SAMPLE_XMP), true)?;
+    session.add_frame(&EncoderFrame::new(sample.as_raw()))?;
+    let mut data = session.take_output()?;
+    session.add_frame(&EncoderFrame::new(sample.as_raw()).settings(&lossless))?;
+    data.extend(session.finish()?);
+
+    decoder_builder().build()?.decode(&data)?;
+
+    let mut session = encoder.session(&info)?;
+    session.add_frame(&EncoderFrame::new(sample.as_raw()))?;
+    session.take_output()?;
+    assert!(matches!(
+        session.finish(),
+        Err(crate::EncodeError::InvalidState(_))
+    ));
 
     Ok(())
 }
