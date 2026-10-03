@@ -93,6 +93,8 @@ fn metadata() -> TestResult {
     let mut encoder = encoder_builder().build()?;
     encoder.add_metadata(&Metadata::Exif(super::SAMPLE_EXIF), true)?;
     encoder.add_metadata(&Metadata::Xmp(super::SAMPLE_XMP), true)?;
+    encoder.add_metadata(&Metadata::Jumb(b"jumb"), false)?;
+    encoder.add_metadata(&Metadata::Custom(*b"abcd", b"custom"), false)?;
 
     let _res: EncoderResult<u8> =
         encoder.encode(sample.as_raw(), sample.width(), sample.height())?;
