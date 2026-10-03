@@ -8,6 +8,11 @@
 
 - *(decode)* Add a caller-driven Session - ([522d0cb](https://github.com/inflation/jpegxl-rs/commit/522d0cba26289fb15c67680b7c02edcbe673f92f))
 
+### 🐛 Bug Fixes
+
+- *(decode)* Apply the `decompress` and `progressive_detail` options, which were never passed to libjxl - ([522d0cb](https://github.com/inflation/jpegxl-rs/commit/522d0cba26289fb15c67680b7c02edcbe673f92f))
+- *(decode)* Reset the decoder after a failed decode, so it can be reused - ([522d0cb](https://github.com/inflation/jpegxl-rs/commit/522d0cba26289fb15c67680b7c02edcbe673f92f))
+
 ### 🚜 Refactor
 
 - Require SAFETY comments on unsafe blocks - ([7237727](https://github.com/inflation/jpegxl-rs/commit/723772763dd32fde5a79592c654ca9b0da05b255))
