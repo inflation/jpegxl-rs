@@ -2,13 +2,6 @@
 
 ## [Unreleased]
 
-## [0.12.1](https://github.com/inflation/jpegxl-rs/compare/jpegxl-src-v0.12.0...jpegxl-src-v0.12.1)
-
-### ⛰️ Features
-
-- *(decode)* Add a caller-driven Session - ([522d0cb](https://github.com/inflation/jpegxl-rs/commit/522d0cba26289fb15c67680b7c02edcbe673f92f))
-
-
 ## [0.12.0]
 
 ### ⚙️ Miscellaneous Tasks

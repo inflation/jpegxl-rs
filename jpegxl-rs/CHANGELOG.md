@@ -4,10 +4,24 @@
 
 ## [0.16.0+libjxl-0.12.0](https://github.com/inflation/jpegxl-rs/compare/jpegxl-rs-v0.15.0+libjxl-0.12.0...jpegxl-rs-v0.16.0+libjxl-0.12.0)
 
+### ⚠️ Migration
+
+- `encode::<T, U>` and `encode_frame::<T, U>` become `encode::<T>` and `encode_frame::<T>`. The bit depth follows `T`; set a different one with `ImageInfo` on a `Session`.
+- `encode`, `encode_frame` and `encode_jpeg` return `Vec<u8>`. `EncoderResult` is removed.
+- `multiple` and `MultiFrames` are replaced by `JxlEncoder::session`.
+- `set_frame_option` and `JxlEncoder::add_metadata` return `()`. An invalid option is reported when a frame is added.
+
 ### ⛰️ Features
 
-- *(encode)* Add animation, frame names and image bit depth - ([a52be4d](https://github.com/inflation/jpegxl-rs/commit/a52be4d298d66519cce7d0287046b50a2c12dcd8))
+- *(decode)* Add a caller-driven Session - ([522d0cb](https://github.com/inflation/jpegxl-rs/commit/522d0cba26289fb15c67680b7c02edcbe673f92f))
 - *(encode)* [**breaking**] Add a caller-driven Session - ([f99567b](https://github.com/inflation/jpegxl-rs/commit/f99567bffa2dd383993b80a5ded5fa93e162af03))
+- *(encode)* Add animation, frame names and image bit depth - ([a52be4d](https://github.com/inflation/jpegxl-rs/commit/a52be4d298d66519cce7d0287046b50a2c12dcd8))
+
+### 🐛 Bug Fixes
+
+- *(decode)* Apply the `decompress` and `progressive_detail` options, which were never passed to libjxl - ([522d0cb](https://github.com/inflation/jpegxl-rs/commit/522d0cba26289fb15c67680b7c02edcbe673f92f))
+- *(decode)* Reset the decoder after a failed decode, so it can be reused - ([522d0cb](https://github.com/inflation/jpegxl-rs/commit/522d0cba26289fb15c67680b7c02edcbe673f92f))
+- *(encode)* Keep options from `set_frame_option` and metadata boxes when an encoder is reused - ([f99567b](https://github.com/inflation/jpegxl-rs/commit/f99567bffa2dd383993b80a5ded5fa93e162af03))
 
 ### 🚜 Refactor
 
