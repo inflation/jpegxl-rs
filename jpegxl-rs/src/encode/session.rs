@@ -15,10 +15,13 @@
  * along with jpegxl-rs.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-use std::{mem::MaybeUninit, ptr::null};
+use std::{ffi::CString, mem::MaybeUninit, ptr::null};
 
 #[allow(clippy::wildcard_imports)]
-use jpegxl_sys::encoder::encode::*;
+use jpegxl_sys::{
+    common::types::{JxlBitDepth, JxlBitDepthType},
+    encoder::encode::*,
+};
 
 use super::{ColorEncoding, EncoderFrame, FrameSettings, ImageInfo, JxlEncoder, Metadata};
 use crate::{common::PixelType, errors::EncodeError};
@@ -105,6 +108,12 @@ impl<'enc, 'prl, 'mm> Session<'enc, 'prl, 'mm> {
             basic_info.num_extra_channels = 1;
             basic_info.alpha_bits = info.bits_per_sample;
             basic_info.alpha_exponent_bits = info.exponent_bits_per_sample;
+        }
+        if let Some(animation) = info.animation {
+            basic_info.have_animation = true.into();
+            basic_info.animation.tps_numerator = animation.tps_numerator;
+            basic_info.animation.tps_denominator = animation.tps_denominator;
+            basic_info.animation.num_loops = animation.num_loops;
         }
         if let Some(ColorEncoding::SrgbLuma | ColorEncoding::LinearSrgbLuma) = enc.color_encoding {
             basic_info.num_color_channels = 1;
@@ -201,8 +210,38 @@ impl<'enc, 'prl, 'mm> Session<'enc, 'prl, 'mm> {
             Some(settings) => self.create_frame_settings(settings)?,
             None => self.create_frame_settings(&self.frame_settings())?,
         };
+        let enc = &*self.enc;
+        if let Some(duration) = frame.duration {
+            // SAFETY: `JxlEncoderInitFrameHeader` initializes `header`
+            let mut header = unsafe {
+                let mut header = MaybeUninit::uninit();
+                JxlEncoderInitFrameHeader(header.as_mut_ptr());
+                header.assume_init()
+            };
+            header.duration = duration;
+            // SAFETY: `settings` is valid until the encoder is reset
+            enc.check_enc_status(unsafe { JxlEncoderSetFrameHeader(settings, &raw const header) })?;
+        }
+        if let Some(name) = frame.name {
+            let name = CString::new(name).map_err(|_| EncodeError::BadInput)?;
+            // SAFETY: `settings` is valid until the encoder is reset
+            enc.check_enc_status(unsafe {
+                JxlEncoderSetFrameName(settings, name.as_ptr().cast())
+            })?;
+        }
+        if frame.bit_depth_from_image {
+            let bit_depth = JxlBitDepth {
+                r#type: JxlBitDepthType::FromCodestream,
+                bits_per_sample: 0,
+                exponent_bits_per_sample: 0,
+            };
+            // SAFETY: `settings` is valid until the encoder is reset
+            enc.check_enc_status(unsafe {
+                JxlEncoderSetFrameBitDepth(settings, &raw const bit_depth)
+            })?;
+        }
         // SAFETY: `settings` is valid and the size matches `frame.data`
-        self.enc.check_enc_status(unsafe {
+        enc.check_enc_status(unsafe {
             JxlEncoderAddImageFrame(
                 settings,
                 &frame.pixel_format(),

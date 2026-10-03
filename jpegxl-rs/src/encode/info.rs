@@ -44,4 +44,28 @@ pub struct ImageInfo {
     /// Default: `false`
     #[builder(default)]
     pub(crate) has_alpha: bool,
+    /// Animation timing. Without it, the frames are layers of a still image
+    pub(crate) animation: Option<Animation>,
+}
+
+/// Animation timing of an image
+///
+/// ```
+/// # use jpegxl_rs::encode::Animation;
+/// let ten_fps = Animation::builder().tps_numerator(10).build();
+/// ```
+#[derive(Debug, Clone, Copy, Builder)]
+pub struct Animation {
+    /// Numerator of the ticks per second
+    pub(crate) tps_numerator: u32,
+    /// Denominator of the ticks per second
+    ///
+    /// Default: 1
+    #[builder(default = 1)]
+    pub(crate) tps_denominator: u32,
+    /// Number of loops, or 0 to repeat forever
+    ///
+    /// Default: 0
+    #[builder(default)]
+    pub(crate) num_loops: u32,
 }

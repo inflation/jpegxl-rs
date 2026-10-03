@@ -29,6 +29,9 @@ pub struct EncoderFrame<'data, T: PixelType> {
     endianness: Option<JxlEndianness>,
     align: Option<usize>,
     pub(crate) settings: Option<&'data FrameSettings>,
+    pub(crate) duration: Option<u32>,
+    pub(crate) name: Option<&'data str>,
+    pub(crate) bit_depth_from_image: bool,
 }
 
 impl<'data, T: PixelType> EncoderFrame<'data, T> {
@@ -42,6 +45,9 @@ impl<'data, T: PixelType> EncoderFrame<'data, T> {
             endianness: None,
             align: None,
             settings: None,
+            duration: None,
+            name: None,
+            bit_depth_from_image: false,
         }
     }
 
@@ -73,6 +79,29 @@ impl<'data, T: PixelType> EncoderFrame<'data, T> {
     #[must_use]
     pub fn settings(mut self, value: &'data FrameSettings) -> Self {
         self.settings = Some(value);
+        self
+    }
+
+    /// Set how long the frame is shown, in ticks of [`Animation`](super::Animation).
+    /// Ignored if the image has no animation
+    #[must_use]
+    pub fn duration(mut self, ticks: u32) -> Self {
+        self.duration = Some(ticks);
+        self
+    }
+
+    /// Set the name of the frame
+    #[must_use]
+    pub fn name(mut self, value: &'data str) -> Self {
+        self.name = Some(value);
+        self
+    }
+
+    /// The samples use the bit depth of the image instead of the full range of `T`,
+    /// e.g. `0..=1023` in `u16` for a 10-bit image
+    #[must_use]
+    pub fn bit_depth_from_image(mut self) -> Self {
+        self.bit_depth_from_image = true;
         self
     }
 
