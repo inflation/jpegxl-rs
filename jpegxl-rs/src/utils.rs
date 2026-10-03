@@ -25,6 +25,7 @@ use jpegxl_sys::decode::{JxlSignature, JxlSignatureCheck};
 pub fn check_valid_signature(buf: &[u8]) -> Option<bool> {
     use JxlSignature::{Codestream, Container, Invalid, NotEnoughBytes};
 
+    // SAFETY: the pointer and length come from `buf`
     match unsafe { JxlSignatureCheck(buf.as_ptr(), buf.len()) } {
         NotEnoughBytes => None,
         Invalid => Some(false),

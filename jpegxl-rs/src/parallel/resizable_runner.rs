@@ -36,6 +36,7 @@ impl<'mm> ResizableRunner<'mm> {
     #[must_use]
     pub fn new(memory_manager: Option<&'mm dyn MemoryManager>) -> Option<Self> {
         let mm = memory_manager.map(MemoryManager::manager);
+        // SAFETY: libjxl copies the memory manager, so `mm` only has to outlive the call
         let runner_ptr = unsafe {
             api::JxlResizableParallelRunnerCreate(mm.as_ref().map_or(null_mut(), |mm| mm))
         };
@@ -52,17 +53,18 @@ impl<'mm> ResizableRunner<'mm> {
 
     /// Set number of threads depending on the size of the image
     pub fn set_num_threads(&self, width: u64, height: u64) {
+        // SAFETY: this is a pure function of its arguments
         let num = unsafe { api::JxlResizableParallelRunnerSuggestThreads(width, height) };
+        // SAFETY: `self.runner_ptr` is valid until drop
         unsafe { api::JxlResizableParallelRunnerSetThreads(self.runner_ptr, num as usize) };
     }
 }
 
 impl Default for ResizableRunner<'_> {
+    /// # Panics
+    /// Panics if libjxl fails to create the runner
     fn default() -> Self {
-        Self {
-            runner_ptr: unsafe { api::JxlResizableParallelRunnerCreate(std::ptr::null()) },
-            _memory_manager: None,
-        }
+        Self::new(None).expect("failed to create the parallel runner")
     }
 }
 
@@ -82,6 +84,7 @@ impl ParallelRunner for ResizableRunner<'_> {
 
 impl Drop for ResizableRunner<'_> {
     fn drop(&mut self) {
+        // SAFETY: `self.runner_ptr` is valid and never used again
         unsafe { api::JxlResizableParallelRunnerDestroy(self.runner_ptr) };
     }
 }

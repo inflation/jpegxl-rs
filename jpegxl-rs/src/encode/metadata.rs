@@ -19,6 +19,7 @@ pub enum Metadata<'d> {
 impl Metadata<'_> {
     #[must_use]
     pub(crate) fn box_type(t: [u8; 4]) -> JxlBoxType {
+        // SAFETY: `u8` and `c_char` have the same layout
         JxlBoxType(unsafe { std::mem::transmute::<[u8; 4], [std::ffi::c_char; 4]>(t) })
     }
 }

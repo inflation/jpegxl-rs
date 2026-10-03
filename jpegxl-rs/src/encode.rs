@@ -153,6 +153,7 @@ impl<'prl, 'mm> JxlEncoder<'prl, 'mm> {
         parallel_runner: Option<&'prl dyn ParallelRunner>,
         #[builder(default)] use_box: bool,
     ) -> Result<Self, EncodeError> {
+        // SAFETY: libjxl copies the memory manager, so the temporary only has to outlive the call
         let enc = unsafe {
             memory_manager.map_or_else(
                 || JxlEncoderCreate(null()),
@@ -164,6 +165,7 @@ impl<'prl, 'mm> JxlEncoder<'prl, 'mm> {
             return Err(EncodeError::CannotCreateEncoder);
         }
 
+        // SAFETY: `enc` is non-null
         let options_ptr = unsafe { JxlEncoderFrameSettingsCreate(enc, null()) };
 
         Ok(Self {
@@ -196,7 +198,7 @@ impl<'prl, 'mm, S: State> JxlEncoderBuilder<'prl, 'mm, S> {
     where
         S::Quality: IsUnset,
     {
-        // SAFETY: the C API has no safety requirements.
+        // SAFETY: this is a pure function of its argument
         self.quality(unsafe { JxlEncoderDistanceFromQuality(quality) })
     }
 }
@@ -209,6 +211,7 @@ impl JxlEncoder<'_, '_> {
     fn check_enc_status(&self, status: JxlEncoderStatus) -> Result<(), EncodeError> {
         match status {
             JxlEncoderStatus::Success => Ok(()),
+            // SAFETY: `self.enc` is valid until drop
             JxlEncoderStatus::Error => match unsafe { JxlEncoderGetError(self.enc) } {
                 JxlEncoderError::OK => unreachable!(),
                 JxlEncoderError::Generic => Err(EncodeError::GenericError),
@@ -224,14 +227,17 @@ impl JxlEncoder<'_, '_> {
 
     // Set options
     fn set_options(&self) -> Result<(), EncodeError> {
+        // SAFETY: `self.enc` is valid until drop
         self.check_enc_status(unsafe {
             JxlEncoderUseContainer(self.enc, self.use_container.into())
         })?;
         if let Some(lossless) = self.lossless {
+            // SAFETY: `self.options_ptr` is recreated after every reset, so it is valid
             self.check_enc_status(unsafe {
                 JxlEncoderSetFrameLossless(self.options_ptr, lossless.into())
             })?;
         }
+        // SAFETY: `self.options_ptr` is recreated after every reset, so it is valid
         self.check_enc_status(unsafe {
             JxlEncoderFrameSettingsSetOption(
                 self.options_ptr,
@@ -239,9 +245,11 @@ impl JxlEncoder<'_, '_> {
                 self.speed as _,
             )
         })?;
+        // SAFETY: `self.options_ptr` is recreated after every reset, so it is valid
         self.check_enc_status(unsafe {
             JxlEncoderSetFrameDistance(self.options_ptr, self.quality)
         })?;
+        // SAFETY: `self.options_ptr` is recreated after every reset, so it is valid
         self.check_enc_status(unsafe {
             JxlEncoderFrameSettingsSetOption(
                 self.options_ptr,
@@ -262,6 +270,7 @@ impl JxlEncoder<'_, '_> {
         has_alpha: bool,
     ) -> Result<(), EncodeError> {
         if let Some(runner) = self.parallel_runner {
+            // SAFETY: `self.enc` is valid until drop and the runner outlives it
             unsafe {
                 self.check_enc_status(JxlEncoderSetParallelRunner(
                     self.enc,
@@ -273,6 +282,7 @@ impl JxlEncoder<'_, '_> {
 
         self.set_options()?;
 
+        // SAFETY: `JxlEncoderInitBasicInfo` initializes `info`
         let mut basic_info = unsafe {
             let mut info = MaybeUninit::uninit();
             JxlEncoderInitBasicInfo(info.as_mut_ptr());
@@ -309,9 +319,11 @@ impl JxlEncoder<'_, '_> {
             pr.callback_basic_info(&basic_info);
         }
 
+        // SAFETY: `self.enc` is valid until drop
         self.check_enc_status(unsafe { JxlEncoderSetBasicInfo(self.enc, &raw const basic_info) })?;
 
         if let Some(color_encoding) = &self.color_encoding {
+            // SAFETY: `self.enc` is valid until drop
             self.check_enc_status(unsafe {
                 JxlEncoderSetColorEncoding(self.enc, &color_encoding.into())
             })?;
@@ -321,6 +333,7 @@ impl JxlEncoder<'_, '_> {
 
     // Add a frame
     fn add_frame<T: PixelType>(&self, frame: &EncoderFrame<T>) -> Result<(), EncodeError> {
+        // SAFETY: `self.options_ptr` is valid and the size matches `frame.data`
         self.check_enc_status(unsafe {
             JxlEncoderAddImageFrame(
                 self.options_ptr,
@@ -333,6 +346,7 @@ impl JxlEncoder<'_, '_> {
 
     // Add a frame from JPEG raw data
     fn add_jpeg_frame(&self, data: &[u8]) -> Result<(), EncodeError> {
+        // SAFETY: `self.options_ptr` is valid and the size matches `data`
         self.check_enc_status(unsafe {
             JxlEncoderAddJPEGFrame(
                 self.options_ptr,
@@ -343,6 +357,7 @@ impl JxlEncoder<'_, '_> {
     }
 
     fn internal(&mut self) -> Result<Vec<u8>, EncodeError> {
+        // SAFETY: `self.enc` is valid until drop
         unsafe { JxlEncoderCloseInput(self.enc) };
 
         let mut buffer = vec![0; self.init_buffer_size];
@@ -352,12 +367,14 @@ impl JxlEncoder<'_, '_> {
         let mut status;
         loop {
             status =
+                // SAFETY: `next_out` and `avail_out` describe the unused tail of `buffer`
                 unsafe { JxlEncoderProcessOutput(self.enc, &raw mut next_out, &raw mut avail_out) };
 
             if status != JxlEncoderStatus::NeedMoreOutput {
                 break;
             }
 
+            // SAFETY: `next_out` points into `buffer` and is rebased after it grows
             unsafe {
                 let offset = next_out.offset_from(buffer.as_ptr());
                 debug_assert!(offset >= 0);
@@ -370,7 +387,9 @@ impl JxlEncoder<'_, '_> {
         buffer.truncate(next_out as usize - buffer.as_ptr() as usize);
         self.check_enc_status(status)?;
 
+        // SAFETY: `self.enc` is valid until drop
         unsafe { JxlEncoderReset(self.enc) };
+        // SAFETY: this replaces the settings freed by the reset
         self.options_ptr = unsafe { JxlEncoderFrameSettingsCreate(self.enc, null()) };
 
         buffer.shrink_to_fit();
@@ -397,6 +416,7 @@ impl<'prl, 'mm> JxlEncoder<'prl, 'mm> {
         option: JxlEncoderFrameSettingId,
         value: i64,
     ) -> Result<(), EncodeError> {
+        // SAFETY: `self.options_ptr` is recreated after every reset, so it is valid
         self.check_enc_status(unsafe {
             JxlEncoderFrameSettingsSetOption(self.options_ptr, option, value)
         })
@@ -427,9 +447,11 @@ impl<'prl, 'mm> JxlEncoder<'prl, 'mm> {
             Metadata::Custom(t, data) => (t, data),
         };
         if !self.use_box {
+            // SAFETY: `self.enc` is valid until drop
             self.check_enc_status(unsafe { JxlEncoderUseBoxes(self.enc) })?;
             self.use_box = true;
         }
+        // SAFETY: `self.enc` is valid until drop
         self.check_enc_status(unsafe {
             JxlEncoderAddBox(
                 self.enc,
@@ -449,6 +471,7 @@ impl<'prl, 'mm> JxlEncoder<'prl, 'mm> {
     /// Return [`EncodeError`] if the internal encoder fails to encode
     pub fn encode_jpeg(&mut self, data: &[u8]) -> Result<EncoderResult<u8>, EncodeError> {
         if let Some(runner) = self.parallel_runner {
+            // SAFETY: `self.enc` is valid until drop and the runner outlives it
             unsafe {
                 self.check_enc_status(JxlEncoderSetParallelRunner(
                     self.enc,
@@ -461,6 +484,7 @@ impl<'prl, 'mm> JxlEncoder<'prl, 'mm> {
         self.set_options()?;
 
         // If using container format, store JPEG reconstruction metadata
+        // SAFETY: `self.enc` is valid until drop
         self.check_enc_status(unsafe { JxlEncoderStoreJPEGMetadata(self.enc, true.into()) })?;
 
         self.add_jpeg_frame(data)?;
@@ -504,6 +528,7 @@ impl<'prl, 'mm> JxlEncoder<'prl, 'mm> {
 
 impl Drop for JxlEncoder<'_, '_> {
     fn drop(&mut self) {
+        // SAFETY: `self.enc` is valid and never used again
         unsafe { JxlEncoderDestroy(self.enc) };
     }
 }
