@@ -46,6 +46,9 @@ pub enum DecodeError {
     /// Unknown status
     #[error("Unknown status: `{0:?}`")]
     UnknownStatus(JxlDecoderStatus),
+    /// A [`Session`](crate::decode::Session) method is called at the wrong time
+    #[error("Invalid session state: {0}")]
+    InvalidState(&'static str),
     /// Feature not yet implemented in this wrapper
     #[error("Feature not yet implemented: {0}")]
     NotImplemented(&'static str),

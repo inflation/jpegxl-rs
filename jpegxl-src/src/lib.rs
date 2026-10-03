@@ -113,7 +113,8 @@ pub fn build() {
                 lib_dir
             } else {
                 panic!(
-                    "Could not find the library directory, please check the files in {prefix:?}"
+                    "Could not find the library directory, please check the files in {}",
+                    prefix.display()
                 );
             }
         }
