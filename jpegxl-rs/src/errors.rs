@@ -89,6 +89,9 @@ pub enum EncodeError {
     /// a debug build of libjxl should output a specific error message
     #[error("The encoder API is used in an incorrect way")]
     ApiUsage,
+    /// A [`Session`](crate::encode::Session) method is called at the wrong time
+    #[error("Invalid session state: {0}")]
+    InvalidState(&'static str),
     /// Unknown status
     #[error("Unknown status: `{0:?}`")]
     UnknownStatus(JxlEncoderError),

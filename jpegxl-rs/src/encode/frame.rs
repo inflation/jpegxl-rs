@@ -1,10 +1,27 @@
+/*
+ * This file is part of jpegxl-rs.
+ *
+ * jpegxl-rs is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * jpegxl-rs is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with jpegxl-rs.  If not, see <https://www.gnu.org/licenses/>.
+ */
+
 use std::marker::PhantomData;
 
 use jpegxl_sys::common::types::{JxlEndianness, JxlPixelFormat};
 
 use crate::{common::PixelType, EncodeError};
 
-use super::{EncoderResult, JxlEncoder};
+use super::{EncoderResult, FrameSettings, Session};
 
 /// A frame for the encoder, consisting of the pixels and its options
 #[allow(clippy::module_name_repetitions)]
@@ -13,6 +30,7 @@ pub struct EncoderFrame<'data, T: PixelType> {
     num_channels: Option<u32>,
     endianness: Option<JxlEndianness>,
     align: Option<usize>,
+    pub(crate) settings: Option<&'data FrameSettings>,
 }
 
 impl<'data, T: PixelType> EncoderFrame<'data, T> {
@@ -25,6 +43,7 @@ impl<'data, T: PixelType> EncoderFrame<'data, T> {
             num_channels: None,
             endianness: None,
             align: None,
+            settings: None,
         }
     }
 
@@ -52,6 +71,13 @@ impl<'data, T: PixelType> EncoderFrame<'data, T> {
         self
     }
 
+    /// Use these settings instead of the encoder defaults
+    #[must_use]
+    pub fn settings(mut self, value: &'data FrameSettings) -> Self {
+        self.settings = Some(value);
+        self
+    }
+
     pub(crate) fn pixel_format(&self) -> JxlPixelFormat {
         JxlPixelFormat {
             num_channels: self.num_channels.unwrap_or(3),
@@ -64,18 +90,15 @@ impl<'data, T: PixelType> EncoderFrame<'data, T> {
 
 /// A wrapper type for encoding multiple frames
 pub struct MultiFrames<'enc, 'prl, 'mm, U>(
-    pub(crate) &'enc mut JxlEncoder<'prl, 'mm>,
+    pub(crate) Session<'enc, 'prl, 'mm>,
     pub(crate) PhantomData<U>,
-)
-where
-    'prl: 'enc,
-    'mm: 'enc;
+);
 
 impl<U: PixelType> MultiFrames<'_, '_, '_, U> {
     /// Add a frame to the encoder
     /// # Errors
     /// Return [`EncodeError`] if the internal encoder fails to add a frame
-    pub fn add_frame<T: PixelType>(self, frame: &EncoderFrame<T>) -> Result<Self, EncodeError> {
+    pub fn add_frame<T: PixelType>(mut self, frame: &EncoderFrame<T>) -> Result<Self, EncodeError> {
         self.0.add_frame(frame)?;
         Ok(self)
     }
@@ -83,7 +106,7 @@ impl<U: PixelType> MultiFrames<'_, '_, '_, U> {
     /// Add a JPEG raw frame to the encoder
     /// # Errors
     /// Return [`EncodeError`] if the internal encoder fails to add a jpeg frame
-    pub fn add_jpeg_frame(self, data: &[u8]) -> Result<Self, EncodeError> {
+    pub fn add_jpeg_frame(mut self, data: &[u8]) -> Result<Self, EncodeError> {
         self.0.add_jpeg_frame(data)?;
         Ok(self)
     }
@@ -92,6 +115,9 @@ impl<U: PixelType> MultiFrames<'_, '_, '_, U> {
     /// # Errors
     /// Return [`EncodeError`] if the internal encoder fails to encode
     pub fn encode(self) -> Result<EncoderResult<U>, EncodeError> {
-        self.0.start_encoding()
+        Ok(EncoderResult {
+            data: self.0.finish()?,
+            _pixel_type: PhantomData,
+        })
     }
 }

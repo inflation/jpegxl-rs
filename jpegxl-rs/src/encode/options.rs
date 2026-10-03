@@ -1,6 +1,26 @@
+/*
+ * This file is part of jpegxl-rs.
+ *
+ * jpegxl-rs is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * jpegxl-rs is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with jpegxl-rs.  If not, see <https://www.gnu.org/licenses/>.
+ */
+
 use std::mem::MaybeUninit;
 
-use jpegxl_sys::{color::color_encoding::JxlColorEncoding, encoder::encode as api};
+use jpegxl_sys::{
+    color::color_encoding::JxlColorEncoding,
+    encoder::encode::{self as api, JxlEncoderFrameSettingId},
+};
 
 /// Encoding speed
 #[derive(Debug, Clone, Copy, Default)]
@@ -69,4 +89,20 @@ impl From<&ColorEncoding> for JxlColorEncoding {
             color_encoding.assume_init()
         }
     }
+}
+
+/// Settings applied to a frame.
+/// [`JxlEncoder::frame_settings`](super::JxlEncoder::frame_settings) returns the encoder defaults
+#[derive(Debug, Clone)]
+pub struct FrameSettings {
+    /// See [`JxlEncoder::lossless`](super::JxlEncoder::lossless)
+    pub lossless: Option<bool>,
+    /// See [`JxlEncoder::speed`](super::JxlEncoder::speed)
+    pub speed: EncoderSpeed,
+    /// See [`JxlEncoder::quality`](super::JxlEncoder::quality)
+    pub quality: f32,
+    /// See [`JxlEncoder::decoding_speed`](super::JxlEncoder::decoding_speed)
+    pub decoding_speed: i64,
+    /// Raw options, applied after the fields above
+    pub options: Vec<(JxlEncoderFrameSettingId, i64)>,
 }
