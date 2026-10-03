@@ -19,7 +19,7 @@ pub fn criterion_benchmark(c: &mut Criterion) {
     group.bench_function("single thread", |b| {
         b.iter_with_large_drop(|| {
             encoder
-                .encode::<_, u8>(black_box(sample.as_raw()), sample.width(), sample.height())
+                .encode(black_box(sample.as_raw()), sample.width(), sample.height())
                 .unwrap()
         });
     });
@@ -32,7 +32,7 @@ pub fn criterion_benchmark(c: &mut Criterion) {
     group.bench_function("thread pool using default number of threads", |b| {
         b.iter_with_large_drop(|| {
             encoder
-                .encode::<_, u8>(black_box(sample.as_raw()), sample.width(), sample.height())
+                .encode(black_box(sample.as_raw()), sample.width(), sample.height())
                 .unwrap()
         });
     });
@@ -45,7 +45,7 @@ pub fn criterion_benchmark(c: &mut Criterion) {
     group.bench_function("resizable thread pool", |b| {
         b.iter_with_large_drop(|| {
             encoder
-                .encode::<_, u8>(black_box(sample.as_raw()), sample.width(), sample.height())
+                .encode(black_box(sample.as_raw()), sample.width(), sample.height())
                 .unwrap()
         });
     });

@@ -17,7 +17,7 @@ along with jpegxl-rs.  If not, see <https://www.gnu.org/licenses/>.
 
 //! Encoder of JPEG XL format
 
-use std::{marker::PhantomData, ops::Deref, ptr::null};
+use std::ptr::null;
 
 use bon::bon;
 #[allow(clippy::wildcard_imports)]
@@ -41,23 +41,6 @@ pub use info::*;
 
 mod session;
 pub use session::*;
-
-// MARK: Utility types
-
-/// Encoder result
-pub struct EncoderResult<U: PixelType> {
-    /// Output binary data
-    pub data: Vec<u8>,
-    _pixel_type: PhantomData<U>,
-}
-
-impl<U: PixelType> Deref for EncoderResult<U> {
-    type Target = [u8];
-
-    fn deref(&self) -> &Self::Target {
-        self.data.as_ref()
-    }
-}
 
 // MARK: Encoder
 
@@ -232,8 +215,8 @@ impl JxlEncoder<'_, '_> {
         }
     }
 
-    fn image_info<U: PixelType>(&self, width: u32, height: u32) -> ImageInfo {
-        let (bits, exponent_bits) = U::bits_per_sample();
+    fn image_info<T: PixelType>(&self, width: u32, height: u32) -> ImageInfo {
+        let (bits, exponent_bits) = T::bits_per_sample();
         ImageInfo::builder()
             .width(width)
             .height(height)
@@ -286,19 +269,6 @@ impl<'prl, 'mm> JxlEncoder<'prl, 'mm> {
         }
     }
 
-    /// Return a wrapper type for adding multiple frames to the encoder
-    ///
-    /// # Errors
-    /// Return [`EncodeError`] if it fails to set up the encoder
-    pub fn multiple<'enc, U: PixelType>(
-        &'enc mut self,
-        width: u32,
-        height: u32,
-    ) -> Result<MultiFrames<'enc, 'prl, 'mm, U>, EncodeError> {
-        let info = self.image_info::<U>(width, height);
-        Ok(MultiFrames(self.session(&info)?, PhantomData))
-    }
-
     /// Add a metadata box to the next image. It is kept until an image is finished
     pub fn add_metadata(&mut self, metadata: &Metadata, compress: bool) {
         let (t, data) = metadata.parts();
@@ -307,48 +277,48 @@ impl<'prl, 'mm> JxlEncoder<'prl, 'mm> {
 
     /// Encode a JPEG XL image from existing raw JPEG data
     ///
-    /// Note: Only support output pixel type of `u8`. Ignore alpha channel settings
+    /// Note: Ignore alpha channel settings
     ///
     /// # Errors
     /// Return [`EncodeError`] if the internal encoder fails to encode
-    pub fn encode_jpeg(&mut self, data: &[u8]) -> Result<EncoderResult<u8>, EncodeError> {
+    pub fn encode_jpeg(&mut self, data: &[u8]) -> Result<Vec<u8>, EncodeError> {
         let mut session = self.jpeg_session()?;
         session.store_jpeg_metadata()?;
         session.add_jpeg_frame(data)?;
-        Ok(EncoderResult {
-            data: session.finish()?,
-            _pixel_type: PhantomData,
-        })
+        session.finish()
     }
 
-    /// Encode a JPEG XL image from pixels
+    /// Encode a JPEG XL image from pixels, with the bit depth of `T`
     ///
     /// Note: Use RGB(3) channels, native endianness and no alignment.
     /// Ignore alpha channel settings
     ///
     /// # Errors
     /// Return [`EncodeError`] if the internal encoder fails to encode
-    pub fn encode<T: PixelType, U: PixelType>(
+    pub fn encode<T: PixelType>(
         &mut self,
         data: &[T],
         width: u32,
         height: u32,
-    ) -> Result<EncoderResult<U>, EncodeError> {
+    ) -> Result<Vec<u8>, EncodeError> {
         self.encode_frame(&EncoderFrame::new(data), width, height)
     }
 
-    /// Encode a JPEG XL image from a frame.
+    /// Encode a JPEG XL image from a frame, with the bit depth of `T`.
     /// See [`EncoderFrame`] for custom options of the original pixels.
     ///
     /// # Errors
     /// Return [`EncodeError`] if the internal encoder fails to encode
-    pub fn encode_frame<T: PixelType, U: PixelType>(
+    pub fn encode_frame<T: PixelType>(
         &mut self,
         frame: &EncoderFrame<T>,
         width: u32,
         height: u32,
-    ) -> Result<EncoderResult<U>, EncodeError> {
-        self.multiple(width, height)?.add_frame(frame)?.encode()
+    ) -> Result<Vec<u8>, EncodeError> {
+        let info = self.image_info::<T>(width, height);
+        let mut session = self.session(&info)?;
+        session.add_frame(frame)?;
+        session.finish()
     }
 }
 

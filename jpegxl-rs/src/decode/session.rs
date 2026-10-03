@@ -1017,14 +1017,16 @@ mod tests {
     fn extra_channel_of_every_layer() -> TestResult {
         let pixels = vec![200u8; 8 * 8 * 4];
         let frame = crate::encode::EncoderFrame::new(&pixels).num_channels(4);
-        let data = crate::encoder_builder()
+        let info = crate::encode::ImageInfo::builder()
+            .width(8)
+            .height(8)
             .has_alpha(true)
-            .build()?
-            .multiple::<u8>(8, 8)?
-            .add_frame(&frame)?
-            .add_frame(&frame)?
-            .encode()?
-            .data;
+            .build();
+        let mut encoder = crate::encoder_builder().build()?;
+        let mut enc = encoder.session(&info)?;
+        enc.add_frame(&frame)?;
+        enc.add_frame(&frame)?;
+        let data = enc.finish()?;
 
         let mut decoder = decoder_builder().coalescing(false).build()?;
         let mut session = decoder.session(Events::FULL_IMAGE)?;

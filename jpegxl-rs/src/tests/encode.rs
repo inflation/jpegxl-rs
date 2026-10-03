@@ -17,18 +17,21 @@
 
 use half::f16;
 use image::DynamicImage;
-use jpegxl_sys::color::color_encoding::{
-    JxlColorEncoding, JxlColorSpace, JxlPrimaries, JxlRenderingIntent, JxlTransferFunction,
-    JxlWhitePoint,
+use jpegxl_sys::{
+    color::color_encoding::{
+        JxlColorEncoding, JxlColorSpace, JxlPrimaries, JxlRenderingIntent, JxlTransferFunction,
+        JxlWhitePoint,
+    },
+    encoder::encode::JxlEncoderFrameSettingId,
 };
 use pretty_assertions::assert_eq;
 use testresult::TestResult;
 
-use crate::decode::Data;
+use crate::decode::{BasicInfo, Data, Event, Events};
 use crate::{
     decoder_builder,
-    encode::{ColorEncoding, EncoderFrame, EncoderResult, Metadata},
-    encoder_builder, Endianness,
+    encode::{ColorEncoding, EncoderFrame, FrameSettings, ImageInfo, Metadata},
+    encoder_builder, EncodeError, Endianness,
 };
 use crate::{encode::EncoderSpeed, ResizableRunner, ThreadsRunner};
 
@@ -37,13 +40,23 @@ fn get_sample() -> DynamicImage {
         .expect("Failed to get sample file")
 }
 
+fn basic_info(data: &[u8]) -> Result<BasicInfo, crate::DecodeError> {
+    let mut decoder = decoder_builder().build()?;
+    let mut session = decoder.session(Events::empty())?;
+    let mut input = data;
+    loop {
+        if let Event::BasicInfo(info) = session.process(&mut input)? {
+            return Ok(info);
+        }
+    }
+}
+
 #[test]
 fn simple() -> TestResult {
     let sample = get_sample().to_rgb8();
     let mut encoder = encoder_builder().build()?;
 
-    let result: EncoderResult<u16> =
-        encoder.encode(sample.as_raw(), sample.width(), sample.height())?;
+    let result = encoder.encode(sample.as_raw(), sample.width(), sample.height())?;
 
     let decoder = decoder_builder().build().expect("Failed to build decoder");
     let _res = decoder.decode(&result)?;
@@ -81,7 +94,7 @@ fn jpeg_unsupported_features() -> TestResult {
 
     assert!(matches!(
         encoder.encode_jpeg(super::SAMPLE_JPEG_CMYK),
-        Err(crate::EncodeError::Jbrd | crate::EncodeError::NotSupported)
+        Err(EncodeError::Jbrd | EncodeError::NotSupported)
     ));
 
     Ok(())
@@ -96,8 +109,7 @@ fn metadata() -> TestResult {
     encoder.add_metadata(&Metadata::Jumb(b"jumb"), false);
     encoder.add_metadata(&Metadata::Custom(*b"abcd", b"custom"), false);
 
-    let _res: EncoderResult<u8> =
-        encoder.encode(sample.as_raw(), sample.width(), sample.height())?;
+    let _res = encoder.encode(sample.as_raw(), sample.width(), sample.height())?;
 
     Ok(())
 }
@@ -120,7 +132,7 @@ fn builder() -> TestResult {
         .parallel_runner(&threads_runner)
         .build()?;
 
-    let res: EncoderResult<u8> = encoder.encode_frame(
+    let res = encoder.encode_frame(
         &EncoderFrame::new(sample.as_raw()).num_channels(4),
         sample.width(),
         sample.height(),
@@ -149,8 +161,7 @@ fn resizable() -> TestResult {
         .parallel_runner(&resizable_runner)
         .build()?;
 
-    let _res: EncoderResult<u8> =
-        encoder.encode(sample.as_raw(), sample.width(), sample.height())?;
+    let _res = encoder.encode(sample.as_raw(), sample.width(), sample.height())?;
 
     Ok(())
 }
@@ -159,51 +170,72 @@ fn resizable() -> TestResult {
 fn pixel_type() -> TestResult {
     let mut encoder = encoder_builder().has_alpha(true).build()?;
     let decoder = decoder_builder().build()?;
-    let sample = get_sample().to_rgba8();
+    let sample = get_sample();
+    let (w, h) = (sample.width(), sample.height());
 
-    // Check different pixel format
-    let frame = EncoderFrame::new(sample.as_raw()).num_channels(4);
-    let _res: EncoderResult<u16> = encoder.encode_frame(&frame, sample.width(), sample.height())?;
-    let _res: EncoderResult<f16> = encoder.encode_frame(&frame, sample.width(), sample.height())?;
-    let _res: EncoderResult<f32> = encoder.encode_frame(&frame, sample.width(), sample.height())?;
+    let rgba16 = sample.to_rgba16();
+    let res = encoder.encode_frame(&EncoderFrame::new(rgba16.as_raw()).num_channels(4), w, h)?;
+    assert_eq!(basic_info(&res)?.bits_per_sample, 16);
+    let rgba32f = sample.to_rgba32f();
+    let res = encoder.encode_frame(&EncoderFrame::new(rgba32f.as_raw()).num_channels(4), w, h)?;
+    assert_eq!(basic_info(&res)?.exponent_bits_per_sample, 8);
 
     encoder.has_alpha = false;
-    let sample = get_sample().to_rgb8();
-    let _: EncoderResult<u16> = encoder.encode(sample.as_raw(), sample.width(), sample.height())?;
-    let res: EncoderResult<f16> =
-        encoder.encode(sample.as_raw(), sample.width(), sample.height())?;
+    let half: Vec<f16> = sample
+        .to_rgb32f()
+        .as_raw()
+        .iter()
+        .map(|&v| f16::from_f32(v))
+        .collect();
+    let res = encoder.encode(&half, w, h)?;
+    assert_eq!(basic_info(&res)?.exponent_bits_per_sample, 5);
     decoder.decode(&res)?;
-    let _: EncoderResult<f32> = encoder.encode(sample.as_raw(), sample.width(), sample.height())?;
 
-    let sample = get_sample().to_rgb32f();
-    let _: EncoderResult<f32> = encoder.encode(sample.as_raw(), sample.width(), sample.height())?;
+    Ok(())
+}
 
+#[test]
+fn bit_depth_differs_from_pixels() -> TestResult {
+    let sample = get_sample().to_rgb8();
+    let info = ImageInfo::builder()
+        .width(sample.width())
+        .height(sample.height())
+        .bits_per_sample(16)
+        .build();
+    let mut encoder = encoder_builder().build()?;
+    let mut session = encoder.session(&info)?;
+    session.add_frame(&EncoderFrame::new(sample.as_raw()))?;
+    let res = session.finish()?;
+
+    assert_eq!(basic_info(&res)?.bits_per_sample, 16);
     Ok(())
 }
 
 #[test]
 fn multi_frames() -> TestResult {
     let sample = get_sample().to_rgb8();
+    let info = ImageInfo::builder()
+        .width(sample.width())
+        .height(sample.height())
+        .build();
     let mut encoder = encoder_builder().use_container(true).build()?;
 
     let frame = EncoderFrame::new(sample.as_raw())
         .endianness(Endianness::Native)
         .align(0);
 
-    let result: EncoderResult<f32> = encoder
-        .multiple(sample.width(), sample.height())?
-        .add_frame(&frame)?
-        .add_frame(&frame)?
-        .encode()?;
+    let mut session = encoder.session(&info)?;
+    session.add_frame(&frame)?;
+    session.add_frame(&frame)?;
+    let result = session.finish()?;
     let decoder = decoder_builder().build()?;
     let _res = decoder.decode(&result)?;
 
     encoder.uses_original_profile = true;
-    let result: EncoderResult<f32> = encoder
-        .multiple(sample.width(), sample.height())?
-        .add_jpeg_frame(super::SAMPLE_JPEG)?
-        .add_jpeg_frame(super::SAMPLE_JPEG)?
-        .encode()?;
+    let mut session = encoder.jpeg_session()?;
+    session.add_jpeg_frame(super::SAMPLE_JPEG)?;
+    session.add_jpeg_frame(super::SAMPLE_JPEG)?;
+    let result = session.finish()?;
     let _res = decoder.reconstruct(&result)?;
 
     Ok(())
@@ -217,7 +249,7 @@ fn gray() -> TestResult {
         .build()?;
     let decoder = decoder_builder().build()?;
 
-    let result: EncoderResult<u8> = encoder.encode_frame(
+    let result = encoder.encode_frame(
         &EncoderFrame::new(sample.as_raw()).num_channels(1),
         sample.width(),
         sample.height(),
@@ -225,7 +257,7 @@ fn gray() -> TestResult {
     _ = decoder.decode(&result)?;
 
     encoder.color_encoding = Some(ColorEncoding::LinearSrgbLuma);
-    let result: EncoderResult<u8> = encoder.encode_frame(
+    let result = encoder.encode_frame(
         &EncoderFrame::new(sample.as_raw()).num_channels(1),
         sample.width(),
         sample.height(),
@@ -238,17 +270,18 @@ fn gray() -> TestResult {
 #[test]
 fn initial_buffer() -> TestResult {
     let mut encoder = encoder_builder().init_buffer_size(0).build()?;
-    let sample = get_sample().to_rgb8();
-    let _: EncoderResult<u16> = encoder.encode(sample.as_raw(), sample.width(), sample.height())?;
-    let _: EncoderResult<f16> = encoder.encode(sample.as_raw(), sample.width(), sample.height())?;
-    let _: EncoderResult<f32> = encoder.encode(sample.as_raw(), sample.width(), sample.height())?;
+    let sample = get_sample();
+    let (w, h) = (sample.width(), sample.height());
+    let _ = encoder.encode(sample.to_rgb8().as_raw(), w, h)?;
+    let _ = encoder.encode(sample.to_rgb16().as_raw(), w, h)?;
+    let _ = encoder.encode(sample.to_rgb32f().as_raw(), w, h)?;
     Ok(())
 }
 
 #[test]
 fn custom_color_encoding() -> TestResult {
     let mut encoder = encoder_builder().build()?;
-    let sample = get_sample().to_rgb8();
+    let sample = get_sample().to_rgb16();
 
     // scRGB: linear transfer with sRGB primaries and D65 white point.
     let custom_color_encoding = JxlColorEncoding {
@@ -266,8 +299,7 @@ fn custom_color_encoding() -> TestResult {
     encoder.color_encoding = Some(ColorEncoding::Custom(custom_color_encoding));
     encoder.target_intensity = Some(1000.0);
 
-    let result: EncoderResult<u16> =
-        encoder.encode(sample.as_raw(), sample.width(), sample.height())?;
+    let result = encoder.encode(sample.as_raw(), sample.width(), sample.height())?;
 
     let decoder = decoder_builder().build()?;
     let _res = decoder.decode(&result)?;
@@ -277,34 +309,30 @@ fn custom_color_encoding() -> TestResult {
 
 #[test]
 fn reuse_keeps_options_and_boxes() -> TestResult {
-    use jpegxl_sys::encoder::encode::JxlEncoderFrameSettingId;
-
     let sample = get_sample().to_rgb8();
     let (w, h) = (sample.width(), sample.height());
     let mut encoder = encoder_builder().build()?;
-    let plain: EncoderResult<u8> = encoder.encode(sample.as_raw(), w, h)?;
+    let plain = encoder.encode(sample.as_raw(), w, h)?;
 
     encoder.set_frame_option(JxlEncoderFrameSettingId::Modular, 1);
-    let first: EncoderResult<u8> = encoder.encode(sample.as_raw(), w, h)?;
-    let second: EncoderResult<u8> = encoder.encode(sample.as_raw(), w, h)?;
-    assert_ne!(plain.data, first.data);
-    assert_eq!(first.data, second.data);
+    let first = encoder.encode(sample.as_raw(), w, h)?;
+    let second = encoder.encode(sample.as_raw(), w, h)?;
+    assert_ne!(plain, first);
+    assert_eq!(first, second);
 
     for _ in 0..2 {
         encoder.add_metadata(&Metadata::Exif(super::SAMPLE_EXIF), false);
-        let _: EncoderResult<u8> = encoder.encode(sample.as_raw(), w, h)?;
+        let _ = encoder.encode(sample.as_raw(), w, h)?;
     }
 
     encoder.set_frame_option(JxlEncoderFrameSettingId::Effort, 100);
-    assert!(encoder.encode::<u8, u8>(sample.as_raw(), w, h).is_err());
+    assert!(encoder.encode(sample.as_raw(), w, h).is_err());
 
     Ok(())
 }
 
 #[test]
 fn session_frames() -> TestResult {
-    use crate::encode::{FrameSettings, ImageInfo};
-
     let sample = get_sample().to_rgb8();
     let info = ImageInfo::builder()
         .width(sample.width())
@@ -330,7 +358,7 @@ fn session_frames() -> TestResult {
     session.take_output()?;
     assert!(matches!(
         session.finish(),
-        Err(crate::EncodeError::InvalidState(_))
+        Err(EncodeError::InvalidState(_))
     ));
 
     Ok(())
