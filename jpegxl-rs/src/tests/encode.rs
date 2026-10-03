@@ -28,6 +28,7 @@ use pretty_assertions::assert_eq;
 use testresult::TestResult;
 
 use crate::decode::{BasicInfo, Data, Event, Events};
+use crate::DecodeError;
 use crate::{
     decoder_builder,
     encode::{ColorEncoding, EncoderFrame, FrameSettings, ImageInfo, Metadata},
@@ -40,13 +41,28 @@ fn get_sample() -> DynamicImage {
         .expect("Failed to get sample file")
 }
 
-fn basic_info(data: &[u8]) -> Result<BasicInfo, crate::DecodeError> {
+fn basic_info(data: &[u8]) -> Result<BasicInfo, DecodeError> {
     let mut decoder = decoder_builder().build()?;
     let mut session = decoder.session(Events::empty())?;
     let mut input = data;
     loop {
         if let Event::BasicInfo(info) = session.process(&mut input)? {
             return Ok(info);
+        }
+    }
+}
+
+fn box_types(data: &[u8]) -> Result<Vec<[u8; 4]>, DecodeError> {
+    let mut decoder = decoder_builder().build()?;
+    let mut session = decoder.session(Events::BOX)?;
+    session.close_input();
+    let mut input = data;
+    let mut types = vec![];
+    loop {
+        match session.process(&mut input)? {
+            Event::Box(header) => types.push(header.box_type),
+            Event::Success => return Ok(types),
+            _ => {}
         }
     }
 }
@@ -179,6 +195,7 @@ fn pixel_type() -> TestResult {
     let rgba32f = sample.to_rgba32f();
     let res = encoder.encode_frame(&EncoderFrame::new(rgba32f.as_raw()).num_channels(4), w, h)?;
     assert_eq!(basic_info(&res)?.exponent_bits_per_sample, 8);
+    decoder.decode(&res)?;
 
     encoder.has_alpha = false;
     let half: Vec<f16> = sample
@@ -322,11 +339,22 @@ fn reuse_keeps_options_and_boxes() -> TestResult {
 
     for _ in 0..2 {
         encoder.add_metadata(&Metadata::Exif(super::SAMPLE_EXIF), false);
-        let _ = encoder.encode(sample.as_raw(), w, h)?;
+        let res = encoder.encode(sample.as_raw(), w, h)?;
+        assert!(box_types(&res)?.contains(b"Exif"));
     }
+
+    encoder.add_metadata(&Metadata::Exif(super::SAMPLE_EXIF), false);
+    assert!(encoder.encode::<u8>(&[], 0, 0).is_err());
+    let res = encoder.encode(sample.as_raw(), w, h)?;
+    assert!(box_types(&res)?.contains(b"Exif"));
+    let res = encoder.encode(sample.as_raw(), w, h)?;
+    assert!(!box_types(&res)?.contains(b"Exif"));
 
     encoder.set_frame_option(JxlEncoderFrameSettingId::Effort, 100);
     assert!(encoder.encode(sample.as_raw(), w, h).is_err());
+    encoder.set_frame_option(JxlEncoderFrameSettingId::Effort, 3);
+    assert_eq!(encoder.frame_settings().options.len(), 2);
+    let _ = encoder.encode(sample.as_raw(), w, h)?;
 
     Ok(())
 }
@@ -338,16 +366,20 @@ fn session_frames() -> TestResult {
         .width(sample.width())
         .height(sample.height())
         .build();
-    let mut encoder = encoder_builder().uses_original_profile(true).build()?;
-    let lossless = FrameSettings {
-        lossless: Some(true),
-        ..encoder.frame_settings()
-    };
+    let mut encoder = encoder_builder()
+        .uses_original_profile(true)
+        .use_box(true)
+        .build()?;
 
     let mut session = encoder.session(&info)?;
+    let lossless = FrameSettings {
+        lossless: Some(true),
+        ..session.frame_settings()
+    };
     session.add_metadata(&Metadata::Xmp(super::SAMPLE_XMP), true)?;
-    session.add_frame(&EncoderFrame::new(sample.as_raw()))?;
     let mut data = session.take_output()?;
+    session.add_frame(&EncoderFrame::new(sample.as_raw()))?;
+    data.extend(session.take_output()?);
     session.add_frame(&EncoderFrame::new(sample.as_raw()).settings(&lossless))?;
     data.extend(session.finish()?);
 
@@ -360,6 +392,72 @@ fn session_frames() -> TestResult {
         session.finish(),
         Err(EncodeError::InvalidState(_))
     ));
+
+    Ok(())
+}
+
+#[test]
+fn animation() -> TestResult {
+    use crate::encode::Animation;
+
+    let pixels = vec![100u8; 8 * 8 * 3];
+    let info = ImageInfo::builder()
+        .width(8)
+        .height(8)
+        .animation(Animation::builder().tps_numerator(10).build())
+        .build();
+    let mut encoder = encoder_builder().build()?;
+    let mut session = encoder.session(&info)?;
+    session.add_frame(&EncoderFrame::new(&pixels).duration(3).name("first"))?;
+    session.add_frame(&EncoderFrame::new(&pixels).duration(5))?;
+    let data = session.finish()?;
+
+    assert_eq!(basic_info(&data)?.animation.tps_numerator, 10);
+    let mut decoder = decoder_builder().build()?;
+    let mut session = decoder.session(Events::FRAME)?;
+    let mut input = data.as_slice();
+    let mut frames = vec![];
+    loop {
+        match session.process(&mut input)? {
+            Event::Frame(frame) => frames.push((frame.header.duration, frame.name)),
+            Event::Success => break,
+            _ => {}
+        }
+    }
+    assert_eq!(frames, [(3, "first".to_string()), (5, String::new())]);
+
+    let mut session = encoder.session(&info)?;
+    assert!(matches!(
+        session.add_frame(&EncoderFrame::new(&pixels).name("a\0b")),
+        Err(EncodeError::BadInput)
+    ));
+
+    Ok(())
+}
+
+#[test]
+fn bit_depth_from_image() -> TestResult {
+    let pixels = vec![1023u16; 8 * 8 * 3];
+    let info = ImageInfo::builder()
+        .width(8)
+        .height(8)
+        .bits_per_sample(10)
+        .build();
+    let mut encoder = encoder_builder()
+        .lossless(true)
+        .uses_original_profile(true)
+        .build()?;
+    let decoder = decoder_builder().build()?;
+
+    let mut session = encoder.session(&info)?;
+    session.add_frame(&EncoderFrame::new(&pixels).bit_depth_from_image())?;
+    let (_, out) = decoder.decode_with::<u16>(&session.finish()?)?;
+    assert!(out.iter().all(|&v| v == u16::MAX));
+
+    let mut session = encoder.session(&info)?;
+    session.add_frame(&EncoderFrame::new(&pixels))?;
+    let (_, out) = decoder.decode_with::<u16>(&session.finish()?)?;
+    assert!(out.iter().all(|&v| v < 2048));
 
     Ok(())
 }

@@ -100,6 +100,27 @@ encoder.lossless = Some(false);
 encoder.quality = 3.0;
 ```
 
+Use a session to control each frame, e.g. for an animation:
+
+```rust
+use jpegxl_rs::encoder_builder;
+use jpegxl_rs::encode::{Animation, EncoderFrame, ImageInfo};
+
+let frames = [vec![0u8; 64 * 64 * 3], vec![255u8; 64 * 64 * 3]];
+let info = ImageInfo::builder()
+    .width(64)
+    .height(64)
+    .animation(Animation::builder().tps_numerator(10).build())
+    .build();
+
+let mut encoder = encoder_builder().build().unwrap();
+let mut session = encoder.session(&info).unwrap();
+for frame in &frames {
+    session.add_frame(&EncoderFrame::new(frame).duration(5)).unwrap();
+}
+let data = session.finish().unwrap();
+```
+
 ### [`image`](https://crates.io/crates/image) crate integration
 
 By default, this integration uses the `image` integration.
