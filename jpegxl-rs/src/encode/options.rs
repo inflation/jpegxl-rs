@@ -49,6 +49,7 @@ impl From<&ColorEncoding> for JxlColorEncoding {
 
         let mut color_encoding = MaybeUninit::uninit();
 
+        // SAFETY: every arm that does not return initializes `color_encoding`
         unsafe {
             match val {
                 Srgb => api::JxlColorEncodingSetToSRGB(color_encoding.as_mut_ptr(), false.into()),

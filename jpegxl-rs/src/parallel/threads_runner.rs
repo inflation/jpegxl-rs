@@ -40,6 +40,7 @@ impl<'mm> ThreadsRunner<'mm> {
         num_workers: Option<usize>,
     ) -> Option<Self> {
         let mm = memory_manager.map(MemoryManager::manager);
+        // SAFETY: libjxl copies the memory manager, so `mm` only has to outlive the call
         let runner_ptr = unsafe {
             JxlThreadParallelRunnerCreate(
                 mm.as_ref().map_or(null_mut(), |mm| mm),
@@ -59,16 +60,10 @@ impl<'mm> ThreadsRunner<'mm> {
 }
 
 impl Default for ThreadsRunner<'_> {
+    /// # Panics
+    /// Panics if libjxl fails to create the runner
     fn default() -> Self {
-        Self {
-            runner_ptr: unsafe {
-                JxlThreadParallelRunnerCreate(
-                    std::ptr::null(),
-                    JxlThreadParallelRunnerDefaultNumWorkerThreads(),
-                )
-            },
-            _memory_manager: None,
-        }
+        Self::new(None, None).expect("failed to create the parallel runner")
     }
 }
 
@@ -84,6 +79,7 @@ impl ParallelRunner for ThreadsRunner<'_> {
 
 impl Drop for ThreadsRunner<'_> {
     fn drop(&mut self) {
+        // SAFETY: `self.runner_ptr` is valid and never used again
         unsafe { JxlThreadParallelRunnerDestroy(self.runner_ptr) };
     }
 }
