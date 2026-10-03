@@ -2,6 +2,21 @@
 
 ## [Unreleased]
 
+## [0.15.1+libjxl-0.12.0](https://github.com/inflation/jpegxl-rs/compare/jpegxl-rs-v0.15.0+libjxl-0.12.0...jpegxl-rs-v0.15.1+libjxl-0.12.0)
+
+### ⛰️ Features
+
+- *(decode)* Add a caller-driven Session - ([522d0cb](https://github.com/inflation/jpegxl-rs/commit/522d0cba26289fb15c67680b7c02edcbe673f92f))
+
+### 🚜 Refactor
+
+- Require SAFETY comments on unsafe blocks - ([7237727](https://github.com/inflation/jpegxl-rs/commit/723772763dd32fde5a79592c654ca9b0da05b255))
+
+### 🧪 Testing
+
+- Cover more session, allocation and metadata paths - ([67ddff7](https://github.com/inflation/jpegxl-rs/commit/67ddff7271da901d7d50f290736748eba335b334))
+
+
 ## [0.15.0+libjxl-0.12.0]
 
 ### 🐛 Bug Fixes
