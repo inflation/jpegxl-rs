@@ -700,36 +700,99 @@ mod tests {
 
     use super::*;
 
-    fn decode_chunked(chunk: usize) -> TestResult<Image> {
+    /// Kind of every event except `NeedMoreInput`, with the pixels of each frame
+    fn decode_pieces<'a>(
+        pieces: impl IntoIterator<Item = &'a [u8]>,
+    ) -> TestResult<Vec<(std::mem::Discriminant<Event>, Vec<u8>)>> {
         let mut decoder = decoder_builder().build()?;
-        let mut session = decoder.session(Events::FULL_IMAGE)?;
-        let mut image = None;
-        let mut chunks = SAMPLE_JXL.chunks(chunk);
+        let mut session = decoder.session(
+            Events::COLOR_ENCODING | Events::FRAME | Events::FRAME_PROGRESSION | Events::FULL_IMAGE,
+        )?;
+        let mut pieces = pieces.into_iter();
         let mut input: &[u8] = &[];
+        let mut seen = vec![];
         loop {
-            match session.process(&mut input)? {
-                Event::NeedMoreInput => input = chunks.next().expect("input exhausted"),
+            let event = session.process(&mut input)?;
+            match &event {
+                Event::NeedMoreInput => {
+                    input = pieces.next().expect("input exhausted");
+                    continue;
+                }
                 Event::NeedImageOutBuffer => {
                     session.alloc_image_buffer(PixelFormat::default(), None)?;
                 }
-                Event::FullImage(i) => image = i,
-                Event::Success => return Ok(image.expect("no image")),
+                Event::Success => return Ok(seen),
                 _ => {}
             }
+            let pixels = match &event {
+                Event::FullImage(Some(image)) => image.data.clone(),
+                _ => vec![],
+            };
+            seen.push((std::mem::discriminant(&event), pixels));
         }
     }
 
     #[test]
     fn chunked_input_matches_whole() -> TestResult {
-        let whole = decode_chunked(SAMPLE_JXL.len())?;
-        for chunk in [1, 7, 20, 100, 1000] {
-            assert_eq!(
-                decode_chunked(chunk)?.data,
-                whole.data,
-                "chunk size {chunk}"
-            );
+        use crate::tests::{SAMPLE_BOXES, SAMPLE_JXL_JPEG};
+        for data in [SAMPLE_JXL, SAMPLE_BOXES, SAMPLE_JXL_JPEG] {
+            let whole = decode_pieces([data])?;
+            for chunk in [1, 7, 20, 100, 1000] {
+                assert_eq!(
+                    decode_pieces(data.chunks(chunk))?,
+                    whole,
+                    "chunk size {chunk}"
+                );
+            }
+            // Some of these split a section that is larger than the bytes glued to the carry
+            for at in [1, 38, 51, 200] {
+                let (head, tail) = data.split_at(at);
+                assert_eq!(decode_pieces([head, tail])?, whole, "split at {at}");
+            }
         }
         Ok(())
+    }
+
+    #[test]
+    fn data_type_follows_bit_depth() {
+        assert_eq!(data_type_of(1, 0).ok(), Some(JxlDataType::Uint8));
+        assert_eq!(data_type_of(12, 0).ok(), Some(JxlDataType::Uint16));
+        assert_eq!(data_type_of(16, 5).ok(), Some(JxlDataType::Float16));
+        assert_eq!(data_type_of(32, 8).ok(), Some(JxlDataType::Float));
+        assert!(matches!(
+            data_type_of(24, 0),
+            Err(DecodeError::UnsupportedBitWidth(24))
+        ));
+    }
+
+    #[test]
+    fn color_encoding_and_missing_preview() -> TestResult {
+        let mut decoder = decoder_builder().build()?;
+        let mut session = decoder.session(Events::COLOR_ENCODING)?;
+        assert!(matches!(
+            session.alloc_preview_buffer(PixelFormat::default(), None),
+            Err(DecodeError::InvalidState(_))
+        ));
+        let mut input = SAMPLE_JXL;
+        loop {
+            match session.process(&mut input)? {
+                Event::BasicInfo(info) => {
+                    assert_eq!(info.have_preview, jpegxl_sys::common::types::JxlBool::False);
+                    assert!(session
+                        .alloc_preview_buffer(PixelFormat::default(), None)
+                        .is_err());
+                }
+                Event::ColorEncoding => {
+                    let encoding = session.color_encoding(ColorProfileTarget::Data)?;
+                    let srgb: JxlColorEncoding = (&crate::encode::ColorEncoding::Srgb).into();
+                    assert_eq!(encoding.white_point, srgb.white_point);
+                    assert_eq!(encoding.primaries, srgb.primaries);
+                    return Ok(());
+                }
+                Event::Success => panic!("no color encoding"),
+                _ => {}
+            }
+        }
     }
 
     const BENCH_JXL: &[u8] = include_bytes!("../../../samples/bench.jxl");
@@ -776,8 +839,10 @@ mod tests {
         session.close_input();
         loop {
             match session.process(&mut input)? {
-                Event::Box(header) => {
+                Event::Box(header) if [*b"Exif", *b"xml "].contains(&header.box_type) => {
                     current = Some(header.box_type);
+                    // Setting the buffer again replaces the first one
+                    session.set_box_buffer(1024)?;
                     session.set_box_buffer(1)?;
                 }
                 Event::BoxComplete(contents) => boxes.push((current.take(), contents)),
@@ -786,6 +851,7 @@ mod tests {
             }
         }
 
+        assert_eq!(boxes.len(), 2);
         let find = |t: &[u8; 4]| boxes.iter().find(|(ty, _)| ty.as_ref() == Some(t));
         assert!(find(b"Exif").is_some_and(|(_, c)| c.ends_with(crate::tests::SAMPLE_EXIF)));
         assert_eq!(
@@ -944,6 +1010,43 @@ mod tests {
         })?;
         let durations: Vec<_> = skipped.iter().map(|f| f.0).collect();
         assert_eq!(durations, [20, 30]);
+        Ok(())
+    }
+
+    #[test]
+    fn extra_channel_of_every_layer() -> TestResult {
+        let pixels = vec![200u8; 8 * 8 * 4];
+        let frame = crate::encode::EncoderFrame::new(&pixels).num_channels(4);
+        let data = crate::encoder_builder()
+            .has_alpha(true)
+            .build()?
+            .multiple::<u8>(8, 8)?
+            .add_frame(&frame)?
+            .add_frame(&frame)?
+            .encode()?
+            .data;
+
+        let mut decoder = decoder_builder().coalescing(false).build()?;
+        let mut session = decoder.session(Events::FULL_IMAGE)?;
+        let mut input = data.as_slice();
+        let mut layers = 0;
+        loop {
+            match session.process(&mut input)? {
+                Event::NeedImageOutBuffer => {
+                    session.alloc_image_buffer(PixelFormat::default(), None)?;
+                    let format = PixelFormat::default();
+                    session.alloc_extra_channel_buffer(0, format, Some(JxlDataType::Uint16))?;
+                }
+                Event::FullImage(_) => {
+                    let alpha = session.take_extra_channel(0)?.expect("no alpha channel");
+                    assert_eq!(alpha.format.data_type, JxlDataType::Uint16);
+                    layers += 1;
+                }
+                Event::Success => break,
+                _ => {}
+            }
+        }
+        assert_eq!(layers, 2);
         Ok(())
     }
 
