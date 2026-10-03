@@ -17,8 +17,6 @@
 
 //! `image` crate integration
 
-use std::mem::MaybeUninit;
-
 use image::{DynamicImage, ImageBuffer};
 use jpegxl_sys::common::types::{JxlDataType, JxlPixelFormat};
 
@@ -50,46 +48,26 @@ pub trait ToDynamic {
 
 impl ToDynamic for JxlDecoder<'_, '_> {
     fn decode_to_image(&self, data: &[u8]) -> Result<Option<DynamicImage>, DecodeError> {
-        let mut buffer = vec![];
-        let mut pixel_format = MaybeUninit::uninit();
-        let metadata = self.decode_internal(
-            data,
-            None,
-            false,
-            None,
-            pixel_format.as_mut_ptr(),
-            &mut buffer,
-        )?;
-
-        let pixel_format = unsafe { pixel_format.assume_init() };
-        Ok(to_image(metadata, &pixel_format, buffer))
+        let (metadata, image, _) = self.decode_internal(data, None, false, false)?;
+        Ok(image.and_then(|i| to_image(&metadata, &i.format, i.data)))
     }
 
     fn decode_to_image_with<T: PixelType>(
         &self,
         data: &[u8],
     ) -> Result<Option<DynamicImage>, DecodeError> {
-        let mut buffer = vec![];
-        let mut pixel_format = MaybeUninit::uninit();
-        let metadata = self.decode_internal(
-            data,
-            Some(T::pixel_type()),
-            false,
-            None,
-            pixel_format.as_mut_ptr(),
-            &mut buffer,
-        )?;
-
-        let pixel_format = unsafe { pixel_format.assume_init() };
-        Ok(to_image(metadata, &pixel_format, buffer))
+        let (metadata, image, _) =
+            self.decode_internal(data, Some(T::pixel_type()), false, false)?;
+        Ok(image.and_then(|i| to_image(&metadata, &i.format, i.data)))
     }
 }
 
 fn to_image(
-    Metadata { width, height, .. }: Metadata,
+    Metadata { width, height, .. }: &Metadata,
     pixel_format: &JxlPixelFormat,
     buffer: Vec<u8>,
 ) -> Option<DynamicImage> {
+    let (width, height) = (*width, *height);
     match (pixel_format.data_type, pixel_format.num_channels) {
         (JxlDataType::Float, 3) => {
             ImageBuffer::from_raw(width, height, f32::convert(&buffer, pixel_format))

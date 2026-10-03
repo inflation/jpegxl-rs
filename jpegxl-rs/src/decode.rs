@@ -17,12 +17,12 @@
 
 //! Decoder of JPEG XL format
 
-use std::{mem::MaybeUninit, ptr::null};
+use std::ptr::null;
 
 use bon::bon;
 #[allow(clippy::wildcard_imports)]
 use jpegxl_sys::{
-    common::types::{JxlDataType, JxlPixelFormat},
+    common::types::JxlDataType,
     decode::*,
     metadata::codestream_header::{JxlBasicInfo, JxlOrientation},
 };
@@ -35,8 +35,12 @@ use crate::{
     utils::check_valid_signature,
 };
 
+mod event;
+pub use event::*;
 mod result;
 pub use result::*;
+mod session;
+pub use session::*;
 
 /// Basic information
 pub type BasicInfo = JxlBasicInfo;
@@ -174,6 +178,7 @@ impl<'pr, 'mm> JxlDecoder<'pr, 'mm> {
         parallel_runner: Option<&'pr dyn ParallelRunner>,
         memory_manager: Option<&'mm dyn MemoryManager>,
     ) -> Result<Self, DecodeError> {
+        // SAFETY: libjxl copies the memory manager, so the temporary only has to outlive the call
         let dec = unsafe {
             memory_manager.map_or_else(
                 || JxlDecoderCreate(null()),
@@ -203,233 +208,121 @@ impl<'pr, 'mm> JxlDecoder<'pr, 'mm> {
     }
 }
 
+/// Metadata, image of the last frame, and reconstructed JPEG of a one-shot decode
+pub(crate) type Decoded = (Metadata, Option<Image>, Option<Vec<u8>>);
+
+impl<'pr, 'mm> JxlDecoder<'pr, 'mm> {
+    /// Start a decoding session that the caller drives event by event.
+    ///
+    /// The decoder is reset when the session is dropped.
+    ///
+    /// # Errors
+    /// Return a [`DecodeError`] if the decoder cannot be configured
+    pub fn session(&mut self, events: Events) -> Result<Session<'_, 'pr, 'mm>, DecodeError> {
+        Session::new(self, events)
+    }
+}
+
 impl JxlDecoder<'_, '_> {
+    /// Run a [`Session`] over `data`. Returns the metadata, the image of the last frame
+    /// and the reconstructed JPEG, if requested and possible.
     pub(crate) fn decode_internal(
         &self,
         data: &[u8],
         data_type: Option<JxlDataType>,
         with_icc_profile: bool,
-        mut reconstruct_jpeg_buffer: Option<&mut Vec<u8>>,
-        format: *mut JxlPixelFormat,
-        pixels: &mut Vec<u8>,
-    ) -> Result<Metadata, DecodeError> {
-        let Some(sig) = check_valid_signature(data) else {
-            return Err(DecodeError::InvalidInput);
-        };
-        if !sig {
+        reconstruct_jpeg: bool,
+    ) -> Result<Decoded, DecodeError> {
+        if !check_valid_signature(data).unwrap_or(false) {
             return Err(DecodeError::InvalidInput);
         }
 
-        let mut basic_info = MaybeUninit::uninit();
-        let mut icc = if with_icc_profile { Some(vec![]) } else { None };
+        let mut events = Events::FULL_IMAGE;
+        if with_icc_profile {
+            events |= Events::COLOR_ENCODING;
+        }
+        if reconstruct_jpeg {
+            events |= Events::JPEG_RECONSTRUCTION;
+        }
 
-        self.setup_decoder(with_icc_profile, reconstruct_jpeg_buffer.is_some())?;
-
-        let next_in = data.as_ptr();
-        let avail_in = std::mem::size_of_val(data) as _;
-
-        check_dec_status(unsafe { JxlDecoderSetInput(self.dec, next_in, avail_in) })?;
-        unsafe { JxlDecoderCloseInput(self.dec) };
-
-        let mut status;
+        let mut session = Session::new(self, events)?;
+        let (mut icc, mut image, mut jpeg) = (None, None, None);
+        let mut input = data;
         loop {
-            use JxlDecoderStatus as s;
-
-            status = unsafe { JxlDecoderProcessInput(self.dec) };
-
-            match status {
-                s::NeedMoreInput | s::Error => return Err(DecodeError::GenericError),
-
-                // Get the basic info
-                s::BasicInfo => {
-                    check_dec_status(unsafe {
-                        JxlDecoderGetBasicInfo(self.dec, basic_info.as_mut_ptr())
-                    })?;
-
-                    if let Some(pr) = self.parallel_runner {
-                        pr.callback_basic_info(unsafe { &*basic_info.as_ptr() });
-                    }
+            match session.process(&mut input)? {
+                Event::NeedMoreInput => return Err(DecodeError::GenericError),
+                Event::ColorEncoding => {
+                    icc = Some(session.icc_profile(ColorProfileTarget::Data)?);
                 }
-
-                // Get color encoding
-                s::ColorEncoding => {
-                    self.get_icc_profile(unsafe { icc.as_mut().unwrap_unchecked() })?;
+                Event::NeedImageOutBuffer => {
+                    session.alloc_image_buffer(self.pixel_format.unwrap_or_default(), data_type)?;
                 }
-
-                // Get JPEG reconstruction buffer
-                s::JPEGReconstruction => {
-                    // Safety: JpegReconstruction is only called when reconstruct_jpeg_buffer
-                    // is not None
-                    let buf = unsafe { reconstruct_jpeg_buffer.as_mut().unwrap_unchecked() };
-                    buf.resize(self.init_jpeg_buffer, 0);
-                    check_dec_status(unsafe {
-                        JxlDecoderSetJPEGBuffer(self.dec, buf.as_mut_ptr(), buf.len())
-                    })?;
-                }
-
-                // JPEG buffer need more space
-                s::JPEGNeedMoreOutput => {
-                    // Safety: JpegNeedMoreOutput is only called when reconstruct_jpeg_buffer
-                    // is not None
-                    let buf = unsafe { reconstruct_jpeg_buffer.as_mut().unwrap_unchecked() };
-                    let need_to_write = unsafe { JxlDecoderReleaseJPEGBuffer(self.dec) };
-
-                    buf.resize(buf.len() + need_to_write, 0);
-                    check_dec_status(unsafe {
-                        JxlDecoderSetJPEGBuffer(self.dec, buf.as_mut_ptr(), buf.len())
-                    })?;
-                }
-
-                // Get the output buffer
-                s::NeedImageOutBuffer => {
-                    self.output(unsafe { &*basic_info.as_ptr() }, data_type, format, pixels)?;
-                }
-
-                // Informational events - continue processing
-                s::FullImage | s::Frame | s::FrameProgression => {}
-
-                s::Success => {
-                    if let Some(buf) = reconstruct_jpeg_buffer.as_mut() {
-                        let remaining = unsafe { JxlDecoderReleaseJPEGBuffer(self.dec) };
-
-                        buf.truncate(buf.len() - remaining);
-                        buf.shrink_to_fit();
-                    }
-
-                    unsafe { JxlDecoderReset(self.dec) };
-
-                    let info = unsafe { basic_info.assume_init() };
-                    return Ok(Metadata {
-                        width: info.xsize,
-                        height: info.ysize,
-                        intensity_target: info.intensity_target,
-                        min_nits: info.min_nits,
-                        orientation: info.orientation,
-                        num_color_channels: info.num_color_channels,
-                        has_alpha_channel: info.alpha_bits > 0,
-                        intrinsic_width: info.intrinsic_xsize,
-                        intrinsic_height: info.intrinsic_ysize,
-                        icc_profile: icc,
-                    });
-                }
-                // Features not yet implemented in this wrapper
-                s::NeedPreviewOutBuffer => {
-                    return Err(DecodeError::NotImplemented("preview image output"))
-                }
-                s::BoxNeedMoreOutput => return Err(DecodeError::NotImplemented("box output")),
-                s::PreviewImage => return Err(DecodeError::NotImplemented("preview image")),
-                s::Box => return Err(DecodeError::NotImplemented("box handling")),
-                s::BoxComplete => return Err(DecodeError::NotImplemented("box complete")),
+                Event::FullImage(img) => image = img,
+                Event::Jpeg(buf) => jpeg = Some(buf),
+                Event::Success => break,
+                _ => {}
             }
         }
+
+        let info = session
+            .basic_info()
+            .ok_or(DecodeError::InternalError("No basic info"))?;
+        let metadata = Metadata {
+            width: info.xsize,
+            height: info.ysize,
+            intensity_target: info.intensity_target,
+            min_nits: info.min_nits,
+            orientation: info.orientation,
+            num_color_channels: info.num_color_channels,
+            has_alpha_channel: info.alpha_bits > 0,
+            intrinsic_width: info.intrinsic_xsize,
+            intrinsic_height: info.intrinsic_ysize,
+            icc_profile: icc,
+        };
+        Ok((metadata, image, jpeg))
     }
 
-    fn setup_decoder(&self, icc: bool, reconstruct_jpeg: bool) -> Result<(), DecodeError> {
+    /// Apply the options to the decoder. Called at the start of every session
+    pub(crate) fn setup_decoder(&self, events: Events) -> Result<(), DecodeError> {
         if let Some(runner) = self.parallel_runner {
+            // SAFETY: `self.dec` is valid until drop and the runner outlives it
             check_dec_status(unsafe {
                 JxlDecoderSetParallelRunner(self.dec, runner.runner(), runner.as_opaque_ptr())
             })?;
         }
 
-        let events = {
-            use JxlDecoderStatus::{BasicInfo, ColorEncoding, FullImage, JPEGReconstruction};
-
-            let mut events = BasicInfo as i32 | FullImage as i32;
-            if icc {
-                events |= ColorEncoding as i32;
-            }
-            if reconstruct_jpeg {
-                events |= JPEGReconstruction as i32;
-            }
-
-            events
-        };
-        check_dec_status(unsafe { JxlDecoderSubscribeEvents(self.dec, events) })?;
+        // SAFETY: `self.dec` is valid until drop
+        check_dec_status(unsafe { JxlDecoderSubscribeEvents(self.dec, events.bits()) })?;
 
         if let Some(val) = self.skip_reorientation {
+            // SAFETY: `self.dec` is valid until drop
             check_dec_status(unsafe { JxlDecoderSetKeepOrientation(self.dec, val.into()) })?;
         }
         if let Some(val) = self.unpremul_alpha {
+            // SAFETY: `self.dec` is valid until drop
             check_dec_status(unsafe { JxlDecoderSetUnpremultiplyAlpha(self.dec, val.into()) })?;
         }
         if let Some(val) = self.render_spotcolors {
+            // SAFETY: `self.dec` is valid until drop
             check_dec_status(unsafe { JxlDecoderSetRenderSpotcolors(self.dec, val.into()) })?;
         }
         if let Some(val) = self.coalescing {
+            // SAFETY: `self.dec` is valid until drop
             check_dec_status(unsafe { JxlDecoderSetCoalescing(self.dec, val.into()) })?;
         }
         if let Some(val) = self.desired_intensity_target {
+            // SAFETY: `self.dec` is valid until drop
             check_dec_status(unsafe { JxlDecoderSetDesiredIntensityTarget(self.dec, val) })?;
         }
+        if let Some(val) = self.decompress {
+            // SAFETY: `self.dec` is valid until drop
+            check_dec_status(unsafe { JxlDecoderSetDecompressBoxes(self.dec, val.into()) })?;
+        }
+        if let Some(val) = self.progressive_detail {
+            // SAFETY: `self.dec` is valid until drop
+            check_dec_status(unsafe { JxlDecoderSetProgressiveDetail(self.dec, val) })?;
+        }
 
-        Ok(())
-    }
-
-    fn get_icc_profile(&self, icc_profile: &mut Vec<u8>) -> Result<(), DecodeError> {
-        let mut icc_size = 0;
-        check_dec_status(unsafe {
-            JxlDecoderGetICCProfileSize(self.dec, JxlColorProfileTarget::Data, &raw mut icc_size)
-        })?;
-        icc_profile.resize(icc_size, 0);
-
-        check_dec_status(unsafe {
-            JxlDecoderGetColorAsICCProfile(
-                self.dec,
-                JxlColorProfileTarget::Data,
-                icc_profile.as_mut_ptr(),
-                icc_size,
-            )
-        })?;
-
-        Ok(())
-    }
-
-    fn output(
-        &self,
-        info: &BasicInfo,
-        data_type: Option<JxlDataType>,
-        format: *mut JxlPixelFormat,
-        pixels: &mut Vec<u8>,
-    ) -> Result<(), DecodeError> {
-        let data_type = match data_type {
-            Some(v) => v,
-            None => match (info.bits_per_sample, info.exponent_bits_per_sample) {
-                (x, 0) if x <= 8 => JxlDataType::Uint8,
-                (x, 0) if x <= 16 => JxlDataType::Uint16,
-                (16, _) => JxlDataType::Float16,
-                (32, _) => JxlDataType::Float,
-                (x, _) => return Err(DecodeError::UnsupportedBitWidth(x)),
-            },
-        };
-
-        let f = self.pixel_format.unwrap_or_default();
-        let pixel_format = JxlPixelFormat {
-            num_channels: if f.num_channels == 0 {
-                info.num_color_channels + u32::from(info.alpha_bits > 0)
-            } else {
-                f.num_channels
-            },
-            data_type,
-            endianness: f.endianness,
-            align: f.align,
-        };
-
-        let mut size = 0;
-        check_dec_status(unsafe {
-            JxlDecoderImageOutBufferSize(self.dec, &raw const pixel_format, &raw mut size)
-        })?;
-        pixels.resize(size, 0);
-
-        check_dec_status(unsafe {
-            JxlDecoderSetImageOutBuffer(
-                self.dec,
-                &raw const pixel_format,
-                pixels.as_mut_ptr().cast(),
-                size,
-            )
-        })?;
-
-        unsafe { *format = pixel_format };
         Ok(())
     }
 
@@ -438,20 +331,9 @@ impl JxlDecoder<'_, '_> {
     /// # Errors
     /// Return a [`DecodeError`] when internal decoder fails
     pub fn decode(&self, data: &[u8]) -> Result<(Metadata, Pixels), DecodeError> {
-        let mut buffer = vec![];
-        let mut pixel_format = MaybeUninit::uninit();
-        let metadata = self.decode_internal(
-            data,
-            None,
-            self.icc_profile,
-            None,
-            pixel_format.as_mut_ptr(),
-            &mut buffer,
-        )?;
-        Ok((
-            metadata,
-            Pixels::new(buffer, unsafe { &pixel_format.assume_init() }),
-        ))
+        let (metadata, image, _) = self.decode_internal(data, None, self.icc_profile, false)?;
+        let image = image.ok_or(DecodeError::InternalError("No image decoded"))?;
+        Ok((metadata, image.into_pixels()))
     }
 
     /// Decode a JPEG XL image to a specific pixel type
@@ -462,25 +344,12 @@ impl JxlDecoder<'_, '_> {
         &self,
         data: &[u8],
     ) -> Result<(Metadata, Vec<T>), DecodeError> {
-        let mut buffer = vec![];
-        let mut pixel_format = MaybeUninit::uninit();
-        let metadata = self.decode_internal(
-            data,
-            Some(T::pixel_type()),
-            self.icc_profile,
-            None,
-            pixel_format.as_mut_ptr(),
-            &mut buffer,
-        )?;
+        let (metadata, image, _) =
+            self.decode_internal(data, Some(T::pixel_type()), self.icc_profile, false)?;
+        let image = image.ok_or(DecodeError::InternalError("No image decoded"))?;
 
-        // Safety: type `T` is set by user and provide to the decoder to determine output data type
-        let buf = unsafe {
-            let pixel_format = pixel_format.assume_init();
-            debug_assert!(T::pixel_type() == pixel_format.data_type);
-            T::convert(&buffer, &pixel_format)
-        };
-
-        Ok((metadata, buf))
+        debug_assert_eq!(T::pixel_type(), image.format.data_type);
+        Ok((metadata, T::convert(&image.data, &image.format)))
     }
 
     /// Reconstruct JPEG data. Fallback to pixels if JPEG reconstruction fails
@@ -491,31 +360,19 @@ impl JxlDecoder<'_, '_> {
     /// # Errors
     /// Return a [`DecodeError`] when internal decoder fails
     pub fn reconstruct(&self, data: &[u8]) -> Result<(Metadata, Data), DecodeError> {
-        let mut buffer = vec![];
-        let mut pixel_format = MaybeUninit::uninit();
-        let mut jpeg_buf = vec![];
-        let metadata = self.decode_internal(
-            data,
-            None,
-            self.icc_profile,
-            Some(&mut jpeg_buf),
-            pixel_format.as_mut_ptr(),
-            &mut buffer,
-        )?;
-
-        Ok((
-            metadata,
-            if jpeg_buf.is_empty() {
-                Data::Pixels(Pixels::new(buffer, unsafe { &pixel_format.assume_init() }))
-            } else {
-                Data::Jpeg(jpeg_buf)
-            },
-        ))
+        let (metadata, image, jpeg) = self.decode_internal(data, None, self.icc_profile, true)?;
+        let data = match (jpeg, image) {
+            (Some(jpeg), _) => Data::Jpeg(jpeg),
+            (None, Some(image)) => Data::Pixels(image.into_pixels()),
+            (None, None) => return Err(DecodeError::InternalError("No image decoded")),
+        };
+        Ok((metadata, data))
     }
 }
 
 impl Drop for JxlDecoder<'_, '_> {
     fn drop(&mut self) {
+        // SAFETY: `self.dec` is valid and never used again
         unsafe { JxlDecoderDestroy(self.dec) };
     }
 }

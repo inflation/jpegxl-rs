@@ -72,6 +72,23 @@ impl Pixels {
     }
 }
 
+/// Raw pixels with the format they were decoded to
+#[derive(Debug)]
+pub struct Image {
+    /// Pixel format of `data`
+    pub format: JxlPixelFormat,
+    /// Pixel bytes. Rows are padded to the alignment of `format`
+    pub data: Vec<u8>,
+}
+
+impl Image {
+    /// Convert the bytes to typed [`Pixels`]
+    #[must_use]
+    pub fn into_pixels(self) -> Pixels {
+        Pixels::new(self.data, &self.format)
+    }
+}
+
 /// Reconstruction result
 pub enum Data {
     /// JPEG  
