@@ -132,7 +132,7 @@ pub(crate) mod tests {
         let (meta, img) = dec.decode_with::<u8>(crate::tests::SAMPLE_JXL)?;
 
         let mut enc = encoder_builder().memory_manager(&mm).build()?;
-        let _ = enc.encode::<u8, u8>(&img, meta.width, meta.height)?;
+        let _ = enc.encode(&img, meta.width, meta.height)?;
 
         Ok(())
     }

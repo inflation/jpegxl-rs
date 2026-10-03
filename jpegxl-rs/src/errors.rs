@@ -149,14 +149,14 @@ mod tests {
     fn encode_invalid_data() -> TestResult {
         let mut encoder = JxlEncoder::builder().has_alpha(true).build()?;
 
-        println!("{}", encoder.encode::<u8, u8>(&[], 0, 0).err().unwrap());
+        println!("{}", encoder.encode::<u8>(&[], 0, 0).err().unwrap());
 
         assert!(matches!(
-            encoder.encode::<u8, u8>(&[], 0, 0),
+            encoder.encode::<u8>(&[], 0, 0),
             Err(EncodeError::ApiUsage)
         ));
         assert!(matches!(
-            encoder.encode::<f32, f32>(&[1.0, 1.0, 1.0, 0.5], 1, 1),
+            encoder.encode::<f32>(&[1.0, 1.0, 1.0, 0.5], 1, 1),
             Err(EncodeError::ApiUsage)
         ));
 

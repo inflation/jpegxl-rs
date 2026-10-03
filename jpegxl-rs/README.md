@@ -81,12 +81,12 @@ match data {
 ```rust
 use image::ImageReader;
 use jpegxl_rs::encoder_builder;
-use jpegxl_rs::encode::{EncoderResult, EncoderSpeed};
+use jpegxl_rs::encode::EncoderSpeed;
 
-let sample = ImageReader::open("../samples/sample.png").unwrap().decode().unwrap().to_rgba16();
+let sample = ImageReader::open("../samples/sample.png").unwrap().decode().unwrap().to_rgb16();
 let mut encoder = encoder_builder().build().unwrap();
 
-let buffer: EncoderResult<f32> = encoder.encode(&sample, sample.width(), sample.height()).unwrap();
+let buffer: Vec<u8> = encoder.encode(&sample, sample.width(), sample.height()).unwrap();
 
 // Set encoder options
 let mut encoder = encoder_builder()
