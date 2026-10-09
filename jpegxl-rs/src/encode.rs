@@ -23,13 +23,13 @@ use bon::bon;
 #[allow(clippy::wildcard_imports)]
 use jpegxl_sys::encoder::encode::*;
 
-use eros::{
-    type_set::{Contains, SupersetOf},
-    ReshapeUnion, TypeSet,
-};
+use eros::{type_set::Contains, ErrorUnion, IntoUnion, ReshapeUnion, TypeSet};
 
 use crate::{
-    common::PixelType, errors::GenericError, memory::MemoryManager, parallel::ParallelRunner,
+    common::PixelType,
+    errors::{InternalError, InvalidState},
+    memory::MemoryManager,
+    parallel::ParallelRunner,
 };
 
 mod error;
@@ -202,31 +202,22 @@ impl<'prl, 'mm, S: State> JxlEncoderBuilder<'prl, 'mm, S> {
 
 // MARK: Private helper functions
 impl JxlEncoder<'_, '_> {
-    /// Error mapping from underlying C const to the failures `S` of the call that returned it.
-    /// See [`enc_error`]
+    /// Error mapping from underlying C const to [`EncoderFailure`], in any union that
+    /// contains it
     #[cfg_attr(coverage_nightly, coverage(off))]
-    fn check_enc_status<S, I, J>(&self, status: JxlEncoderStatus) -> eros::Result<(), S>
+    fn check_enc_status<S, I>(&self, status: JxlEncoderStatus) -> eros::Result<(), S>
     where
         S: TypeSet,
-        S::Variants: Contains<UnspecifiedError, J>,
-        <(
-            GenericError,
-            OutOfMemory,
-            Jbrd,
-            BadInput,
-            NotSupported,
-            ApiUsage,
-            UnspecifiedError,
-        ) as TypeSet>::Variants: SupersetOf<S::Variants, I>,
+        S::Variants: Contains<EncoderFailure, I>,
     {
-        let error = match status {
+        let failure = match status {
             JxlEncoderStatus::Success => return Ok(()),
             // SAFETY: `self.enc` is valid until drop
-            JxlEncoderStatus::Error => unsafe { JxlEncoderGetError(self.enc) },
+            JxlEncoderStatus::Error => unsafe { JxlEncoderGetError(self.enc) }.into(),
             // Only `JxlEncoderProcessOutput` returns it, and `process_output` handles it
-            JxlEncoderStatus::NeedMoreOutput => JxlEncoderError::OK,
+            JxlEncoderStatus::NeedMoreOutput => EncoderFailure::Unspecified,
         };
-        Err(enc_error(error))
+        Err(ErrorUnion::new(failure))
     }
 
     fn image_info<T: PixelType>(&self, width: u32, height: u32) -> ImageInfo {
@@ -248,25 +239,19 @@ impl<'prl, 'mm> JxlEncoder<'prl, 'mm> {
     /// The encoder is reset when the session is dropped.
     ///
     /// # Errors
-    /// Return [`ApiUsage`] if an option is invalid, [`OutOfMemory`], [`GenericError`] if the
-    /// color encoding cannot be set, or [`UnspecifiedError`]
+    /// Return [`EncoderFailure`] if the encoder cannot be configured
     pub fn session(
         &mut self,
         info: &ImageInfo,
-    ) -> eros::Result<Session<'_, 'prl, 'mm>, (ApiUsage, OutOfMemory, GenericError, UnspecifiedError)>
-    {
+    ) -> eros::Result<Session<'_, 'prl, 'mm>, (EncoderFailure,)> {
         Session::new(self, Some(info))
     }
 
     /// Start an encoding session whose image information comes from the first JPEG frame
     ///
     /// # Errors
-    /// Return [`ApiUsage`] if an option is invalid, [`OutOfMemory`], [`GenericError`] if the
-    /// color encoding cannot be set, or [`UnspecifiedError`]
-    pub fn jpeg_session(
-        &mut self,
-    ) -> eros::Result<Session<'_, 'prl, 'mm>, (ApiUsage, OutOfMemory, GenericError, UnspecifiedError)>
-    {
+    /// Return [`EncoderFailure`] if the encoder cannot be configured
+    pub fn jpeg_session(&mut self) -> eros::Result<Session<'_, 'prl, 'mm>, (EncoderFailure,)> {
         Session::new(self, None)
     }
 
@@ -303,12 +288,19 @@ impl<'prl, 'mm> JxlEncoder<'prl, 'mm> {
     /// Note: Ignore alpha channel settings
     ///
     /// # Errors
-    /// Return one of [`EncodeJpegErrors`] if the internal encoder fails to encode
-    pub fn encode_jpeg(&mut self, data: &[u8]) -> eros::Result<Vec<u8>, EncodeJpegErrors> {
+    /// Return [`EncoderFailure`] if the internal encoder fails to encode
+    pub fn encode_jpeg(
+        &mut self,
+        data: &[u8],
+    ) -> eros::Result<Vec<u8>, (EncoderFailure, InternalError)> {
         let mut session = self.jpeg_session().widen()?;
         session.store_jpeg_metadata().widen()?;
         session.add_jpeg_frame(data).widen()?;
-        session.finish().widen()
+        session
+            .finish()
+            .try_recover(|_: ErrorUnion<(InvalidState,)>| {
+                Err(InternalError("the last frame is never taken")).union()
+            })
     }
 
     /// Encode a JPEG XL image from pixels, with the bit depth of `T`
@@ -317,13 +309,14 @@ impl<'prl, 'mm> JxlEncoder<'prl, 'mm> {
     /// Ignore alpha channel settings
     ///
     /// # Errors
-    /// Return one of [`EncodeErrors`] if the internal encoder fails to encode
+    /// Return [`EncoderFailure`] if the internal encoder fails to encode, or
+    /// [`InvalidFrameName`]
     pub fn encode<T: PixelType>(
         &mut self,
         data: &[T],
         width: u32,
         height: u32,
-    ) -> eros::Result<Vec<u8>, EncodeErrors> {
+    ) -> eros::Result<Vec<u8>, (EncoderFailure, InvalidFrameName, InternalError)> {
         self.encode_frame(&EncoderFrame::new(data), width, height)
     }
 
@@ -331,17 +324,22 @@ impl<'prl, 'mm> JxlEncoder<'prl, 'mm> {
     /// See [`EncoderFrame`] for custom options of the original pixels.
     ///
     /// # Errors
-    /// Return one of [`EncodeErrors`] if the internal encoder fails to encode
+    /// Return [`EncoderFailure`] if the internal encoder fails to encode, or
+    /// [`InvalidFrameName`]
     pub fn encode_frame<T: PixelType>(
         &mut self,
         frame: &EncoderFrame<T>,
         width: u32,
         height: u32,
-    ) -> eros::Result<Vec<u8>, EncodeErrors> {
+    ) -> eros::Result<Vec<u8>, (EncoderFailure, InvalidFrameName, InternalError)> {
         let info = self.image_info::<T>(width, height);
         let mut session = self.session(&info).widen()?;
         session.add_frame(frame).widen()?;
-        session.finish().widen()
+        session
+            .finish()
+            .try_recover(|_: ErrorUnion<(InvalidState,)>| {
+                Err(InternalError("the last frame is never taken")).union()
+            })
     }
 }
 

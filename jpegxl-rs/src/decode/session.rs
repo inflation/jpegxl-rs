@@ -29,8 +29,10 @@ use super::{
 };
 use eros::{IntoUnion, ReshapeUnion};
 
-use super::{check_dec_status, IncompleteInput, NotAvailableYet, UnsupportedBitWidth};
-use crate::errors::{GenericError, InternalError, InvalidState};
+use super::{
+    check_dec_status, GenericError, IncompleteInput, NotAvailableYet, UnsupportedBitWidth,
+};
+use crate::errors::{InternalError, InvalidState};
 
 /// Minimum number of bytes of a new chunk glued to the bytes libjxl left unprocessed.
 /// The glued part grows with the carry, so a large section is not copied over and over.

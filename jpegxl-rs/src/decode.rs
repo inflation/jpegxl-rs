@@ -20,7 +20,7 @@
 use std::ptr::null;
 
 use bon::bon;
-use eros::{Context, IntoUnion, ReshapeUnion};
+use eros::{Context, ErrorUnion, IntoUnion, ReshapeUnion};
 #[allow(clippy::wildcard_imports)]
 use jpegxl_sys::{
     common::types::JxlDataType,
@@ -30,7 +30,7 @@ use jpegxl_sys::{
 
 use crate::{
     common::{Endianness, PixelType},
-    errors::{GenericError, InternalError},
+    errors::{InternalError, InvalidState},
     memory::MemoryManager,
     parallel::ParallelRunner,
     utils::check_valid_signature,
@@ -264,14 +264,19 @@ impl JxlDecoder<'_, '_> {
                         session
                             .icc_profile(ColorProfileTarget::Data)
                             .context("read the ICC profile")
-                            .widen()?,
+                            .try_recover(|_: ErrorUnion<(NotAvailableYet,)>| {
+                                Err(InternalError("the ICC profile is missing on its event"))
+                                    .union()
+                            })?,
                     );
                 }
                 Event::NeedImageOutBuffer => {
                     session
                         .alloc_image_buffer(self.pixel_format.unwrap_or_default(), data_type)
                         .context("allocate the image buffer")
-                        .widen()?;
+                        .try_recover(|_: ErrorUnion<(InvalidState, NotAvailableYet)>| {
+                            Err(InternalError("basic info is missing on an image event")).union()
+                        })?;
                 }
                 Event::FullImage(img) => image = img,
                 Event::Jpeg(buf) => jpeg = Some(buf),
@@ -346,7 +351,7 @@ impl JxlDecoder<'_, '_> {
     /// Decode a JPEG XL image
     ///
     /// # Errors
-    /// Return one of [`DecodeErrors`] when the internal decoder fails
+    /// Return one of [`DecodeErrors`] when decoding fails
     pub fn decode(&self, data: &[u8]) -> eros::Result<(Metadata, Pixels), DecodeErrors> {
         let (metadata, image, _) = self.decode_internal(data, None, self.icc_profile, false)?;
         let image = image.ok_or(InternalError("No image decoded")).union()?;
@@ -356,7 +361,7 @@ impl JxlDecoder<'_, '_> {
     /// Decode a JPEG XL image to a specific pixel type
     ///
     /// # Errors
-    /// Return one of [`DecodeErrors`] when the internal decoder fails
+    /// Return one of [`DecodeErrors`] when decoding fails
     pub fn decode_with<T: PixelType>(
         &self,
         data: &[u8],
@@ -375,7 +380,7 @@ impl JxlDecoder<'_, '_> {
     /// You can reconstruct JPEG data or get pixels in one go
     ///
     /// # Errors
-    /// Return one of [`DecodeErrors`] when the internal decoder fails
+    /// Return one of [`DecodeErrors`] when decoding fails
     pub fn reconstruct(&self, data: &[u8]) -> eros::Result<(Metadata, Data), DecodeErrors> {
         let (metadata, image, jpeg) = self.decode_internal(data, None, self.icc_profile, true)?;
         let data = match (jpeg, image) {

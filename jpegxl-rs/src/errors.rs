@@ -17,30 +17,25 @@ along with jpegxl-rs.  If not, see <https://www.gnu.org/licenses/>.
 
 //! Errors shared by the decoder and the encoder
 //!
-//! Every failure is its own small type: the shared ones live here, the others next to the
-//! API that returns them, in [`decode`](crate::decode) and [`encode`](crate::encode).
-//! Functions return an [`eros::ErrorUnion`] of exactly the failures they can produce, e.g.
-//! `eros::Result<_, (InvalidState, GenericError)>`, so callers only handle what can
-//! actually happen. The `libjxl` failures of each call are taken from the `libjxl`
-//! sources. A union converts into a wider one with [`widen`](eros::ErrorUnion::widen),
-//! and a failure or a group of them is picked out with [`narrow`](eros::ErrorUnion::narrow).
+//! Functions return an [`eros::ErrorUnion`] of the kinds of failure they can produce, e.g.
+//! `eros::Result<_, (InvalidState, GenericError)>`. Each kind is one type: `libjxl` failures
+//! are [`GenericError`](crate::decode::GenericError) and
+//! [`EncoderFailure`](crate::encode::EncoderFailure), and the others are errors of this
+//! crate. They live next to the API that returns them, in [`decode`](crate::decode) and
+//! [`encode`](crate::encode), and the shared ones here. A failure that cannot happen in a
+//! function's flow is reported as [`InternalError`] instead of being passed on.
+//!
+//! A union converts into a wider one with [`widen`](eros::ErrorUnion::widen), and a failure
+//! or a group of them is picked out with [`narrow`](eros::ErrorUnion::narrow).
 
 use thiserror::Error;
-
-/// `libjxl` reported a generic error (`JXL_DEC_ERROR` or `JXL_ENC_ERR_GENERIC`)
-#[derive(Error, Debug, Clone, Copy, PartialEq, Eq)]
-#[error(
-    "Generic Error. Please build `libjxl` from source (using `vendored` feature) \
-    in debug mode to get more information. Check `stderr` for any internal error messages."
-)]
-pub struct GenericError;
 
 /// A session method is called at the wrong time
 #[derive(Error, Debug, Clone, Copy, PartialEq, Eq)]
 #[error("Invalid session state: {0}")]
 pub struct InvalidState(pub(crate) &'static str);
 
-/// Internal error, usually invalid usages of the `libjxl` library
+/// A bug in this crate, e.g. a failure that cannot happen in the flow of the function
 #[derive(Error, Debug, Clone, Copy, PartialEq, Eq)]
 #[error("Internal error, please file an issue: {0}")]
 pub struct InternalError(pub(crate) &'static str);

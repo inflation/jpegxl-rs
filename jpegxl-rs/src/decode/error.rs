@@ -22,7 +22,15 @@ use eros::{
 use jpegxl_sys::decode::JxlDecoderStatus;
 use thiserror::Error;
 
-use crate::errors::{GenericError, InternalError, InvalidState};
+use crate::errors::InternalError;
+
+/// `libjxl` reported a decoding error (`JXL_DEC_ERROR`)
+#[derive(Error, Debug, Clone, Copy, PartialEq, Eq)]
+#[error(
+    "Generic Error. Please build `libjxl` from source (using `vendored` feature) \
+    in debug mode to get more information. Check `stderr` for any internal error messages."
+)]
+pub struct GenericError;
 
 /// `libjxl` failed to create a decoder, usually because the memory manager is out of memory
 #[derive(Error, Debug, Clone, Copy, PartialEq, Eq)]
@@ -56,9 +64,7 @@ pub type DecodeErrors = (
     InvalidInput,
     IncompleteInput,
     GenericError,
-    NotAvailableYet,
     UnsupportedBitWidth,
-    InvalidState,
     InternalError,
 );
 

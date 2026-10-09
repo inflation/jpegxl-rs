@@ -1,7 +1,27 @@
 //! Prints what an eros error looks like to a user of this crate
 use jpegxl_rs::{
-    decode::DecodeErrors, decoder_builder, encode::ApiUsage, encoder_builder, eros::Context,
+    decoder_builder,
+    encode::{EncoderFailure, JxlEncoder},
+    encoder_builder,
+    eros::{self, Context},
 };
+
+/// Recompress a JPEG losslessly, or encode its pixels if it cannot be recompressed
+fn jpeg_to_jxl(encoder: &mut JxlEncoder, jpeg: &[u8]) -> eros::Result<Vec<u8>> {
+    let error = match encoder.encode_jpeg(jpeg) {
+        Ok(data) => return Ok(data),
+        Err(error) => error,
+    };
+    match error.narrow::<EncoderFailure, _>() {
+        Ok(EncoderFailure::Jbrd | EncoderFailure::NotSupported) => {
+            println!("cannot recompress, encoding the pixels instead");
+            let image = image::load_from_memory(jpeg)?.to_rgb8();
+            Ok(encoder.encode(image.as_raw(), image.width(), image.height())?)
+        }
+        Ok(failure) => Err(failure.into()),
+        Err(rest) => Err(rest.into()),
+    }
+}
 
 fn main() {
     let decoder = decoder_builder().build().unwrap();
@@ -14,17 +34,7 @@ fn main() {
     println!("--- Display ---\n{error}\n--- Debug ---\n{error:?}");
 
     let mut encoder = encoder_builder().build().unwrap();
-    let error = encoder.encode::<u8>(&[], 0, 0).unwrap_err();
-    println!("--- Display ---\n{error}");
-    // Typed recovery: only the encoder status is interesting here
-    match error.narrow::<ApiUsage, _>() {
-        Ok(e) => println!("libjxl rejected it: {e:?}"),
-        Err(rest) => println!("something else: {rest}"),
-    }
-
-    println!(
-        "--- sizes ---\nResult<(), old DecodeError-like enum>: {}\neros::Result<(), DecodeErrors>: {}",
-        std::mem::size_of::<Result<(), (u64, &'static str)>>(),
-        std::mem::size_of::<jpegxl_rs::eros::Result<(), DecodeErrors>>(),
-    );
+    let cmyk = include_bytes!("../../samples/sample_cmyk.jpg");
+    let data = jpeg_to_jxl(&mut encoder, cmyk).unwrap();
+    println!("--- JPEG fallback ---\n{} bytes", data.len());
 }

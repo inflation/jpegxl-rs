@@ -30,14 +30,14 @@ pub trait ToDynamic {
     /// Decode the JPEG XL image to a [`DynamicImage`]
     ///
     /// # Errors
-    /// Return one of [`DecodeErrors`] when internal decoding fails.
+    /// Return one of [`DecodeErrors`] when decoding fails
     /// Return `Ok(None)` when the image is not representable as a [`DynamicImage`]
     fn decode_to_image(&self, data: &[u8]) -> eros::Result<Option<DynamicImage>, DecodeErrors>;
 
     /// Decode the JPEG XL image to a [`DynamicImage`] with a specific pixel type
     ///
     /// # Errors
-    /// Return one of [`DecodeErrors`] when internal decoding fails.
+    /// Return one of [`DecodeErrors`] when decoding fails
     /// Return `Ok(None)` when the image is not representable as a [`DynamicImage`]
     fn decode_to_image_with<T: PixelType>(
         &self,
