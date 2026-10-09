@@ -23,15 +23,15 @@ use jpegxl_sys::{
     encoder::encode::*,
 };
 
-use super::{ColorEncoding, EncoderFrame, FrameSettings, ImageInfo, JxlEncoder, Metadata};
+use super::{
+    ApiUsage, BadInput, ColorEncoding, EncoderFrame, FrameSettings, ImageInfo, InvalidFrameName,
+    Jbrd, JxlEncoder, Metadata, NotSupported, OutOfMemory, UnspecifiedError,
+};
 use eros::{IntoUnion, ReshapeUnion};
 
 use crate::{
     common::PixelType,
-    errors::{
-        ApiUsage, BadInput, GenericError, InvalidFrameName, InvalidState, Jbrd, NotSupported,
-        OutOfMemory, UnspecifiedError,
-    },
+    errors::{GenericError, InvalidState},
 };
 
 /// An encoding session that is driven by the caller.
@@ -161,7 +161,8 @@ impl<'enc, 'prl, 'mm> Session<'enc, 'prl, 'mm> {
     /// Add a metadata box
     ///
     /// # Errors
-    /// Return the failure if it fails to add the box
+    /// Return [`ApiUsage`] if boxes cannot be added anymore, [`OutOfMemory`], or
+    /// [`UnspecifiedError`]
     pub fn add_metadata(
         &mut self,
         metadata: &Metadata,
@@ -251,7 +252,8 @@ impl<'enc, 'prl, 'mm> Session<'enc, 'prl, 'mm> {
     /// Add a frame of pixels
     ///
     /// # Errors
-    /// Return the `libjxl` failure if the frame is invalid, or [`InvalidFrameName`] if its name
+    /// Return [`ApiUsage`] or [`NotSupported`] if the frame or its settings are invalid,
+    /// [`OutOfMemory`], [`GenericError`], [`UnspecifiedError`], or [`InvalidFrameName`] if its name
     /// contains a NUL byte
     pub fn add_frame<T: PixelType>(
         &mut self,
@@ -340,7 +342,9 @@ impl<'enc, 'prl, 'mm> Session<'enc, 'prl, 'mm> {
     /// Add a frame from JPEG data, which is recompressed losslessly
     ///
     /// # Errors
-    /// Return the failure if the JPEG data is invalid or not supported
+    /// Return [`BadInput`] if the JPEG data is invalid, [`NotSupported`] or [`Jbrd`] if it
+    /// cannot be recompressed, [`ApiUsage`], [`OutOfMemory`], [`GenericError`], or
+    /// [`UnspecifiedError`]
     pub fn add_jpeg_frame(
         &mut self,
         data: &[u8],
@@ -379,7 +383,7 @@ impl<'enc, 'prl, 'mm> Session<'enc, 'prl, 'mm> {
     /// The frames are written as non-final frames, so only call it when more frames follow.
     ///
     /// # Errors
-    /// Return the failure if the encoder fails
+    /// Return [`ApiUsage`], [`GenericError`] or [`UnspecifiedError`] if the encoder fails
     pub fn take_output(
         &mut self,
     ) -> eros::Result<Vec<u8>, (ApiUsage, GenericError, UnspecifiedError)> {
@@ -394,7 +398,8 @@ impl<'enc, 'prl, 'mm> Session<'enc, 'prl, 'mm> {
     /// [`take_output`](Self::take_output).
     ///
     /// # Errors
-    /// Return the `libjxl` failure if the encoder fails, or [`InvalidState`]
+    /// Return [`ApiUsage`], [`GenericError`] or [`UnspecifiedError`] if the encoder fails,
+    /// or [`InvalidState`]
     /// if the last frame was already taken by `take_output`
     pub fn finish(
         mut self,

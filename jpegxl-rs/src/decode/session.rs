@@ -29,10 +29,8 @@ use super::{
 };
 use eros::{IntoUnion, ReshapeUnion};
 
-use crate::errors::{
-    check_dec_status, GenericError, IncompleteInput, InternalError, InvalidState, UnexpectedStatus,
-    UnsupportedBitWidth,
-};
+use super::{check_dec_status, IncompleteInput, NotAvailableYet, UnsupportedBitWidth};
+use crate::errors::{GenericError, InternalError, InvalidState};
 
 /// Minimum number of bytes of a new chunk glued to the bytes libjxl left unprocessed.
 /// The glued part grows with the carry, so a large section is not copied over and over.
@@ -189,15 +187,7 @@ impl<'dec, 'pr, 'mm> Session<'dec, 'pr, 'mm> {
     pub fn process(
         &mut self,
         input: &mut &[u8],
-    ) -> eros::Result<
-        Event,
-        (
-            GenericError,
-            UnexpectedStatus,
-            IncompleteInput,
-            InternalError,
-        ),
-    > {
+    ) -> eros::Result<Event, (GenericError, IncompleteInput, InternalError)> {
         loop {
             let status = self.run(input).widen()?;
             if let Some(event) = self.handle(status)? {
@@ -283,15 +273,7 @@ impl<'dec, 'pr, 'mm> Session<'dec, 'pr, 'mm> {
     fn handle(
         &mut self,
         status: d::JxlDecoderStatus,
-    ) -> eros::Result<
-        Option<Event>,
-        (
-            GenericError,
-            UnexpectedStatus,
-            IncompleteInput,
-            InternalError,
-        ),
-    > {
+    ) -> eros::Result<Option<Event>, (GenericError, IncompleteInput, InternalError)> {
         use d::JxlDecoderStatus as s;
         let dec = self.dec.dec;
 
@@ -307,9 +289,9 @@ impl<'dec, 'pr, 'mm> Session<'dec, 'pr, 'mm> {
                 let mut info = MaybeUninit::uninit();
                 // SAFETY: the decoder is valid while the session borrows it
                 let status = unsafe { d::JxlDecoderGetBasicInfo(dec, info.as_mut_ptr()) };
-                // Its only failure is `NeedMoreInput`
+                // Its only failure is `NeedMoreInput`, which cannot happen on this event
                 if status != s::Success {
-                    return Err(UnexpectedStatus(status)).union();
+                    return Err(InternalError("basic info is missing on Event::BasicInfo")).union();
                 }
                 // SAFETY: `GetBasicInfo` succeeded
                 let info = unsafe { info.assume_init() };
@@ -447,12 +429,12 @@ impl<'dec, 'pr, 'mm> Session<'dec, 'pr, 'mm> {
     /// ICC profile of the image, after [`Event::ColorEncoding`]
     ///
     /// # Errors
-    /// Return [`UnexpectedStatus`] before [`Event::ColorEncoding`], or [`GenericError`] if the
+    /// Return [`NotAvailableYet`] before [`Event::ColorEncoding`], or [`GenericError`] if the
     /// profile is not available
     pub fn icc_profile(
         &self,
         target: ColorProfileTarget,
-    ) -> eros::Result<Vec<u8>, (GenericError, UnexpectedStatus)> {
+    ) -> eros::Result<Vec<u8>, (GenericError, NotAvailableYet)> {
         let dec = self.dec.dec;
         let mut size = 0;
         // SAFETY: the decoder is valid while the session borrows it
@@ -469,12 +451,12 @@ impl<'dec, 'pr, 'mm> Session<'dec, 'pr, 'mm> {
     /// Color encoding of the image, after [`Event::ColorEncoding`]
     ///
     /// # Errors
-    /// Return [`UnexpectedStatus`] before [`Event::ColorEncoding`], or [`GenericError`] if the
+    /// Return [`NotAvailableYet`] before [`Event::ColorEncoding`], or [`GenericError`] if the
     /// image has no structured encoding, e.g. it uses an ICC profile
     pub fn color_encoding(
         &self,
         target: ColorProfileTarget,
-    ) -> eros::Result<JxlColorEncoding, (GenericError, UnexpectedStatus)> {
+    ) -> eros::Result<JxlColorEncoding, (GenericError, NotAvailableYet)> {
         let mut encoding = MaybeUninit::uninit();
         // SAFETY: the decoder is valid while the session borrows it
         check_dec_status(unsafe {
@@ -528,13 +510,13 @@ impl<'dec, 'pr, 'mm> Session<'dec, 'pr, 'mm> {
             InvalidState,
             UnsupportedBitWidth,
             GenericError,
-            UnexpectedStatus,
+            NotAvailableYet,
         ),
     > {
         let format = self.resolve_format(format, data_type).widen()?;
         let mut size = 0;
         // SAFETY: the decoder is valid while the session borrows it
-        check_dec_status::<(GenericError, UnexpectedStatus), _, _>(unsafe {
+        check_dec_status::<(GenericError, NotAvailableYet), _, _>(unsafe {
             d::JxlDecoderImageOutBufferSize(self.dec.dec, &raw const format, &raw mut size)
         })
         .widen()?;
@@ -545,13 +527,13 @@ impl<'dec, 'pr, 'mm> Session<'dec, 'pr, 'mm> {
     /// The session keeps it until [`Event::FullImage`] hands it back.
     ///
     /// # Errors
-    /// Return [`UnexpectedStatus`] before [`Event::BasicInfo`], or [`GenericError`] if the
+    /// Return [`NotAvailableYet`] before [`Event::BasicInfo`], or [`GenericError`] if the
     /// buffer is too small for the image
     pub fn set_image_buffer(
         &mut self,
         format: JxlPixelFormat,
         mut data: Vec<u8>,
-    ) -> eros::Result<(), (GenericError, UnexpectedStatus)> {
+    ) -> eros::Result<(), (GenericError, NotAvailableYet)> {
         // SAFETY: `self.image` keeps `data` until libjxl is done with it
         check_dec_status(unsafe {
             d::JxlDecoderSetImageOutBuffer(
@@ -601,20 +583,20 @@ impl<'dec, 'pr, 'mm> Session<'dec, 'pr, 'mm> {
             InvalidState,
             UnsupportedBitWidth,
             GenericError,
-            UnexpectedStatus,
+            NotAvailableYet,
         ),
     > {
         let format = self.resolve_format(format, data_type).widen()?;
         let mut size = 0;
         // SAFETY: the decoder is valid while the session borrows it
-        check_dec_status::<(GenericError, UnexpectedStatus), _, _>(unsafe {
+        check_dec_status::<(GenericError, NotAvailableYet), _, _>(unsafe {
             d::JxlDecoderPreviewOutBufferSize(self.dec.dec, &raw const format, &raw mut size)
         })
         .widen()?;
 
         let mut data = vec![0; size];
         // SAFETY: `self.preview` keeps `data` until libjxl is done with it
-        check_dec_status::<(GenericError, UnexpectedStatus), _, _>(unsafe {
+        check_dec_status::<(GenericError, NotAvailableYet), _, _>(unsafe {
             d::JxlDecoderSetPreviewOutBuffer(
                 self.dec.dec,
                 &raw const format,
@@ -653,12 +635,12 @@ impl<'dec, 'pr, 'mm> Session<'dec, 'pr, 'mm> {
     /// Description of an extra channel such as depth or a spot color
     ///
     /// # Errors
-    /// Return [`UnexpectedStatus`] before [`Event::BasicInfo`], or [`GenericError`] if `index`
+    /// Return [`NotAvailableYet`] before [`Event::BasicInfo`], or [`GenericError`] if `index`
     /// is out of range
     pub fn extra_channel_info(
         &self,
         index: usize,
-    ) -> eros::Result<JxlExtraChannelInfo, (GenericError, UnexpectedStatus)> {
+    ) -> eros::Result<JxlExtraChannelInfo, (GenericError, NotAvailableYet)> {
         let mut info = MaybeUninit::uninit();
         // SAFETY: the decoder is valid while the session borrows it
         check_dec_status(unsafe {
@@ -676,14 +658,14 @@ impl<'dec, 'pr, 'mm> Session<'dec, 'pr, 'mm> {
     ///
     /// # Errors
     /// Return a [`GenericError`] if `index` is out of range or the format is not supported,
-    /// [`UnexpectedStatus`] before [`Event::BasicInfo`],
+    /// [`NotAvailableYet`] before [`Event::BasicInfo`],
     /// or [`UnsupportedBitWidth`] if the channel has no matching pixel type
     pub fn alloc_extra_channel_buffer(
         &mut self,
         index: u32,
         format: PixelFormat,
         data_type: Option<JxlDataType>,
-    ) -> eros::Result<(), (UnsupportedBitWidth, GenericError, UnexpectedStatus)> {
+    ) -> eros::Result<(), (UnsupportedBitWidth, GenericError, NotAvailableYet)> {
         let data_type = if let Some(v) = data_type {
             v
         } else {
@@ -699,7 +681,7 @@ impl<'dec, 'pr, 'mm> Session<'dec, 'pr, 'mm> {
 
         let mut size = 0;
         // SAFETY: the decoder is valid while the session borrows it
-        check_dec_status::<(GenericError, UnexpectedStatus), _, _>(unsafe {
+        check_dec_status::<(GenericError, NotAvailableYet), _, _>(unsafe {
             d::JxlDecoderExtraChannelBufferSize(
                 self.dec.dec,
                 &raw const format,
@@ -715,7 +697,7 @@ impl<'dec, 'pr, 'mm> Session<'dec, 'pr, 'mm> {
         }
         let mut data = vec![0; size];
         // SAFETY: `self.extra` keeps `data` until libjxl is done with it
-        check_dec_status::<(GenericError, UnexpectedStatus), _, _>(unsafe {
+        check_dec_status::<(GenericError, NotAvailableYet), _, _>(unsafe {
             d::JxlDecoderSetExtraChannelBuffer(
                 self.dec.dec,
                 &raw const format,

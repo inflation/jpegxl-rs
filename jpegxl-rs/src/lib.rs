@@ -17,8 +17,6 @@ along with jpegxl-rs.  If not, see <https://www.gnu.org/licenses/>.
 
 #![cfg_attr(docsrs, feature(doc_cfg))]
 #![cfg_attr(coverage_nightly, feature(coverage_attribute))]
-// Errors are spelled out as the exact `eros` union of each function
-#![allow(clippy::type_complexity)]
 #![doc = include_str!("../README.md")]
 
 mod common;

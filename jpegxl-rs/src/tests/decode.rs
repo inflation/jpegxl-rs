@@ -24,9 +24,9 @@ use testresult::TestResult;
 
 use crate::{
     common::Endianness,
+    decode::InvalidInput,
     decode::{Data, Metadata, PixelFormat, Pixels},
     decoder_builder,
-    errors::InvalidInput,
     tests::failure,
 };
 use crate::{ResizableRunner, ThreadsRunner};

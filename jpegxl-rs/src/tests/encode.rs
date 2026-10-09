@@ -31,8 +31,9 @@ use crate::decode::{BasicInfo, Data, Event, Events};
 use crate::{
     decoder_builder,
     encode::{ColorEncoding, EncoderFrame, FrameSettings, ImageInfo, Metadata},
+    encode::{InvalidFrameName, Jbrd, NotSupported},
     encoder_builder,
-    errors::{InvalidFrameName, InvalidState, Jbrd, NotSupported},
+    errors::InvalidState,
     tests::failure,
     Endianness,
 };

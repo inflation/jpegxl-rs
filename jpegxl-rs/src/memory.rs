@@ -140,9 +140,7 @@ pub(crate) mod tests {
     #[test]
     fn out_of_memory_fails_creation() {
         use crate::{
-            errors::{CannotCreateDecoder, CannotCreateEncoder},
-            tests::failure,
-            ThreadsRunner,
+            decode::CannotCreateDecoder, encode::CannotCreateEncoder, tests::failure, ThreadsRunner,
         };
 
         let mm = BumpManager::new(0);
