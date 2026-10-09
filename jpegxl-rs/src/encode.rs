@@ -23,8 +23,13 @@ use bon::bon;
 #[allow(clippy::wildcard_imports)]
 use jpegxl_sys::encoder::encode::*;
 
+use eros::{type_set::Contains, ErrorUnion, ReshapeUnion, TypeSet};
+
 use crate::{
-    common::PixelType, errors::EncodeError, memory::MemoryManager, parallel::ParallelRunner,
+    common::PixelType,
+    errors::{CannotCreateEncoder, EncodeError, EncoderStatus, InvalidState},
+    memory::MemoryManager,
+    parallel::ParallelRunner,
 };
 
 mod options;
@@ -128,7 +133,7 @@ impl<'prl, 'mm> JxlEncoder<'prl, 'mm> {
     /// Build a [`JxlEncoder`]
     ///
     /// # Errors
-    /// Return [`EncodeError::CannotCreateEncoder`] if it fails to create the encoder
+    /// Return [`CannotCreateEncoder`] if it fails to create the encoder
     #[builder(derive(Clone))]
     pub fn new(
         memory_manager: Option<&'mm dyn MemoryManager>,
@@ -144,7 +149,7 @@ impl<'prl, 'mm> JxlEncoder<'prl, 'mm> {
         target_intensity: Option<f32>,
         parallel_runner: Option<&'prl dyn ParallelRunner>,
         #[builder(default)] use_box: bool,
-    ) -> Result<Self, EncodeError> {
+    ) -> eros::Result<Self, (CannotCreateEncoder,)> {
         // SAFETY: libjxl copies the memory manager, so the temporary only has to outlive the call
         let enc = unsafe {
             memory_manager.map_or_else(
@@ -154,7 +159,7 @@ impl<'prl, 'mm> JxlEncoder<'prl, 'mm> {
         };
 
         if enc.is_null() {
-            return Err(EncodeError::CannotCreateEncoder);
+            return Err(CannotCreateEncoder.into());
         }
 
         Ok(Self {
@@ -195,24 +200,22 @@ impl<'prl, 'mm, S: State> JxlEncoderBuilder<'prl, 'mm, S> {
 
 // MARK: Private helper functions
 impl JxlEncoder<'_, '_> {
-    /// Error mapping from underlying C const to [`EncodeError`] enum
+    /// Error mapping from underlying C const to [`EncoderStatus`], in any union that contains it
     #[track_caller]
     #[cfg_attr(coverage_nightly, coverage(off))]
-    fn check_enc_status(&self, status: JxlEncoderStatus) -> Result<(), EncodeError> {
-        match status {
-            JxlEncoderStatus::Success => Ok(()),
+    fn check_enc_status<S, I>(&self, status: JxlEncoderStatus) -> eros::Result<(), S>
+    where
+        S: TypeSet,
+        S::Variants: Contains<EncoderStatus, I>,
+    {
+        let error = match status {
+            JxlEncoderStatus::Success => return Ok(()),
             // SAFETY: `self.enc` is valid until drop
-            JxlEncoderStatus::Error => match unsafe { JxlEncoderGetError(self.enc) } {
-                JxlEncoderError::OK => unreachable!(),
-                JxlEncoderError::Generic => Err(EncodeError::GenericError),
-                JxlEncoderError::OutOfMemory => Err(EncodeError::OutOfMemory),
-                JxlEncoderError::Jbrd => Err(EncodeError::Jbrd),
-                JxlEncoderError::BadInput => Err(EncodeError::BadInput),
-                JxlEncoderError::NotSupported => Err(EncodeError::NotSupported),
-                JxlEncoderError::ApiUsage => Err(EncodeError::ApiUsage),
-            },
-            JxlEncoderStatus::NeedMoreOutput => Err(EncodeError::NeedMoreOutput),
-        }
+            JxlEncoderStatus::Error => unsafe { JxlEncoderGetError(self.enc) },
+            // Only `JxlEncoderProcessOutput` returns it, and `process_output` handles it
+            JxlEncoderStatus::NeedMoreOutput => JxlEncoderError::Generic,
+        };
+        Err(ErrorUnion::new(EncoderStatus(error)))
     }
 
     fn image_info<T: PixelType>(&self, width: u32, height: u32) -> ImageInfo {
@@ -234,16 +237,19 @@ impl<'prl, 'mm> JxlEncoder<'prl, 'mm> {
     /// The encoder is reset when the session is dropped.
     ///
     /// # Errors
-    /// Return [`EncodeError`] if the encoder cannot be configured
-    pub fn session(&mut self, info: &ImageInfo) -> Result<Session<'_, 'prl, 'mm>, EncodeError> {
+    /// Return [`EncoderStatus`] if the encoder cannot be configured
+    pub fn session(
+        &mut self,
+        info: &ImageInfo,
+    ) -> eros::Result<Session<'_, 'prl, 'mm>, (EncoderStatus,)> {
         Session::new(self, Some(info))
     }
 
     /// Start an encoding session whose image information comes from the first JPEG frame
     ///
     /// # Errors
-    /// Return [`EncodeError`] if the encoder cannot be configured
-    pub fn jpeg_session(&mut self) -> Result<Session<'_, 'prl, 'mm>, EncodeError> {
+    /// Return [`EncoderStatus`] if the encoder cannot be configured
+    pub fn jpeg_session(&mut self) -> eros::Result<Session<'_, 'prl, 'mm>, (EncoderStatus,)> {
         Session::new(self, None)
     }
 
@@ -280,12 +286,15 @@ impl<'prl, 'mm> JxlEncoder<'prl, 'mm> {
     /// Note: Ignore alpha channel settings
     ///
     /// # Errors
-    /// Return [`EncodeError`] if the internal encoder fails to encode
-    pub fn encode_jpeg(&mut self, data: &[u8]) -> Result<Vec<u8>, EncodeError> {
-        let mut session = self.jpeg_session()?;
-        session.store_jpeg_metadata()?;
-        session.add_jpeg_frame(data)?;
-        session.finish()
+    /// Return [`EncoderStatus`] if the internal encoder fails to encode
+    pub fn encode_jpeg(
+        &mut self,
+        data: &[u8],
+    ) -> eros::Result<Vec<u8>, (EncoderStatus, InvalidState)> {
+        let mut session = self.jpeg_session().widen()?;
+        session.store_jpeg_metadata().widen()?;
+        session.add_jpeg_frame(data).widen()?;
+        session.finish().widen()
     }
 
     /// Encode a JPEG XL image from pixels, with the bit depth of `T`
@@ -300,7 +309,7 @@ impl<'prl, 'mm> JxlEncoder<'prl, 'mm> {
         data: &[T],
         width: u32,
         height: u32,
-    ) -> Result<Vec<u8>, EncodeError> {
+    ) -> eros::Result<Vec<u8>, EncodeError> {
         self.encode_frame(&EncoderFrame::new(data), width, height)
     }
 
@@ -314,11 +323,11 @@ impl<'prl, 'mm> JxlEncoder<'prl, 'mm> {
         frame: &EncoderFrame<T>,
         width: u32,
         height: u32,
-    ) -> Result<Vec<u8>, EncodeError> {
+    ) -> eros::Result<Vec<u8>, EncodeError> {
         let info = self.image_info::<T>(width, height);
-        let mut session = self.session(&info)?;
-        session.add_frame(frame)?;
-        session.finish()
+        let mut session = self.session(&info).widen()?;
+        session.add_frame(frame).widen()?;
+        session.finish().widen()
     }
 }
 

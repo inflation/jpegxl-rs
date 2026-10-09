@@ -22,7 +22,7 @@ along with jpegxl-rs.  If not, see <https://www.gnu.org/licenses/>.
 mod common;
 pub mod decode;
 pub mod encode;
-mod errors;
+pub mod errors;
 pub mod memory;
 pub mod parallel;
 pub mod utils;
@@ -36,6 +36,7 @@ mod tests;
 pub use common::Endianness;
 pub use decode::decoder_builder;
 pub use encode::encoder_builder;
+pub use eros;
 pub use errors::{DecodeError, EncodeError};
 
 pub use parallel::resizable_runner::ResizableRunner;

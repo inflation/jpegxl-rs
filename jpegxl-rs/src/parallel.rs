@@ -19,7 +19,7 @@ along with jpegxl-rs.  If not, see <https://www.gnu.org/licenses/>.
 //! # Example
 //! ```
 //! #[cfg(feature = "image")]
-//! # || -> Result<(), Box<dyn std::error::Error>> {
+//! # || -> jpegxl_rs::eros::Result<()> {
 //! use jpegxl_rs::{decoder_builder, parallel::threads_runner::ThreadsRunner};
 //! // Use the default C++ Threads pool runner:
 //! let mut parallel_runner = ThreadsRunner::default();

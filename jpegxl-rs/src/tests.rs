@@ -15,3 +15,8 @@ pub(crate) const SAMPLE_LAYERS: &[u8] = include_bytes!("../../samples/layers.jxl
 pub(crate) const SAMPLE_PROGRESSIVE: &[u8] = include_bytes!("../../samples/progressive.jxl");
 pub(crate) const SAMPLE_EXTRA_CHANNEL: &[u8] = include_bytes!("../../samples/extra_channel.jxl");
 pub(crate) const SAMPLE_BOXES: &[u8] = include_bytes!("../../samples/boxes.jxl");
+
+/// The failure of type `T` that `result` holds, if any
+pub(crate) fn failure<T: 'static, S, E: eros::TypeSet>(result: &eros::Result<S, E>) -> Option<&T> {
+    result.as_ref().err()?.downcast_inner_ref::<T>()
+}

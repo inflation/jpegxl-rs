@@ -20,6 +20,7 @@
 use std::ptr::null;
 
 use bon::bon;
+use eros::{Context, IntoUnion, ReshapeUnion};
 #[allow(clippy::wildcard_imports)]
 use jpegxl_sys::{
     common::types::JxlDataType,
@@ -29,7 +30,10 @@ use jpegxl_sys::{
 
 use crate::{
     common::{Endianness, PixelType},
-    errors::{check_dec_status, DecodeError},
+    errors::{
+        check_dec_status, CannotCreateDecoder, DecodeError, DecoderStatus, IncompleteInput,
+        InternalError, InvalidInput,
+    },
     memory::MemoryManager,
     parallel::ParallelRunner,
     utils::check_valid_signature,
@@ -162,7 +166,7 @@ impl<'pr, 'mm> JxlDecoder<'pr, 'mm> {
     /// Build a [`JxlDecoder`]
     ///
     /// # Errors
-    /// Return [`DecodeError::CannotCreateDecoder`] if it fails to create the decoder.
+    /// Return [`CannotCreateDecoder`] if it fails to create the decoder.
     #[builder(derive(Clone))]
     pub fn new(
         pixel_format: Option<PixelFormat>,
@@ -177,7 +181,7 @@ impl<'pr, 'mm> JxlDecoder<'pr, 'mm> {
         #[builder(default = 512 * 1024)] init_jpeg_buffer: usize,
         parallel_runner: Option<&'pr dyn ParallelRunner>,
         memory_manager: Option<&'mm dyn MemoryManager>,
-    ) -> Result<Self, DecodeError> {
+    ) -> eros::Result<Self, (CannotCreateDecoder,)> {
         // SAFETY: libjxl copies the memory manager, so the temporary only has to outlive the call
         let dec = unsafe {
             memory_manager.map_or_else(
@@ -187,7 +191,7 @@ impl<'pr, 'mm> JxlDecoder<'pr, 'mm> {
         };
 
         if dec.is_null() {
-            return Err(DecodeError::CannotCreateDecoder);
+            return Err(CannotCreateDecoder.into());
         }
 
         Ok(Self {
@@ -217,8 +221,11 @@ impl<'pr, 'mm> JxlDecoder<'pr, 'mm> {
     /// The decoder is reset when the session is dropped.
     ///
     /// # Errors
-    /// Return a [`DecodeError`] if the decoder cannot be configured
-    pub fn session(&mut self, events: Events) -> Result<Session<'_, 'pr, 'mm>, DecodeError> {
+    /// Return a [`DecoderStatus`] if the decoder cannot be configured
+    pub fn session(
+        &mut self,
+        events: Events,
+    ) -> eros::Result<Session<'_, 'pr, 'mm>, (DecoderStatus,)> {
         Session::new(self, events)
     }
 }
@@ -232,9 +239,9 @@ impl JxlDecoder<'_, '_> {
         data_type: Option<JxlDataType>,
         with_icc_profile: bool,
         reconstruct_jpeg: bool,
-    ) -> Result<Decoded, DecodeError> {
+    ) -> eros::Result<Decoded, DecodeError> {
         if !check_valid_signature(data).unwrap_or(false) {
-            return Err(DecodeError::InvalidInput);
+            return Err(InvalidInput).union();
         }
 
         let mut events = Events::FULL_IMAGE;
@@ -245,17 +252,27 @@ impl JxlDecoder<'_, '_> {
             events |= Events::JPEG_RECONSTRUCTION;
         }
 
-        let mut session = Session::new(self, events)?;
+        let mut session = Session::new(self, events)
+            .context("configure the decoder")
+            .widen()?;
         let (mut icc, mut image, mut jpeg) = (None, None, None);
         let mut input = data;
         loop {
-            match session.process(&mut input)? {
-                Event::NeedMoreInput => return Err(DecodeError::GenericError),
+            match session.process(&mut input).widen()? {
+                Event::NeedMoreInput => return Err(IncompleteInput).union(),
                 Event::ColorEncoding => {
-                    icc = Some(session.icc_profile(ColorProfileTarget::Data)?);
+                    icc = Some(
+                        session
+                            .icc_profile(ColorProfileTarget::Data)
+                            .context("read the ICC profile")
+                            .widen()?,
+                    );
                 }
                 Event::NeedImageOutBuffer => {
-                    session.alloc_image_buffer(self.pixel_format.unwrap_or_default(), data_type)?;
+                    session
+                        .alloc_image_buffer(self.pixel_format.unwrap_or_default(), data_type)
+                        .context("allocate the image buffer")
+                        .widen()?;
                 }
                 Event::FullImage(img) => image = img,
                 Event::Jpeg(buf) => jpeg = Some(buf),
@@ -266,7 +283,8 @@ impl JxlDecoder<'_, '_> {
 
         let info = session
             .basic_info()
-            .ok_or(DecodeError::InternalError("No basic info"))?;
+            .ok_or(InternalError("No basic info"))
+            .union()?;
         let metadata = Metadata {
             width: info.xsize,
             height: info.ysize,
@@ -283,7 +301,7 @@ impl JxlDecoder<'_, '_> {
     }
 
     /// Apply the options to the decoder. Called at the start of every session
-    pub(crate) fn setup_decoder(&self, events: Events) -> Result<(), DecodeError> {
+    pub(crate) fn setup_decoder(&self, events: Events) -> eros::Result<(), (DecoderStatus,)> {
         if let Some(runner) = self.parallel_runner {
             // SAFETY: `self.dec` is valid until drop and the runner outlives it
             check_dec_status(unsafe {
@@ -330,9 +348,9 @@ impl JxlDecoder<'_, '_> {
     ///
     /// # Errors
     /// Return a [`DecodeError`] when internal decoder fails
-    pub fn decode(&self, data: &[u8]) -> Result<(Metadata, Pixels), DecodeError> {
+    pub fn decode(&self, data: &[u8]) -> eros::Result<(Metadata, Pixels), DecodeError> {
         let (metadata, image, _) = self.decode_internal(data, None, self.icc_profile, false)?;
-        let image = image.ok_or(DecodeError::InternalError("No image decoded"))?;
+        let image = image.ok_or(InternalError("No image decoded")).union()?;
         Ok((metadata, image.into_pixels()))
     }
 
@@ -343,10 +361,10 @@ impl JxlDecoder<'_, '_> {
     pub fn decode_with<T: PixelType>(
         &self,
         data: &[u8],
-    ) -> Result<(Metadata, Vec<T>), DecodeError> {
+    ) -> eros::Result<(Metadata, Vec<T>), DecodeError> {
         let (metadata, image, _) =
             self.decode_internal(data, Some(T::pixel_type()), self.icc_profile, false)?;
-        let image = image.ok_or(DecodeError::InternalError("No image decoded"))?;
+        let image = image.ok_or(InternalError("No image decoded")).union()?;
 
         debug_assert_eq!(T::pixel_type(), image.format.data_type);
         Ok((metadata, T::convert(&image.data, &image.format)))
@@ -359,12 +377,12 @@ impl JxlDecoder<'_, '_> {
     ///
     /// # Errors
     /// Return a [`DecodeError`] when internal decoder fails
-    pub fn reconstruct(&self, data: &[u8]) -> Result<(Metadata, Data), DecodeError> {
+    pub fn reconstruct(&self, data: &[u8]) -> eros::Result<(Metadata, Data), DecodeError> {
         let (metadata, image, jpeg) = self.decode_internal(data, None, self.icc_profile, true)?;
         let data = match (jpeg, image) {
             (Some(jpeg), _) => Data::Jpeg(jpeg),
             (None, Some(image)) => Data::Pixels(image.into_pixels()),
-            (None, None) => return Err(DecodeError::InternalError("No image decoded")),
+            (None, None) => return Err(InternalError("No image decoded")).union(),
         };
         Ok((metadata, data))
     }

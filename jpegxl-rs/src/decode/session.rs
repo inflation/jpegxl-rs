@@ -27,19 +27,24 @@ use super::{
     BasicInfo, BoxHeader, ColorProfileTarget, Event, Events, FrameInfo, Image, JxlDecoder,
     PixelFormat,
 };
-use crate::errors::{check_dec_status, DecodeError};
+use eros::{IntoUnion, ReshapeUnion};
+
+use crate::errors::{
+    check_dec_status, DecoderStatus, IncompleteInput, InternalError, InvalidState, ProcessError,
+    UnsupportedBitWidth,
+};
 
 /// Minimum number of bytes of a new chunk glued to the bytes libjxl left unprocessed.
 /// The glued part grows with the carry, so a large section is not copied over and over.
 const CARRY_PREFIX: usize = 64;
 
-fn data_type_of(bits: u32, exponent_bits: u32) -> Result<JxlDataType, DecodeError> {
+fn data_type_of(bits: u32, exponent_bits: u32) -> Result<JxlDataType, UnsupportedBitWidth> {
     match (bits, exponent_bits) {
         (x, 0) if x <= 8 => Ok(JxlDataType::Uint8),
         (x, 0) if x <= 16 => Ok(JxlDataType::Uint16),
         (16, _) => Ok(JxlDataType::Float16),
         (32, _) => Ok(JxlDataType::Float),
-        (x, _) => Err(DecodeError::UnsupportedBitWidth(x)),
+        (x, _) => Err(UnsupportedBitWidth(x)),
     }
 }
 
@@ -75,7 +80,7 @@ impl Sink {
     fn attach(
         &mut self,
         set: impl FnOnce(*mut u8, usize) -> d::JxlDecoderStatus,
-    ) -> Result<(), DecodeError> {
+    ) -> eros::Result<(), (DecoderStatus,)> {
         let rest = &mut self.buf[self.written..];
         check_dec_status(set(rest.as_mut_ptr(), rest.len()))
     }
@@ -100,7 +105,7 @@ impl Sink {
 ///
 /// ```
 /// # use jpegxl_rs::{decoder_builder, decode::{Event, Events}};
-/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+/// # fn main() -> jpegxl_rs::eros::Result<()> {
 /// # let data = include_bytes!("../../../samples/sample.jxl");
 /// let mut decoder = decoder_builder().build()?;
 /// let mut session = decoder.session(Events::FULL_IMAGE)?;
@@ -142,7 +147,7 @@ impl<'dec, 'pr, 'mm> Session<'dec, 'pr, 'mm> {
     pub(crate) fn new(
         dec: &'dec JxlDecoder<'pr, 'mm>,
         events: Events,
-    ) -> Result<Self, DecodeError> {
+    ) -> eros::Result<Self, (DecoderStatus,)> {
         let mut events = events | Events::BASIC_INFO;
         if events.contains(Events::BOX) {
             // The collected box is only handed back by `BoxComplete`
@@ -179,11 +184,11 @@ impl<'dec, 'pr, 'mm> Session<'dec, 'pr, 'mm> {
     /// On `NeedMoreInput` it is always empty.
     ///
     /// # Errors
-    /// Return a [`DecodeError`] if the decoder fails, or if the input is closed
-    /// and incomplete.
-    pub fn process(&mut self, input: &mut &[u8]) -> Result<Event, DecodeError> {
+    /// Return a [`DecoderStatus`] if the decoder fails, or [`IncompleteInput`] if the input
+    /// is closed and incomplete.
+    pub fn process(&mut self, input: &mut &[u8]) -> eros::Result<Event, ProcessError> {
         loop {
-            let status = self.run(input)?;
+            let status = self.run(input).widen()?;
             if let Some(event) = self.handle(status)? {
                 return Ok(event);
             }
@@ -200,7 +205,7 @@ impl<'dec, 'pr, 'mm> Session<'dec, 'pr, 'mm> {
     }
 
     /// Calls libjxl, taking care of feeding the input
-    fn run(&mut self, input: &mut &[u8]) -> Result<d::JxlDecoderStatus, DecodeError> {
+    fn run(&mut self, input: &mut &[u8]) -> eros::Result<d::JxlDecoderStatus, (DecoderStatus,)> {
         use d::JxlDecoderStatus as s;
         let dec = self.dec.dec;
 
@@ -264,13 +269,13 @@ impl<'dec, 'pr, 'mm> Session<'dec, 'pr, 'mm> {
         }
     }
 
-    fn handle(&mut self, status: d::JxlDecoderStatus) -> Result<Option<Event>, DecodeError> {
+    fn handle(&mut self, status: d::JxlDecoderStatus) -> eros::Result<Option<Event>, ProcessError> {
         use d::JxlDecoderStatus as s;
         let dec = self.dec.dec;
 
         Ok(Some(match status {
-            s::Error => return Err(DecodeError::GenericError),
-            s::NeedMoreInput if self.tail.is_some() => return Err(DecodeError::GenericError),
+            s::Error => return Err(DecoderStatus(status)).union(),
+            s::NeedMoreInput if self.tail.is_some() => return Err(IncompleteInput).union(),
             s::NeedMoreInput => Event::NeedMoreInput,
             s::Success => {
                 self.release_box();
@@ -293,7 +298,7 @@ impl<'dec, 'pr, 'mm> Session<'dec, 'pr, 'mm> {
             s::NeedPreviewOutBuffer => Event::NeedPreviewOutBuffer,
             // libjxl is done with the preview buffer once this event is emitted
             s::PreviewImage => Event::PreviewImage(self.preview.take().map(Slot::into_image)),
-            s::Frame => Event::Frame(self.frame_info()?),
+            s::Frame => Event::Frame(self.frame_info().widen()?),
             s::NeedImageOutBuffer => Event::NeedImageOutBuffer,
             s::FrameProgression => Event::FrameProgression,
             s::FullImage => {
@@ -312,32 +317,39 @@ impl<'dec, 'pr, 'mm> Session<'dec, 'pr, 'mm> {
             s::JPEGReconstruction => {
                 let mut sink = Sink::new(self.dec.init_jpeg_buffer);
                 // SAFETY: `self.jpeg` keeps the buffer until it is released
-                sink.attach(|ptr, len| unsafe { d::JxlDecoderSetJPEGBuffer(dec, ptr, len) })?;
+                sink.attach(|ptr, len| unsafe { d::JxlDecoderSetJPEGBuffer(dec, ptr, len) })
+                    .widen()?;
                 self.jpeg = Some(sink);
                 Event::JpegReconstruction
             }
             s::JPEGNeedMoreOutput => {
-                let sink = self.jpeg.as_mut().ok_or(DecodeError::InternalError(
-                    "JPEG output requested without a JPEG buffer",
-                ))?;
+                let sink = self
+                    .jpeg
+                    .as_mut()
+                    .ok_or(InternalError("JPEG output requested without a JPEG buffer"))
+                    .union()?;
                 // SAFETY: the decoder is valid while the session borrows it
                 sink.grow(unsafe { d::JxlDecoderReleaseJPEGBuffer(dec) });
                 // SAFETY: `self.jpeg` keeps the buffer until it is released
-                sink.attach(|ptr, len| unsafe { d::JxlDecoderSetJPEGBuffer(dec, ptr, len) })?;
+                sink.attach(|ptr, len| unsafe { d::JxlDecoderSetJPEGBuffer(dec, ptr, len) })
+                    .widen()?;
                 return Ok(None);
             }
             s::Box => {
                 self.release_box();
-                Event::Box(self.box_header()?)
+                Event::Box(self.box_header().widen()?)
             }
             s::BoxNeedMoreOutput => {
-                let sink = self.boxed.as_mut().ok_or(DecodeError::InternalError(
-                    "Box output requested without a box buffer",
-                ))?;
+                let sink = self
+                    .boxed
+                    .as_mut()
+                    .ok_or(InternalError("Box output requested without a box buffer"))
+                    .union()?;
                 // SAFETY: the decoder is valid while the session borrows it
                 sink.grow(unsafe { d::JxlDecoderReleaseBoxBuffer(dec) });
                 // SAFETY: `self.boxed` keeps the buffer until it is released
-                sink.attach(|ptr, len| unsafe { d::JxlDecoderSetBoxBuffer(dec, ptr, len) })?;
+                sink.attach(|ptr, len| unsafe { d::JxlDecoderSetBoxBuffer(dec, ptr, len) })
+                    .widen()?;
                 return Ok(None);
             }
             s::BoxComplete => {
@@ -359,7 +371,7 @@ impl<'dec, 'pr, 'mm> Session<'dec, 'pr, 'mm> {
         }
     }
 
-    fn frame_info(&self) -> Result<FrameInfo, DecodeError> {
+    fn frame_info(&self) -> eros::Result<FrameInfo, (DecoderStatus,)> {
         let dec = self.dec.dec;
         let mut header = MaybeUninit::<JxlFrameHeader>::uninit();
         // SAFETY: the decoder is valid while the session borrows it
@@ -380,7 +392,7 @@ impl<'dec, 'pr, 'mm> Session<'dec, 'pr, 'mm> {
         })
     }
 
-    fn box_header(&self) -> Result<BoxHeader, DecodeError> {
+    fn box_header(&self) -> eros::Result<BoxHeader, (DecoderStatus,)> {
         let dec = self.dec.dec;
         let mut box_type = JxlBoxType([0; 4]);
         // SAFETY: the decoder is valid while the session borrows it
@@ -409,8 +421,11 @@ impl<'dec, 'pr, 'mm> Session<'dec, 'pr, 'mm> {
     /// ICC profile of the image, after [`Event::ColorEncoding`]
     ///
     /// # Errors
-    /// Return a [`DecodeError`] if the profile is not available
-    pub fn icc_profile(&self, target: ColorProfileTarget) -> Result<Vec<u8>, DecodeError> {
+    /// Return a [`DecoderStatus`] if the profile is not available
+    pub fn icc_profile(
+        &self,
+        target: ColorProfileTarget,
+    ) -> eros::Result<Vec<u8>, (DecoderStatus,)> {
         let dec = self.dec.dec;
         let mut size = 0;
         // SAFETY: the decoder is valid while the session borrows it
@@ -427,11 +442,11 @@ impl<'dec, 'pr, 'mm> Session<'dec, 'pr, 'mm> {
     /// Color encoding of the image, after [`Event::ColorEncoding`]
     ///
     /// # Errors
-    /// Return a [`DecodeError`] if the image has no structured encoding, e.g. it uses an ICC profile
+    /// Return a [`DecoderStatus`] if the image has no structured encoding, e.g. it uses an ICC profile
     pub fn color_encoding(
         &self,
         target: ColorProfileTarget,
-    ) -> Result<JxlColorEncoding, DecodeError> {
+    ) -> eros::Result<JxlColorEncoding, (DecoderStatus,)> {
         let mut encoding = MaybeUninit::uninit();
         // SAFETY: the decoder is valid while the session borrows it
         check_dec_status(unsafe {
@@ -445,15 +460,16 @@ impl<'dec, 'pr, 'mm> Session<'dec, 'pr, 'mm> {
         &self,
         format: PixelFormat,
         data_type: Option<JxlDataType>,
-    ) -> Result<JxlPixelFormat, DecodeError> {
+    ) -> eros::Result<JxlPixelFormat, (InvalidState, UnsupportedBitWidth)> {
         let info = self
             .basic_info
             .as_ref()
-            .ok_or(DecodeError::InvalidState("basic info is not available yet"))?;
+            .ok_or(InvalidState("basic info is not available yet"))
+            .union()?;
 
         let data_type = match data_type {
             Some(v) => v,
-            None => data_type_of(info.bits_per_sample, info.exponent_bits_per_sample)?,
+            None => data_type_of(info.bits_per_sample, info.exponent_bits_per_sample).union()?,
         };
 
         Ok(JxlPixelFormat {
@@ -472,31 +488,32 @@ impl<'dec, 'pr, 'mm> Session<'dec, 'pr, 'mm> {
     /// `data_type` is derived from the image if `None`.
     ///
     /// # Errors
-    /// Return a [`DecodeError`] if the format is not supported
+    /// Return [`InvalidState`] before [`Event::BasicInfo`], [`UnsupportedBitWidth`] if the
+    /// image has no matching pixel type, or [`DecoderStatus`] if `libjxl` rejects the format
     pub fn alloc_image_buffer(
         &mut self,
         format: PixelFormat,
         data_type: Option<JxlDataType>,
-    ) -> Result<(), DecodeError> {
-        let format = self.resolve_format(format, data_type)?;
+    ) -> eros::Result<(), (InvalidState, UnsupportedBitWidth, DecoderStatus)> {
+        let format = self.resolve_format(format, data_type).widen()?;
         let mut size = 0;
         // SAFETY: the decoder is valid while the session borrows it
         check_dec_status(unsafe {
             d::JxlDecoderImageOutBufferSize(self.dec.dec, &raw const format, &raw mut size)
         })?;
-        self.set_image_buffer(format, vec![0; size])
+        self.set_image_buffer(format, vec![0; size]).widen()
     }
 
     /// Provide the buffer for the frame after [`Event::NeedImageOutBuffer`].
     /// The session keeps it until [`Event::FullImage`] hands it back.
     ///
     /// # Errors
-    /// Return a [`DecodeError`] if the buffer is too small for the image
+    /// Return a [`DecoderStatus`] if the buffer is too small for the image
     pub fn set_image_buffer(
         &mut self,
         format: JxlPixelFormat,
         mut data: Vec<u8>,
-    ) -> Result<(), DecodeError> {
+    ) -> eros::Result<(), (DecoderStatus,)> {
         // SAFETY: `self.image` keeps `data` until libjxl is done with it
         check_dec_status(unsafe {
             d::JxlDecoderSetImageOutBuffer(
@@ -521,10 +538,11 @@ impl<'dec, 'pr, 'mm> Session<'dec, 'pr, 'mm> {
     /// Meant for [`Event::FrameProgression`] and truncated input.
     ///
     /// # Errors
-    /// Return a [`DecodeError`] if no image buffer is set or nothing is decoded yet
-    pub fn flush_image(&mut self) -> Result<(), DecodeError> {
+    /// Return [`InvalidState`] if no image buffer is set, or [`DecoderStatus`] if nothing is
+    /// decoded yet
+    pub fn flush_image(&mut self) -> eros::Result<(), (InvalidState, DecoderStatus)> {
         if self.image.is_none() {
-            return Err(DecodeError::InvalidState("no image buffer is set"));
+            return Err(InvalidState("no image buffer is set")).union();
         }
         // SAFETY: the decoder is valid while the session borrows it
         check_dec_status(unsafe { d::JxlDecoderFlushImage(self.dec.dec) })
@@ -533,13 +551,13 @@ impl<'dec, 'pr, 'mm> Session<'dec, 'pr, 'mm> {
     /// Provide a zeroed buffer for the preview after [`Event::NeedPreviewOutBuffer`]
     ///
     /// # Errors
-    /// Return a [`DecodeError`] if the format is not supported
+    /// Same as [`alloc_image_buffer`](Self::alloc_image_buffer)
     pub fn alloc_preview_buffer(
         &mut self,
         format: PixelFormat,
         data_type: Option<JxlDataType>,
-    ) -> Result<(), DecodeError> {
-        let format = self.resolve_format(format, data_type)?;
+    ) -> eros::Result<(), (InvalidState, UnsupportedBitWidth, DecoderStatus)> {
+        let format = self.resolve_format(format, data_type).widen()?;
         let mut size = 0;
         // SAFETY: the decoder is valid while the session borrows it
         check_dec_status(unsafe {
@@ -564,16 +582,21 @@ impl<'dec, 'pr, 'mm> Session<'dec, 'pr, 'mm> {
     /// starts with `size` bytes and grows as needed. Without it the box is skipped.
     ///
     /// # Errors
-    /// Return a [`DecodeError`] if it is not called right after [`Event::Box`]
-    pub fn set_box_buffer(&mut self, size: usize) -> Result<(), DecodeError> {
+    /// Return [`InvalidState`] without [`Events::BOX`], or [`DecoderStatus`] if it is not
+    /// called right after [`Event::Box`]
+    pub fn set_box_buffer(
+        &mut self,
+        size: usize,
+    ) -> eros::Result<(), (InvalidState, DecoderStatus)> {
         if !self.events.contains(Events::BOX) {
-            return Err(DecodeError::InvalidState("not subscribed to boxes"));
+            return Err(InvalidState("not subscribed to boxes")).union();
         }
         let dec = self.dec.dec;
         self.release_box();
         let mut sink = Sink::new(size);
         // SAFETY: `self.boxed` keeps the buffer until it is released
-        sink.attach(|ptr, len| unsafe { d::JxlDecoderSetBoxBuffer(dec, ptr, len) })?;
+        sink.attach(|ptr, len| unsafe { d::JxlDecoderSetBoxBuffer(dec, ptr, len) })
+            .widen()?;
         self.boxed = Some(sink);
         Ok(())
     }
@@ -581,8 +604,11 @@ impl<'dec, 'pr, 'mm> Session<'dec, 'pr, 'mm> {
     /// Description of an extra channel such as depth or a spot color
     ///
     /// # Errors
-    /// Return a [`DecodeError`] if basic info is not available or `index` is out of range
-    pub fn extra_channel_info(&self, index: usize) -> Result<JxlExtraChannelInfo, DecodeError> {
+    /// Return a [`DecoderStatus`] if basic info is not available or `index` is out of range
+    pub fn extra_channel_info(
+        &self,
+        index: usize,
+    ) -> eros::Result<JxlExtraChannelInfo, (DecoderStatus,)> {
         let mut info = MaybeUninit::uninit();
         // SAFETY: the decoder is valid while the session borrows it
         check_dec_status(unsafe {
@@ -599,18 +625,19 @@ impl<'dec, 'pr, 'mm> Session<'dec, 'pr, 'mm> {
     /// `format.num_channels` is ignored.
     ///
     /// # Errors
-    /// Return a [`DecodeError`] if `index` is out of range or the format is not supported
+    /// Return a [`DecoderStatus`] if `index` is out of range or the format is not supported,
+    /// or [`UnsupportedBitWidth`] if the channel has no matching pixel type
     pub fn alloc_extra_channel_buffer(
         &mut self,
         index: u32,
         format: PixelFormat,
         data_type: Option<JxlDataType>,
-    ) -> Result<(), DecodeError> {
+    ) -> eros::Result<(), (UnsupportedBitWidth, DecoderStatus)> {
         let data_type = if let Some(v) = data_type {
             v
         } else {
-            let info = self.extra_channel_info(index as usize)?;
-            data_type_of(info.bits_per_sample, info.exponent_bits_per_sample)?
+            let info = self.extra_channel_info(index as usize).widen()?;
+            data_type_of(info.bits_per_sample, info.exponent_bits_per_sample).union()?
         };
         let format = JxlPixelFormat {
             num_channels: 1,
@@ -653,10 +680,13 @@ impl<'dec, 'pr, 'mm> Session<'dec, 'pr, 'mm> {
     /// Pixels of extra channel `index`, after [`Event::FullImage`]
     ///
     /// # Errors
-    /// Return a [`DecodeError`] if the frame is not fully decoded yet
-    pub fn take_extra_channel(&mut self, index: u32) -> Result<Option<Image>, DecodeError> {
+    /// Return [`InvalidState`] if the frame is not fully decoded yet
+    pub fn take_extra_channel(
+        &mut self,
+        index: u32,
+    ) -> eros::Result<Option<Image>, (InvalidState,)> {
         if !self.extra_ready {
-            return Err(DecodeError::InvalidState("the frame is not fully decoded"));
+            return Err(InvalidState("the frame is not fully decoded").into());
         }
         Ok(self
             .extra
@@ -676,8 +706,8 @@ impl<'dec, 'pr, 'mm> Session<'dec, 'pr, 'mm> {
     /// partial pixels are needed. The next event is the next [`Event::Frame`] or [`Event::Success`].
     ///
     /// # Errors
-    /// Return a [`DecodeError`] if no frame is being decoded
-    pub fn skip_current_frame(&mut self) -> Result<(), DecodeError> {
+    /// Return a [`DecoderStatus`] if no frame is being decoded
+    pub fn skip_current_frame(&mut self) -> eros::Result<(), (DecoderStatus,)> {
         // SAFETY: the decoder is valid while the session borrows it
         check_dec_status(unsafe { d::JxlDecoderSkipCurrentFrame(self.dec.dec) })
     }
@@ -759,20 +789,17 @@ mod tests {
         assert_eq!(data_type_of(12, 0).ok(), Some(JxlDataType::Uint16));
         assert_eq!(data_type_of(16, 5).ok(), Some(JxlDataType::Float16));
         assert_eq!(data_type_of(32, 8).ok(), Some(JxlDataType::Float));
-        assert!(matches!(
-            data_type_of(24, 0),
-            Err(DecodeError::UnsupportedBitWidth(24))
-        ));
+        assert_eq!(data_type_of(24, 0), Err(UnsupportedBitWidth(24)));
     }
 
     #[test]
     fn color_encoding_and_missing_preview() -> TestResult {
         let mut decoder = decoder_builder().build()?;
         let mut session = decoder.session(Events::COLOR_ENCODING)?;
-        assert!(matches!(
-            session.alloc_preview_buffer(PixelFormat::default(), None),
-            Err(DecodeError::InvalidState(_))
-        ));
+        let error = session
+            .alloc_preview_buffer(PixelFormat::default(), None)
+            .unwrap_err();
+        assert!(error.narrow::<InvalidState, _>().is_ok());
         let mut input = SAMPLE_JXL;
         loop {
             match session.process(&mut input)? {
@@ -916,7 +943,7 @@ mod tests {
                 Ok(Event::Success) => panic!("truncated input decoded completely"),
                 Ok(_) => {}
                 Err(e) => {
-                    assert!(matches!(e, DecodeError::GenericError));
+                    assert!(e.narrow::<(DecoderStatus, IncompleteInput), _>().is_ok());
                     return Ok(());
                 }
             }
@@ -1113,10 +1140,8 @@ mod tests {
                     assert_eq!(info.r#type, ExtraChannelType::Depth);
                     session.alloc_image_buffer(PixelFormat::default(), None)?;
                     session.alloc_extra_channel_buffer(0, PixelFormat::default(), None)?;
-                    assert!(matches!(
-                        session.take_extra_channel(0),
-                        Err(DecodeError::InvalidState(_))
-                    ));
+                    let error = session.take_extra_channel(0).unwrap_err();
+                    assert!(error.narrow::<InvalidState, _>().is_ok());
                 }
                 Event::FullImage(_) => {
                     let depth = session.take_extra_channel(0)?.expect("no depth channel");
@@ -1143,18 +1168,14 @@ mod tests {
     fn misuse_is_an_error() -> TestResult {
         let mut decoder = decoder_builder().build()?;
         let mut session = decoder.session(Events::empty())?;
-        assert!(matches!(
-            session.alloc_image_buffer(PixelFormat::default(), None),
-            Err(DecodeError::InvalidState(_))
-        ));
-        assert!(matches!(
-            session.flush_image(),
-            Err(DecodeError::InvalidState(_))
-        ));
-        assert!(matches!(
-            session.set_box_buffer(8),
-            Err(DecodeError::InvalidState(_))
-        ));
+        let error = session
+            .alloc_image_buffer(PixelFormat::default(), None)
+            .unwrap_err();
+        assert!(error.narrow::<InvalidState, _>().is_ok());
+        let error = session.flush_image().unwrap_err();
+        assert!(error.narrow::<InvalidState, _>().is_ok());
+        let error = session.set_box_buffer(8).unwrap_err();
+        assert!(error.narrow::<InvalidState, _>().is_ok());
         Ok(())
     }
 }

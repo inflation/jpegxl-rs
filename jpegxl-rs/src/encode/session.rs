@@ -24,7 +24,12 @@ use jpegxl_sys::{
 };
 
 use super::{ColorEncoding, EncoderFrame, FrameSettings, ImageInfo, JxlEncoder, Metadata};
-use crate::{common::PixelType, errors::EncodeError};
+use eros::{IntoUnion, ReshapeUnion};
+
+use crate::{
+    common::PixelType,
+    errors::{EncoderStatus, InvalidFrameName, InvalidState},
+};
 
 /// An encoding session that is driven by the caller.
 ///
@@ -32,7 +37,7 @@ use crate::{common::PixelType, errors::EncodeError};
 ///
 /// ```
 /// # use jpegxl_rs::{encoder_builder, encode::{EncoderFrame, ImageInfo}};
-/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+/// # fn main() -> jpegxl_rs::eros::Result<()> {
 /// let pixels = vec![0u8; 8 * 8 * 3];
 /// let mut encoder = encoder_builder().build()?;
 /// let mut session = encoder.session(&ImageInfo::builder().width(8).height(8).build())?;
@@ -60,7 +65,7 @@ impl<'enc, 'prl, 'mm> Session<'enc, 'prl, 'mm> {
     pub(crate) fn new(
         enc: &'enc mut JxlEncoder<'prl, 'mm>,
         info: Option<&ImageInfo>,
-    ) -> Result<Self, EncodeError> {
+    ) -> eros::Result<Self, (EncoderStatus,)> {
         let session = Self {
             enc,
             output: Vec::new(),
@@ -73,7 +78,7 @@ impl<'enc, 'prl, 'mm> Session<'enc, 'prl, 'mm> {
         Ok(session)
     }
 
-    fn setup(&self, info: Option<&ImageInfo>) -> Result<(), EncodeError> {
+    fn setup(&self, info: Option<&ImageInfo>) -> eros::Result<(), (EncoderStatus,)> {
         let enc = &*self.enc;
         if let Some(runner) = enc.parallel_runner {
             // SAFETY: `enc.enc` is valid until drop and the runner outlives it
@@ -139,13 +144,22 @@ impl<'enc, 'prl, 'mm> Session<'enc, 'prl, 'mm> {
     /// Add a metadata box
     ///
     /// # Errors
-    /// Return [`EncodeError`] if it fails to add the box
-    pub fn add_metadata(&mut self, metadata: &Metadata, compress: bool) -> Result<(), EncodeError> {
+    /// Return [`EncoderStatus`] if it fails to add the box
+    pub fn add_metadata(
+        &mut self,
+        metadata: &Metadata,
+        compress: bool,
+    ) -> eros::Result<(), (EncoderStatus,)> {
         let (t, data) = metadata.parts();
         self.add_box(t, data, compress)
     }
 
-    fn add_box(&self, t: [u8; 4], data: &[u8], compress: bool) -> Result<(), EncodeError> {
+    fn add_box(
+        &self,
+        t: [u8; 4],
+        data: &[u8],
+        compress: bool,
+    ) -> eros::Result<(), (EncoderStatus,)> {
         let enc = &*self.enc;
         // SAFETY: `enc.enc` is valid until drop
         enc.check_enc_status(unsafe { JxlEncoderUseBoxes(enc.enc) })?;
@@ -172,12 +186,12 @@ impl<'enc, 'prl, 'mm> Session<'enc, 'prl, 'mm> {
     fn create_frame_settings(
         &self,
         settings: &FrameSettings,
-    ) -> Result<*mut JxlEncoderFrameSettings, EncodeError> {
+    ) -> eros::Result<*mut JxlEncoderFrameSettings, (EncoderStatus,)> {
         let enc = &*self.enc;
         // SAFETY: `enc.enc` is valid until drop
         let ptr = unsafe { JxlEncoderFrameSettingsCreate(enc.enc, null()) };
         if ptr.is_null() {
-            return Err(EncodeError::OutOfMemory);
+            return Err(EncoderStatus(JxlEncoderError::OutOfMemory).into());
         }
 
         let set = |id, value| {
@@ -204,11 +218,15 @@ impl<'enc, 'prl, 'mm> Session<'enc, 'prl, 'mm> {
     /// Add a frame of pixels
     ///
     /// # Errors
-    /// Return [`EncodeError`] if the frame is invalid
-    pub fn add_frame<T: PixelType>(&mut self, frame: &EncoderFrame<T>) -> Result<(), EncodeError> {
+    /// Return [`EncoderStatus`] if the frame is invalid, or [`InvalidFrameName`] if its name
+    /// contains a NUL byte
+    pub fn add_frame<T: PixelType>(
+        &mut self,
+        frame: &EncoderFrame<T>,
+    ) -> eros::Result<(), (EncoderStatus, InvalidFrameName)> {
         let settings = match frame.settings {
-            Some(settings) => self.create_frame_settings(settings)?,
-            None => self.create_frame_settings(&self.frame_settings())?,
+            Some(settings) => self.create_frame_settings(settings).widen()?,
+            None => self.create_frame_settings(&self.frame_settings()).widen()?,
         };
         let enc = &*self.enc;
         if let Some(duration) = frame.duration {
@@ -223,7 +241,7 @@ impl<'enc, 'prl, 'mm> Session<'enc, 'prl, 'mm> {
             enc.check_enc_status(unsafe { JxlEncoderSetFrameHeader(settings, &raw const header) })?;
         }
         if let Some(name) = frame.name {
-            let name = CString::new(name).map_err(|_| EncodeError::BadInput)?;
+            let name = CString::new(name).map_err(InvalidFrameName).union()?;
             // SAFETY: `settings` is valid until the encoder is reset
             enc.check_enc_status(unsafe {
                 JxlEncoderSetFrameName(settings, name.as_ptr().cast())
@@ -257,8 +275,8 @@ impl<'enc, 'prl, 'mm> Session<'enc, 'prl, 'mm> {
     /// Call it before adding any frame.
     ///
     /// # Errors
-    /// Return [`EncodeError`] if output was already taken
-    pub fn store_jpeg_metadata(&mut self) -> Result<(), EncodeError> {
+    /// Return [`EncoderStatus`] if output was already taken
+    pub fn store_jpeg_metadata(&mut self) -> eros::Result<(), (EncoderStatus,)> {
         // SAFETY: `self.enc.enc` is valid until drop
         self.enc
             .check_enc_status(unsafe { JxlEncoderStoreJPEGMetadata(self.enc.enc, true.into()) })
@@ -267,8 +285,8 @@ impl<'enc, 'prl, 'mm> Session<'enc, 'prl, 'mm> {
     /// Add a frame from JPEG data, which is recompressed losslessly
     ///
     /// # Errors
-    /// Return [`EncodeError`] if the JPEG data is invalid or not supported
-    pub fn add_jpeg_frame(&mut self, data: &[u8]) -> Result<(), EncodeError> {
+    /// Return [`EncoderStatus`] if the JPEG data is invalid or not supported
+    pub fn add_jpeg_frame(&mut self, data: &[u8]) -> eros::Result<(), (EncoderStatus,)> {
         let settings = self.create_frame_settings(&self.frame_settings())?;
         // SAFETY: `settings` is valid and the size matches `data`
         self.enc.check_enc_status(unsafe {
@@ -283,8 +301,8 @@ impl<'enc, 'prl, 'mm> Session<'enc, 'prl, 'mm> {
     /// The frames are written as non-final frames, so only call it when more frames follow.
     ///
     /// # Errors
-    /// Return [`EncodeError`] if the encoder fails
-    pub fn take_output(&mut self) -> Result<Vec<u8>, EncodeError> {
+    /// Return [`EncoderStatus`] if the encoder fails
+    pub fn take_output(&mut self) -> eros::Result<Vec<u8>, (EncoderStatus,)> {
         self.process_output()?;
         if self.last_frame == LastFrame::Queued {
             self.last_frame = LastFrame::Taken;
@@ -296,23 +314,24 @@ impl<'enc, 'prl, 'mm> Session<'enc, 'prl, 'mm> {
     /// [`take_output`](Self::take_output).
     ///
     /// # Errors
-    /// Return [`EncodeError`] if the encoder fails, or [`EncodeError::InvalidState`]
+    /// Return [`EncoderStatus`] if the encoder fails, or [`InvalidState`]
     /// if the last frame was already taken by `take_output`
-    pub fn finish(mut self) -> Result<Vec<u8>, EncodeError> {
+    pub fn finish(mut self) -> eros::Result<Vec<u8>, (InvalidState, EncoderStatus)> {
         if self.last_frame == LastFrame::Taken {
-            return Err(EncodeError::InvalidState(
+            return Err(InvalidState(
                 "the last frame was written as a non-final frame",
-            ));
+            ))
+            .union();
         }
         // SAFETY: `self.enc.enc` is valid until drop
         unsafe { JxlEncoderCloseInput(self.enc.enc) };
-        self.process_output()?;
+        self.process_output().widen()?;
         self.enc.boxes.clear();
         self.output.shrink_to_fit();
         Ok(std::mem::take(&mut self.output))
     }
 
-    fn process_output(&mut self) -> Result<(), EncodeError> {
+    fn process_output(&mut self) -> eros::Result<(), (EncoderStatus,)> {
         let Self { enc, output, .. } = self;
         loop {
             let start = output.len();

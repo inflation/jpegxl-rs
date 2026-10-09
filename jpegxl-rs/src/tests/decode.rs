@@ -25,7 +25,9 @@ use testresult::TestResult;
 use crate::{
     common::Endianness,
     decode::{Data, Metadata, PixelFormat, Pixels},
-    decoder_builder, DecodeError,
+    decoder_builder,
+    errors::InvalidInput,
+    tests::failure,
 };
 use crate::{ResizableRunner, ThreadsRunner};
 
@@ -33,10 +35,7 @@ use crate::{ResizableRunner, ThreadsRunner};
 fn invalid() -> TestResult {
     let decoder = decoder_builder().build()?;
 
-    assert!(matches!(
-        decoder.decode(&[0x00, 0x00]),
-        Err(DecodeError::InvalidInput)
-    ));
+    assert!(failure::<InvalidInput, _, _>(&decoder.decode(&[0x00, 0x00])).is_some());
 
     Ok(())
 }

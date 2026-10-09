@@ -22,17 +22,19 @@ use jpegxl_sys::{
         JxlColorEncoding, JxlColorSpace, JxlPrimaries, JxlRenderingIntent, JxlTransferFunction,
         JxlWhitePoint,
     },
-    encoder::encode::JxlEncoderFrameSettingId,
+    encoder::encode::{JxlEncoderError, JxlEncoderFrameSettingId},
 };
 use pretty_assertions::assert_eq;
 use testresult::TestResult;
 
 use crate::decode::{BasicInfo, Data, Event, Events};
-use crate::DecodeError;
 use crate::{
     decoder_builder,
     encode::{ColorEncoding, EncoderFrame, FrameSettings, ImageInfo, Metadata},
-    encoder_builder, EncodeError, Endianness,
+    encoder_builder,
+    errors::{EncoderStatus, InvalidFrameName, InvalidState},
+    tests::failure,
+    Endianness,
 };
 use crate::{encode::EncoderSpeed, ResizableRunner, ThreadsRunner};
 
@@ -41,7 +43,7 @@ fn get_sample() -> DynamicImage {
         .expect("Failed to get sample file")
 }
 
-fn basic_info(data: &[u8]) -> Result<BasicInfo, DecodeError> {
+fn basic_info(data: &[u8]) -> eros::Result<BasicInfo> {
     let mut decoder = decoder_builder().build()?;
     let mut session = decoder.session(Events::empty())?;
     let mut input = data;
@@ -52,7 +54,7 @@ fn basic_info(data: &[u8]) -> Result<BasicInfo, DecodeError> {
     }
 }
 
-fn box_types(data: &[u8]) -> Result<Vec<[u8; 4]>, DecodeError> {
+fn box_types(data: &[u8]) -> eros::Result<Vec<[u8; 4]>> {
     let mut decoder = decoder_builder().build()?;
     let mut session = decoder.session(Events::BOX)?;
     session.close_input();
@@ -109,8 +111,10 @@ fn jpeg_unsupported_features() -> TestResult {
     let mut encoder = encoder_builder().build()?;
 
     assert!(matches!(
-        encoder.encode_jpeg(super::SAMPLE_JPEG_CMYK),
-        Err(EncodeError::Jbrd | EncodeError::NotSupported)
+        failure(&encoder.encode_jpeg(super::SAMPLE_JPEG_CMYK)),
+        Some(EncoderStatus(
+            JxlEncoderError::Jbrd | JxlEncoderError::NotSupported
+        ))
     ));
 
     Ok(())
@@ -388,10 +392,7 @@ fn session_frames() -> TestResult {
     let mut session = encoder.session(&info)?;
     session.add_frame(&EncoderFrame::new(sample.as_raw()))?;
     session.take_output()?;
-    assert!(matches!(
-        session.finish(),
-        Err(EncodeError::InvalidState(_))
-    ));
+    assert!(failure::<InvalidState, _, _>(&session.finish()).is_some());
 
     Ok(())
 }
@@ -427,10 +428,10 @@ fn animation() -> TestResult {
     assert_eq!(frames, [(3, "first".to_string()), (5, String::new())]);
 
     let mut session = encoder.session(&info)?;
-    assert!(matches!(
-        session.add_frame(&EncoderFrame::new(&pixels).name("a\0b")),
-        Err(EncodeError::BadInput)
-    ));
+    assert!(failure::<InvalidFrameName, _, _>(
+        &session.add_frame(&EncoderFrame::new(&pixels).name("a\0b"))
+    )
+    .is_some());
 
     Ok(())
 }

@@ -33,7 +33,7 @@ pub trait ToDynamic {
     /// # Errors
     /// Return a [`DecodeError`] when internal decoding fails.
     /// Return `Ok(None)` when the image is not representable as a [`DynamicImage`]
-    fn decode_to_image(&self, data: &[u8]) -> Result<Option<DynamicImage>, DecodeError>;
+    fn decode_to_image(&self, data: &[u8]) -> eros::Result<Option<DynamicImage>, DecodeError>;
 
     /// Decode the JPEG XL image to a [`DynamicImage`] with a specific pixel type
     ///
@@ -43,11 +43,11 @@ pub trait ToDynamic {
     fn decode_to_image_with<T: PixelType>(
         &self,
         data: &[u8],
-    ) -> Result<Option<DynamicImage>, DecodeError>;
+    ) -> eros::Result<Option<DynamicImage>, DecodeError>;
 }
 
 impl ToDynamic for JxlDecoder<'_, '_> {
-    fn decode_to_image(&self, data: &[u8]) -> Result<Option<DynamicImage>, DecodeError> {
+    fn decode_to_image(&self, data: &[u8]) -> eros::Result<Option<DynamicImage>, DecodeError> {
         let (metadata, image, _) = self.decode_internal(data, None, false, false)?;
         Ok(image.and_then(|i| to_image(&metadata, &i.format, i.data)))
     }
@@ -55,7 +55,7 @@ impl ToDynamic for JxlDecoder<'_, '_> {
     fn decode_to_image_with<T: PixelType>(
         &self,
         data: &[u8],
-    ) -> Result<Option<DynamicImage>, DecodeError> {
+    ) -> eros::Result<Option<DynamicImage>, DecodeError> {
         let (metadata, image, _) =
             self.decode_internal(data, Some(T::pixel_type()), false, false)?;
         Ok(image.and_then(|i| to_image(&metadata, &i.format, i.data)))
