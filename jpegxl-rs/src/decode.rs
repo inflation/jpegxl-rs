@@ -20,7 +20,7 @@
 use std::ptr::null;
 
 use bon::bon;
-use eros::{Context, ErrorUnion, IntoUnion, ReshapeUnion};
+use eros::{Context, IntoUnion, ReshapeUnion};
 #[allow(clippy::wildcard_imports)]
 use jpegxl_sys::{
     common::types::JxlDataType,
@@ -30,7 +30,7 @@ use jpegxl_sys::{
 
 use crate::{
     common::{Endianness, PixelType},
-    errors::{bug, InternalError, InvalidState},
+    errors::{ruled_out, InternalError, InvalidState},
     memory::MemoryManager,
     parallel::ParallelRunner,
     utils::check_valid_signature,
@@ -255,9 +255,6 @@ impl JxlDecoder<'_, '_> {
             .context("configure the decoder")
             .widen()?;
         let (mut icc, mut image, mut jpeg) = (None, None, None);
-        // Events come in order, so the information is always there
-        let no_icc = |_: ErrorUnion<(NotAvailableYet,)>| bug("no ICC profile on its event");
-        let no_info = |_: ErrorUnion<(InvalidState, NotAvailableYet)>| bug("no basic info");
         let mut input = data;
         loop {
             match session.process(&mut input).widen()? {
@@ -267,14 +264,15 @@ impl JxlDecoder<'_, '_> {
                         session
                             .icc_profile(ColorProfileTarget::Data)
                             .context("read the ICC profile")
-                            .try_recover(no_icc)?,
+                            .try_recover(ruled_out::<(NotAvailableYet,), _, _, _>)?,
                     );
                 }
                 Event::NeedImageOutBuffer => {
                     session
                         .alloc_image_buffer(self.pixel_format.unwrap_or_default(), data_type)
                         .context("allocate the image buffer")
-                        .try_recover(no_info)?;
+                        // Basic info always comes before the image
+                        .try_recover(ruled_out::<(InvalidState, NotAvailableYet), _, _, _>)?;
                 }
                 Event::FullImage(img) => image = img,
                 Event::Jpeg(buf) => jpeg = Some(buf),
@@ -383,10 +381,11 @@ impl JxlDecoder<'_, '_> {
         let (metadata, image, jpeg) = self.decode_internal(data, None, self.icc_profile, true)?;
         let data = jpeg
             .map(Data::Jpeg)
-            .or_else(|| image.map(|image| Data::Pixels(image.into_pixels())))
-            .ok_or(InternalError("No image decoded"))
-            .union()?;
-        Ok((metadata, data))
+            .or_else(|| image.map(|i| Data::Pixels(i.into_pixels())));
+        Ok((
+            metadata,
+            data.ok_or(InternalError("No image decoded")).union()?,
+        ))
     }
 }
 

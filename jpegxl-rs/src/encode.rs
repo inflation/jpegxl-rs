@@ -27,7 +27,7 @@ use eros::{type_set::Contains, ErrorUnion, ReshapeUnion, TypeSet};
 
 use crate::{
     common::PixelType,
-    errors::{bug, InternalError, InvalidState},
+    errors::{ruled_out, InternalError, InvalidState},
     memory::MemoryManager,
     parallel::ParallelRunner,
 };
@@ -298,7 +298,7 @@ impl<'prl, 'mm> JxlEncoder<'prl, 'mm> {
         session.add_jpeg_frame(data).widen()?;
         session
             .finish()
-            .try_recover(|_: ErrorUnion<(InvalidState,)>| bug("last frame taken"))
+            .try_recover(ruled_out::<(InvalidState,), _, _, _>)
     }
 
     /// Encode a JPEG XL image from pixels, with the bit depth of `T`
@@ -335,7 +335,7 @@ impl<'prl, 'mm> JxlEncoder<'prl, 'mm> {
         session.add_frame(frame).widen()?;
         session
             .finish()
-            .try_recover(|_: ErrorUnion<(InvalidState,)>| bug("last frame taken"))
+            .try_recover(ruled_out::<(InvalidState,), _, _, _>)
     }
 }
 

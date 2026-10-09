@@ -41,13 +41,31 @@ pub struct InvalidState(pub(crate) &'static str);
 #[error("Internal error, please file an issue: {0}")]
 pub struct InternalError(pub(crate) &'static str);
 
-/// Report a failure that the flow of the caller rules out, e.g. as the handler of
-/// [`try_recover`](eros::ReshapeUnion::try_recover). No test can reach it
+/// Handler for [`try_recover`](eros::ReshapeUnion::try_recover) of failures that the flow of
+/// the caller rules out. They are reported as an [`InternalError`], with the original failure
+/// as context. No test can reach it
 #[cfg_attr(coverage_nightly, coverage(off))]
-pub(crate) fn bug<T, S, I>(message: &'static str) -> eros::Result<T, S>
+pub(crate) fn ruled_out<E, T, S, I>(failure: ErrorUnion<E>) -> eros::Result<T, S>
 where
+    E: TypeSet,
     S: TypeSet,
     S::Variants: Contains<InternalError, I>,
 {
-    Err(ErrorUnion::new(InternalError(message)))
+    let error: ErrorUnion<S> = ErrorUnion::new(InternalError("a failure that the flow rules out"));
+    Err(error.context(failure.into_inner()))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn ruled_out_reports_a_bug_with_the_failure() {
+        let failure: ErrorUnion<(InvalidState,)> = ErrorUnion::new(InvalidState("taken"));
+        let result: eros::Result<(), (InternalError,)> = ruled_out(failure);
+        let error = result.unwrap_err();
+        let context: Vec<_> = error.contexts().map(ToString::to_string).collect();
+        assert_eq!(context, ["Invalid session state: taken"]);
+        assert_eq!(*error, InternalError("a failure that the flow rules out"));
+    }
 }
