@@ -70,6 +70,27 @@ pub struct UnspecifiedError;
 #[error("Invalid frame name")]
 pub struct InvalidFrameName(#[from] pub std::ffi::NulError);
 
+/// Everything [`Session::add_frame`](super::Session::add_frame) can fail with
+pub type AddFrameErrors = (
+    OutOfMemory,
+    ApiUsage,
+    NotSupported,
+    GenericError,
+    UnspecifiedError,
+    InvalidFrameName,
+);
+
+/// Everything [`Session::add_jpeg_frame`](super::Session::add_jpeg_frame) can fail with
+pub type AddJpegFrameErrors = (
+    OutOfMemory,
+    ApiUsage,
+    NotSupported,
+    GenericError,
+    BadInput,
+    Jbrd,
+    UnspecifiedError,
+);
+
 /// Everything a one-shot encode from pixels, e.g. [`JxlEncoder::encode`](super::JxlEncoder::encode),
 /// can fail with
 pub type EncodeErrors = (

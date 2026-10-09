@@ -24,8 +24,9 @@ use jpegxl_sys::{
 };
 
 use super::{
-    ApiUsage, BadInput, ColorEncoding, EncoderFrame, FrameSettings, ImageInfo, InvalidFrameName,
-    Jbrd, JxlEncoder, Metadata, NotSupported, OutOfMemory, UnspecifiedError,
+    AddFrameErrors, AddJpegFrameErrors, ApiUsage, BadInput, ColorEncoding, EncoderFrame,
+    FrameSettings, ImageInfo, InvalidFrameName, Jbrd, JxlEncoder, Metadata, NotSupported,
+    OutOfMemory, UnspecifiedError,
 };
 use eros::{IntoUnion, ReshapeUnion};
 
@@ -258,17 +259,7 @@ impl<'enc, 'prl, 'mm> Session<'enc, 'prl, 'mm> {
     pub fn add_frame<T: PixelType>(
         &mut self,
         frame: &EncoderFrame<T>,
-    ) -> eros::Result<
-        (),
-        (
-            OutOfMemory,
-            ApiUsage,
-            NotSupported,
-            GenericError,
-            UnspecifiedError,
-            InvalidFrameName,
-        ),
-    > {
+    ) -> eros::Result<(), AddFrameErrors> {
         let settings = match frame.settings {
             Some(settings) => self.create_frame_settings(settings).widen()?,
             None => self.create_frame_settings(&self.frame_settings()).widen()?,
@@ -345,21 +336,7 @@ impl<'enc, 'prl, 'mm> Session<'enc, 'prl, 'mm> {
     /// Return [`BadInput`] if the JPEG data is invalid, [`NotSupported`] or [`Jbrd`] if it
     /// cannot be recompressed, [`ApiUsage`], [`OutOfMemory`], [`GenericError`], or
     /// [`UnspecifiedError`]
-    pub fn add_jpeg_frame(
-        &mut self,
-        data: &[u8],
-    ) -> eros::Result<
-        (),
-        (
-            OutOfMemory,
-            ApiUsage,
-            NotSupported,
-            GenericError,
-            BadInput,
-            Jbrd,
-            UnspecifiedError,
-        ),
-    > {
+    pub fn add_jpeg_frame(&mut self, data: &[u8]) -> eros::Result<(), AddJpegFrameErrors> {
         let settings = self.create_frame_settings(&self.frame_settings()).widen()?;
         // SAFETY: `settings` is valid and the size matches `data`
         let status = unsafe { JxlEncoderAddJPEGFrame(settings, data.as_ptr().cast(), data.len()) };
