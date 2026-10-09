@@ -28,7 +28,10 @@ use eros::{IntoUnion, ReshapeUnion};
 
 use crate::{
     common::PixelType,
-    errors::{EncoderStatus, InvalidFrameName, InvalidState},
+    errors::{
+        ApiUsage, BadInput, GenericError, InvalidFrameName, InvalidState, Jbrd, NotSupported,
+        OutOfMemory, UnspecifiedError,
+    },
 };
 
 /// An encoding session that is driven by the caller.
@@ -65,7 +68,7 @@ impl<'enc, 'prl, 'mm> Session<'enc, 'prl, 'mm> {
     pub(crate) fn new(
         enc: &'enc mut JxlEncoder<'prl, 'mm>,
         info: Option<&ImageInfo>,
-    ) -> eros::Result<Self, (EncoderStatus,)> {
+    ) -> eros::Result<Self, (ApiUsage, OutOfMemory, GenericError, UnspecifiedError)> {
         let session = Self {
             enc,
             output: Vec::new(),
@@ -73,24 +76,34 @@ impl<'enc, 'prl, 'mm> Session<'enc, 'prl, 'mm> {
         };
         session.setup(info)?;
         for (t, data, compress) in &session.enc.boxes {
-            session.add_box(*t, data, *compress)?;
+            session.add_box(*t, data, *compress).widen()?;
         }
         Ok(session)
     }
 
-    fn setup(&self, info: Option<&ImageInfo>) -> eros::Result<(), (EncoderStatus,)> {
+    fn setup(
+        &self,
+        info: Option<&ImageInfo>,
+    ) -> eros::Result<(), (ApiUsage, OutOfMemory, GenericError, UnspecifiedError)> {
         let enc = &*self.enc;
         if let Some(runner) = enc.parallel_runner {
             // SAFETY: `enc.enc` is valid until drop and the runner outlives it
-            enc.check_enc_status(unsafe {
+            enc.check_enc_status::<(ApiUsage, OutOfMemory, UnspecifiedError), _, _>(unsafe {
                 JxlEncoderSetParallelRunner(enc.enc, runner.runner(), runner.as_opaque_ptr())
-            })?;
+            })
+            .widen()?;
         }
         // SAFETY: `enc.enc` is valid until drop
-        enc.check_enc_status(unsafe { JxlEncoderUseContainer(enc.enc, enc.use_container.into()) })?;
+        enc.check_enc_status::<(ApiUsage, UnspecifiedError), _, _>(unsafe {
+            JxlEncoderUseContainer(enc.enc, enc.use_container.into())
+        })
+        .widen()?;
         if enc.use_box {
             // SAFETY: `enc.enc` is valid until drop
-            enc.check_enc_status(unsafe { JxlEncoderUseBoxes(enc.enc) })?;
+            enc.check_enc_status::<(ApiUsage, UnspecifiedError), _, _>(unsafe {
+                JxlEncoderUseBoxes(enc.enc)
+            })
+            .widen()?;
         }
 
         let Some(info) = info else {
@@ -131,12 +144,16 @@ impl<'enc, 'prl, 'mm> Session<'enc, 'prl, 'mm> {
         }
 
         // SAFETY: `enc.enc` is valid until drop
-        enc.check_enc_status(unsafe { JxlEncoderSetBasicInfo(enc.enc, &raw const basic_info) })?;
+        enc.check_enc_status::<(ApiUsage, UnspecifiedError), _, _>(unsafe {
+            JxlEncoderSetBasicInfo(enc.enc, &raw const basic_info)
+        })
+        .widen()?;
         if let Some(color_encoding) = &enc.color_encoding {
             // SAFETY: `enc.enc` is valid until drop
-            enc.check_enc_status(unsafe {
+            enc.check_enc_status::<(ApiUsage, GenericError, UnspecifiedError), _, _>(unsafe {
                 JxlEncoderSetColorEncoding(enc.enc, &color_encoding.into())
-            })?;
+            })
+            .widen()?;
         }
         Ok(())
     }
@@ -144,12 +161,12 @@ impl<'enc, 'prl, 'mm> Session<'enc, 'prl, 'mm> {
     /// Add a metadata box
     ///
     /// # Errors
-    /// Return [`EncoderStatus`] if it fails to add the box
+    /// Return the failure if it fails to add the box
     pub fn add_metadata(
         &mut self,
         metadata: &Metadata,
         compress: bool,
-    ) -> eros::Result<(), (EncoderStatus,)> {
+    ) -> eros::Result<(), (ApiUsage, OutOfMemory, UnspecifiedError)> {
         let (t, data) = metadata.parts();
         self.add_box(t, data, compress)
     }
@@ -159,12 +176,15 @@ impl<'enc, 'prl, 'mm> Session<'enc, 'prl, 'mm> {
         t: [u8; 4],
         data: &[u8],
         compress: bool,
-    ) -> eros::Result<(), (EncoderStatus,)> {
+    ) -> eros::Result<(), (ApiUsage, OutOfMemory, UnspecifiedError)> {
         let enc = &*self.enc;
         // SAFETY: `enc.enc` is valid until drop
-        enc.check_enc_status(unsafe { JxlEncoderUseBoxes(enc.enc) })?;
+        enc.check_enc_status::<(ApiUsage, UnspecifiedError), _, _>(unsafe {
+            JxlEncoderUseBoxes(enc.enc)
+        })
+        .widen()?;
         // SAFETY: `enc.enc` is valid until drop
-        enc.check_enc_status(unsafe {
+        enc.check_enc_status::<(ApiUsage, OutOfMemory, UnspecifiedError), _, _>(unsafe {
             JxlEncoderAddBox(
                 enc.enc,
                 &Metadata::box_type(t),
@@ -173,6 +193,7 @@ impl<'enc, 'prl, 'mm> Session<'enc, 'prl, 'mm> {
                 compress.into(),
             )
         })
+        .widen()
     }
 
     /// The settings a frame uses unless it has its own,
@@ -186,25 +207,37 @@ impl<'enc, 'prl, 'mm> Session<'enc, 'prl, 'mm> {
     fn create_frame_settings(
         &self,
         settings: &FrameSettings,
-    ) -> eros::Result<*mut JxlEncoderFrameSettings, (EncoderStatus,)> {
+    ) -> eros::Result<
+        *mut JxlEncoderFrameSettings,
+        (OutOfMemory, ApiUsage, NotSupported, UnspecifiedError),
+    > {
         let enc = &*self.enc;
         // SAFETY: `enc.enc` is valid until drop
         let ptr = unsafe { JxlEncoderFrameSettingsCreate(enc.enc, null()) };
         if ptr.is_null() {
-            return Err(EncoderStatus(JxlEncoderError::OutOfMemory).into());
+            return Err(OutOfMemory).union();
         }
 
         let set = |id, value| {
             // SAFETY: `ptr` is valid until the encoder is reset
-            enc.check_enc_status(unsafe { JxlEncoderFrameSettingsSetOption(ptr, id, value) })
+            enc.check_enc_status::<(ApiUsage, NotSupported, UnspecifiedError), _, _>(unsafe {
+                JxlEncoderFrameSettingsSetOption(ptr, id, value)
+            })
+            .widen()
         };
         if let Some(lossless) = settings.lossless {
             // SAFETY: `ptr` is valid until the encoder is reset
-            enc.check_enc_status(unsafe { JxlEncoderSetFrameLossless(ptr, lossless.into()) })?;
+            enc.check_enc_status::<(ApiUsage, UnspecifiedError), _, _>(unsafe {
+                JxlEncoderSetFrameLossless(ptr, lossless.into())
+            })
+            .widen()?;
         }
         set(JxlEncoderFrameSettingId::Effort, settings.speed as _)?;
         // SAFETY: `ptr` is valid until the encoder is reset
-        enc.check_enc_status(unsafe { JxlEncoderSetFrameDistance(ptr, settings.quality) })?;
+        enc.check_enc_status::<(ApiUsage, UnspecifiedError), _, _>(unsafe {
+            JxlEncoderSetFrameDistance(ptr, settings.quality)
+        })
+        .widen()?;
         set(
             JxlEncoderFrameSettingId::DecodingSpeed,
             settings.decoding_speed,
@@ -218,12 +251,22 @@ impl<'enc, 'prl, 'mm> Session<'enc, 'prl, 'mm> {
     /// Add a frame of pixels
     ///
     /// # Errors
-    /// Return [`EncoderStatus`] if the frame is invalid, or [`InvalidFrameName`] if its name
+    /// Return the `libjxl` failure if the frame is invalid, or [`InvalidFrameName`] if its name
     /// contains a NUL byte
     pub fn add_frame<T: PixelType>(
         &mut self,
         frame: &EncoderFrame<T>,
-    ) -> eros::Result<(), (EncoderStatus, InvalidFrameName)> {
+    ) -> eros::Result<
+        (),
+        (
+            OutOfMemory,
+            ApiUsage,
+            NotSupported,
+            GenericError,
+            UnspecifiedError,
+            InvalidFrameName,
+        ),
+    > {
         let settings = match frame.settings {
             Some(settings) => self.create_frame_settings(settings).widen()?,
             None => self.create_frame_settings(&self.frame_settings()).widen()?,
@@ -238,14 +281,18 @@ impl<'enc, 'prl, 'mm> Session<'enc, 'prl, 'mm> {
             };
             header.duration = duration;
             // SAFETY: `settings` is valid until the encoder is reset
-            enc.check_enc_status(unsafe { JxlEncoderSetFrameHeader(settings, &raw const header) })?;
+            enc.check_enc_status::<(ApiUsage, UnspecifiedError), _, _>(unsafe {
+                JxlEncoderSetFrameHeader(settings, &raw const header)
+            })
+            .widen()?;
         }
         if let Some(name) = frame.name {
             let name = CString::new(name).map_err(InvalidFrameName).union()?;
             // SAFETY: `settings` is valid until the encoder is reset
-            enc.check_enc_status(unsafe {
+            enc.check_enc_status::<(ApiUsage, UnspecifiedError), _, _>(unsafe {
                 JxlEncoderSetFrameName(settings, name.as_ptr().cast())
-            })?;
+            })
+            .widen()?;
         }
         if frame.bit_depth_from_image {
             let bit_depth = JxlBitDepth {
@@ -254,19 +301,24 @@ impl<'enc, 'prl, 'mm> Session<'enc, 'prl, 'mm> {
                 exponent_bits_per_sample: 0,
             };
             // SAFETY: `settings` is valid until the encoder is reset
-            enc.check_enc_status(unsafe {
+            enc.check_enc_status::<(UnspecifiedError,), _, _>(unsafe {
                 JxlEncoderSetFrameBitDepth(settings, &raw const bit_depth)
-            })?;
+            })
+            .widen()?;
         }
         // SAFETY: `settings` is valid and the size matches `frame.data`
-        enc.check_enc_status(unsafe {
+        let status = unsafe {
             JxlEncoderAddImageFrame(
                 settings,
                 &frame.pixel_format(),
                 frame.data.as_ptr().cast(),
                 std::mem::size_of_val(frame.data),
             )
-        })?;
+        };
+        enc.check_enc_status::<(ApiUsage, GenericError, OutOfMemory, UnspecifiedError), _, _>(
+            status,
+        )
+        .widen()?;
         self.last_frame = LastFrame::Queued;
         Ok(())
     }
@@ -275,23 +327,49 @@ impl<'enc, 'prl, 'mm> Session<'enc, 'prl, 'mm> {
     /// Call it before adding any frame.
     ///
     /// # Errors
-    /// Return [`EncoderStatus`] if output was already taken
-    pub fn store_jpeg_metadata(&mut self) -> eros::Result<(), (EncoderStatus,)> {
+    /// Return [`ApiUsage`] if output was already taken
+    pub fn store_jpeg_metadata(&mut self) -> eros::Result<(), (ApiUsage, UnspecifiedError)> {
         // SAFETY: `self.enc.enc` is valid until drop
         self.enc
-            .check_enc_status(unsafe { JxlEncoderStoreJPEGMetadata(self.enc.enc, true.into()) })
+            .check_enc_status::<(ApiUsage, UnspecifiedError), _, _>(unsafe {
+                JxlEncoderStoreJPEGMetadata(self.enc.enc, true.into())
+            })
+            .widen()
     }
 
     /// Add a frame from JPEG data, which is recompressed losslessly
     ///
     /// # Errors
-    /// Return [`EncoderStatus`] if the JPEG data is invalid or not supported
-    pub fn add_jpeg_frame(&mut self, data: &[u8]) -> eros::Result<(), (EncoderStatus,)> {
-        let settings = self.create_frame_settings(&self.frame_settings())?;
+    /// Return the failure if the JPEG data is invalid or not supported
+    pub fn add_jpeg_frame(
+        &mut self,
+        data: &[u8],
+    ) -> eros::Result<
+        (),
+        (
+            OutOfMemory,
+            ApiUsage,
+            NotSupported,
+            GenericError,
+            BadInput,
+            Jbrd,
+            UnspecifiedError,
+        ),
+    > {
+        let settings = self.create_frame_settings(&self.frame_settings()).widen()?;
         // SAFETY: `settings` is valid and the size matches `data`
-        self.enc.check_enc_status(unsafe {
-            JxlEncoderAddJPEGFrame(settings, data.as_ptr().cast(), data.len())
-        })?;
+        let status = unsafe { JxlEncoderAddJPEGFrame(settings, data.as_ptr().cast(), data.len()) };
+        self.enc
+            .check_enc_status::<(
+                GenericError,
+                OutOfMemory,
+                Jbrd,
+                BadInput,
+                NotSupported,
+                ApiUsage,
+                UnspecifiedError,
+            ), _, _>(status)
+            .widen()?;
         self.last_frame = LastFrame::Queued;
         Ok(())
     }
@@ -301,8 +379,10 @@ impl<'enc, 'prl, 'mm> Session<'enc, 'prl, 'mm> {
     /// The frames are written as non-final frames, so only call it when more frames follow.
     ///
     /// # Errors
-    /// Return [`EncoderStatus`] if the encoder fails
-    pub fn take_output(&mut self) -> eros::Result<Vec<u8>, (EncoderStatus,)> {
+    /// Return the failure if the encoder fails
+    pub fn take_output(
+        &mut self,
+    ) -> eros::Result<Vec<u8>, (ApiUsage, GenericError, UnspecifiedError)> {
         self.process_output()?;
         if self.last_frame == LastFrame::Queued {
             self.last_frame = LastFrame::Taken;
@@ -314,9 +394,11 @@ impl<'enc, 'prl, 'mm> Session<'enc, 'prl, 'mm> {
     /// [`take_output`](Self::take_output).
     ///
     /// # Errors
-    /// Return [`EncoderStatus`] if the encoder fails, or [`InvalidState`]
+    /// Return the `libjxl` failure if the encoder fails, or [`InvalidState`]
     /// if the last frame was already taken by `take_output`
-    pub fn finish(mut self) -> eros::Result<Vec<u8>, (InvalidState, EncoderStatus)> {
+    pub fn finish(
+        mut self,
+    ) -> eros::Result<Vec<u8>, (InvalidState, ApiUsage, GenericError, UnspecifiedError)> {
         if self.last_frame == LastFrame::Taken {
             return Err(InvalidState(
                 "the last frame was written as a non-final frame",
@@ -331,7 +413,7 @@ impl<'enc, 'prl, 'mm> Session<'enc, 'prl, 'mm> {
         Ok(std::mem::take(&mut self.output))
     }
 
-    fn process_output(&mut self) -> eros::Result<(), (EncoderStatus,)> {
+    fn process_output(&mut self) -> eros::Result<(), (ApiUsage, GenericError, UnspecifiedError)> {
         let Self { enc, output, .. } = self;
         loop {
             let start = output.len();
@@ -343,7 +425,9 @@ impl<'enc, 'prl, 'mm> Session<'enc, 'prl, 'mm> {
                 unsafe { JxlEncoderProcessOutput(enc.enc, &raw mut next_out, &raw mut avail_out) };
             output.truncate(output.len() - avail_out);
             if status != JxlEncoderStatus::NeedMoreOutput {
-                return enc.check_enc_status(status);
+                return enc
+                    .check_enc_status::<(ApiUsage, GenericError, UnspecifiedError), _, _>(status)
+                    .widen();
             }
         }
     }

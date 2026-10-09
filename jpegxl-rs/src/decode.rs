@@ -31,8 +31,8 @@ use jpegxl_sys::{
 use crate::{
     common::{Endianness, PixelType},
     errors::{
-        check_dec_status, CannotCreateDecoder, DecodeError, DecoderStatus, IncompleteInput,
-        InternalError, InvalidInput,
+        check_dec_status, CannotCreateDecoder, GenericError, IncompleteInput, InternalError,
+        InvalidInput, InvalidState, UnexpectedStatus, UnsupportedBitWidth,
     },
     memory::MemoryManager,
     parallel::ParallelRunner,
@@ -221,11 +221,11 @@ impl<'pr, 'mm> JxlDecoder<'pr, 'mm> {
     /// The decoder is reset when the session is dropped.
     ///
     /// # Errors
-    /// Return a [`DecoderStatus`] if the decoder cannot be configured
+    /// Return a [`GenericError`] if the decoder cannot be configured
     pub fn session(
         &mut self,
         events: Events,
-    ) -> eros::Result<Session<'_, 'pr, 'mm>, (DecoderStatus,)> {
+    ) -> eros::Result<Session<'_, 'pr, 'mm>, (GenericError,)> {
         Session::new(self, events)
     }
 }
@@ -239,7 +239,18 @@ impl JxlDecoder<'_, '_> {
         data_type: Option<JxlDataType>,
         with_icc_profile: bool,
         reconstruct_jpeg: bool,
-    ) -> eros::Result<Decoded, DecodeError> {
+    ) -> eros::Result<
+        Decoded,
+        (
+            InvalidInput,
+            IncompleteInput,
+            GenericError,
+            UnexpectedStatus,
+            UnsupportedBitWidth,
+            InvalidState,
+            InternalError,
+        ),
+    > {
         if !check_valid_signature(data).unwrap_or(false) {
             return Err(InvalidInput).union();
         }
@@ -301,7 +312,7 @@ impl JxlDecoder<'_, '_> {
     }
 
     /// Apply the options to the decoder. Called at the start of every session
-    pub(crate) fn setup_decoder(&self, events: Events) -> eros::Result<(), (DecoderStatus,)> {
+    pub(crate) fn setup_decoder(&self, events: Events) -> eros::Result<(), (GenericError,)> {
         if let Some(runner) = self.parallel_runner {
             // SAFETY: `self.dec` is valid until drop and the runner outlives it
             check_dec_status(unsafe {
@@ -347,8 +358,22 @@ impl JxlDecoder<'_, '_> {
     /// Decode a JPEG XL image
     ///
     /// # Errors
-    /// Return a [`DecodeError`] when internal decoder fails
-    pub fn decode(&self, data: &[u8]) -> eros::Result<(Metadata, Pixels), DecodeError> {
+    /// Return the failure when the internal decoder fails
+    pub fn decode(
+        &self,
+        data: &[u8],
+    ) -> eros::Result<
+        (Metadata, Pixels),
+        (
+            InvalidInput,
+            IncompleteInput,
+            GenericError,
+            UnexpectedStatus,
+            UnsupportedBitWidth,
+            InvalidState,
+            InternalError,
+        ),
+    > {
         let (metadata, image, _) = self.decode_internal(data, None, self.icc_profile, false)?;
         let image = image.ok_or(InternalError("No image decoded")).union()?;
         Ok((metadata, image.into_pixels()))
@@ -357,11 +382,22 @@ impl JxlDecoder<'_, '_> {
     /// Decode a JPEG XL image to a specific pixel type
     ///
     /// # Errors
-    /// Return a [`DecodeError`] when internal decoder fails
+    /// Return the failure when the internal decoder fails
     pub fn decode_with<T: PixelType>(
         &self,
         data: &[u8],
-    ) -> eros::Result<(Metadata, Vec<T>), DecodeError> {
+    ) -> eros::Result<
+        (Metadata, Vec<T>),
+        (
+            InvalidInput,
+            IncompleteInput,
+            GenericError,
+            UnexpectedStatus,
+            UnsupportedBitWidth,
+            InvalidState,
+            InternalError,
+        ),
+    > {
         let (metadata, image, _) =
             self.decode_internal(data, Some(T::pixel_type()), self.icc_profile, false)?;
         let image = image.ok_or(InternalError("No image decoded")).union()?;
@@ -376,8 +412,22 @@ impl JxlDecoder<'_, '_> {
     /// You can reconstruct JPEG data or get pixels in one go
     ///
     /// # Errors
-    /// Return a [`DecodeError`] when internal decoder fails
-    pub fn reconstruct(&self, data: &[u8]) -> eros::Result<(Metadata, Data), DecodeError> {
+    /// Return the failure when the internal decoder fails
+    pub fn reconstruct(
+        &self,
+        data: &[u8],
+    ) -> eros::Result<
+        (Metadata, Data),
+        (
+            InvalidInput,
+            IncompleteInput,
+            GenericError,
+            UnexpectedStatus,
+            UnsupportedBitWidth,
+            InvalidState,
+            InternalError,
+        ),
+    > {
         let (metadata, image, jpeg) = self.decode_internal(data, None, self.icc_profile, true)?;
         let data = match (jpeg, image) {
             (Some(jpeg), _) => Data::Jpeg(jpeg),

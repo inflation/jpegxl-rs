@@ -1,5 +1,12 @@
 //! Prints what an eros error looks like to a user of this crate
-use jpegxl_rs::{decoder_builder, encoder_builder, eros::Context, errors::EncoderStatus};
+use jpegxl_rs::{
+    decoder_builder, encoder_builder,
+    eros::Context,
+    errors::{
+        GenericError, IncompleteInput, InternalError, InvalidInput, InvalidState, UnexpectedStatus,
+        UnsupportedBitWidth,
+    },
+};
 
 fn main() {
     let decoder = decoder_builder().build().unwrap();
@@ -15,14 +22,27 @@ fn main() {
     let error = encoder.encode::<u8>(&[], 0, 0).unwrap_err();
     println!("--- Display ---\n{error}");
     // Typed recovery: only the encoder status is interesting here
-    match error.narrow::<EncoderStatus, _>() {
-        Ok(EncoderStatus(code)) => println!("libjxl rejected it with {code:?}"),
+    match error.narrow::<jpegxl_rs::errors::ApiUsage, _>() {
+        Ok(e) => println!("libjxl rejected it: {e:?}"),
         Err(rest) => println!("something else: {rest}"),
     }
 
     println!(
-        "--- sizes ---\nResult<(), old DecodeError-like enum>: {}\neros::Result<(), DecodeError>: {}",
+        "--- sizes ---\nResult<(), old DecodeError-like enum>: {}\neros::Result<(), (7 decode failures)>: {}",
         std::mem::size_of::<Result<(), (u64, &'static str)>>(),
-        std::mem::size_of::<jpegxl_rs::eros::Result<(), jpegxl_rs::DecodeError>>(),
+        std::mem::size_of::<
+            jpegxl_rs::eros::Result<
+                (),
+                (
+                    InvalidInput,
+                    IncompleteInput,
+                    GenericError,
+                    UnexpectedStatus,
+                    UnsupportedBitWidth,
+                    InvalidState,
+                    InternalError,
+                ),
+            >,
+        >(),
     );
 }

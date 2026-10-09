@@ -17,6 +17,8 @@ along with jpegxl-rs.  If not, see <https://www.gnu.org/licenses/>.
 
 #![cfg_attr(docsrs, feature(doc_cfg))]
 #![cfg_attr(coverage_nightly, feature(coverage_attribute))]
+// Errors are spelled out as the exact `eros` union of each function
+#![allow(clippy::type_complexity)]
 #![doc = include_str!("../README.md")]
 
 mod common;
@@ -37,7 +39,6 @@ pub use common::Endianness;
 pub use decode::decoder_builder;
 pub use encode::encoder_builder;
 pub use eros;
-pub use errors::{DecodeError, EncodeError};
 
 pub use parallel::resizable_runner::ResizableRunner;
 pub use parallel::threads_runner::ThreadsRunner;

@@ -19,13 +19,16 @@ along with jpegxl-rs.  If not, see <https://www.gnu.org/licenses/>.
 //!
 //! Every failure is its own small type. Functions return an [`eros::ErrorUnion`]
 //! of exactly the failures they can produce, e.g.
-//! `eros::Result<_, (InvalidState, DecoderStatus)>`, so callers only handle what can
-//! actually happen. A union converts into a wider one with
+//! `eros::Result<_, (InvalidState, GenericError)>`, so callers only handle what can
+//! actually happen. The `libjxl` failures of each call are taken from the `libjxl`
+//! sources. A union converts into a wider one with
 //! [`widen`](eros::ErrorUnion::widen), and a single failure is picked out with
-//! [`narrow`](eros::ErrorUnion::narrow) or tested with
-//! [`is_inner`](eros::ErrorUnion::is_inner).
+//! [`narrow`](eros::ErrorUnion::narrow).
 
-use eros::{type_set::Contains, ErrorUnion, TypeSet};
+use eros::{
+    type_set::{Contains, GroupNarrow, SupersetOf},
+    ErrorUnion, TypeSet,
+};
 use thiserror::Error;
 
 use jpegxl_sys::{decode::JxlDecoderStatus, encoder::encode::JxlEncoderError};
@@ -40,40 +43,55 @@ pub struct CannotCreateDecoder;
 #[error("Cannot create an encoder")]
 pub struct CannotCreateEncoder;
 
-/// A `libjxl` decoder call returned a non-success status
+/// `libjxl` reported a generic error (`JXL_DEC_ERROR` or `JXL_ENC_ERR_GENERIC`)
 #[derive(Error, Debug, Clone, Copy, PartialEq, Eq)]
-#[error("{}", decoder_status_message(*.0))]
-pub struct DecoderStatus(pub JxlDecoderStatus);
+#[error(
+    "Generic Error. Please build `libjxl` from source (using `vendored` feature) \
+    in debug mode to get more information. Check `stderr` for any internal error messages."
+)]
+pub struct GenericError;
 
-fn decoder_status_message(status: JxlDecoderStatus) -> String {
-    match status {
-        JxlDecoderStatus::Error => "Generic Error. Please build `libjxl` from source (using \
-            `vendored` feature) in debug mode to get more information. Check `stderr` for any \
-            internal error messages."
-            .to_owned(),
-        s => format!("Unknown status: `{s:?}`"),
-    }
-}
-
-/// A `libjxl` encoder call failed
+/// A `libjxl` decoder call returned a status other than success or error,
+/// e.g. `NeedMoreInput` when the requested information is not decoded yet
 #[derive(Error, Debug, Clone, Copy, PartialEq, Eq)]
-#[error("{}", encoder_error_message(*.0))]
-pub struct EncoderStatus(pub JxlEncoderError);
+#[error("Unexpected decoder status: `{0:?}`")]
+pub struct UnexpectedStatus(pub JxlDecoderStatus);
 
-fn encoder_error_message(error: JxlEncoderError) -> &'static str {
-    match error {
-        JxlEncoderError::OK => "No error",
-        JxlEncoderError::Generic => {
-            "Generic Error. Please build `libjxl` from source (using `vendored` feature) in \
-            debug mode to get more information. Check `stderr` for any internal error messages."
-        }
-        JxlEncoderError::OutOfMemory => "Out of memory",
-        JxlEncoderError::Jbrd => "JPEG bitstream reconstruction data could not be represented",
-        JxlEncoderError::BadInput => "Input is invalid",
-        JxlEncoderError::NotSupported => "Encoder does not support it (yet)",
-        JxlEncoderError::ApiUsage => "The encoder API is used in an incorrect way",
-    }
-}
+/// The encoder ran out of memory (`JXL_ENC_ERR_OOM`)
+#[derive(Error, Debug, Clone, Copy, PartialEq, Eq)]
+#[error("Out of memory")]
+pub struct OutOfMemory;
+
+/// JPEG bitstream reconstruction data could not be represented, e.g. too much tail data
+/// (`JXL_ENC_ERR_JBRD`)
+#[derive(Error, Debug, Clone, Copy, PartialEq, Eq)]
+#[error("JPEG bitstream reconstruction data could not be represented")]
+pub struct Jbrd;
+
+/// Input is invalid, e.g. a corrupt JPEG file or ICC profile (`JXL_ENC_ERR_BAD_INPUT`)
+#[derive(Error, Debug, Clone, Copy, PartialEq, Eq)]
+#[error("Input is invalid")]
+pub struct BadInput;
+
+/// The encoder does not support it (yet) (`JXL_ENC_ERR_NOT_SUPPORTED`). Since libjxl v0.12,
+/// also returned when parsing a JPEG fails due to features not supported for recompression
+#[derive(Error, Debug, Clone, Copy, PartialEq, Eq)]
+#[error("Encoder does not support it (yet)")]
+pub struct NotSupported;
+
+/// The encoder API is used in an incorrect way (`JXL_ENC_ERR_API_USAGE`).
+/// A debug build of libjxl outputs a specific error message
+#[derive(Error, Debug, Clone, Copy, PartialEq, Eq)]
+#[error("The encoder API is used in an incorrect way")]
+pub struct ApiUsage;
+
+/// The encoder failed without an error code for this call
+#[derive(Error, Debug, Clone, Copy, PartialEq, Eq)]
+#[error(
+    "The encoder failed without an error code. Please build `libjxl` from source (using \
+    `vendored` feature) in debug mode to get more information."
+)]
+pub struct UnspecifiedError;
 
 /// The input does not contain a valid codestream or container
 #[derive(Error, Debug, Clone, Copy, PartialEq, Eq)]
@@ -105,34 +123,63 @@ pub struct InternalError(pub &'static str);
 #[error("Invalid session state: {0}")]
 pub struct InvalidState(pub &'static str);
 
-/// Everything [`Session::process`](crate::decode::Session::process) can fail with
-pub type ProcessError = (DecoderStatus, IncompleteInput, InternalError);
-
-/// Everything a one-shot decode, e.g. [`JxlDecoder::decode`](crate::decode::JxlDecoder::decode),
-/// can fail with
-pub type DecodeError = (
-    InvalidInput,
-    IncompleteInput,
-    DecoderStatus,
-    UnsupportedBitWidth,
-    InvalidState,
-    InternalError,
-);
-
-/// Everything a one-shot encode, e.g. [`JxlEncoder::encode`](crate::encode::JxlEncoder::encode),
-/// can fail with
-pub type EncodeError = (EncoderStatus, InvalidFrameName, InvalidState);
-
-/// Error mapping from underlying C const to [`DecoderStatus`], in any union that contains it
-pub(crate) fn check_dec_status<S, I>(status: JxlDecoderStatus) -> eros::Result<(), S>
+/// Map a decoder status to the failures `S` of the call that returned it.
+///
+/// A status outside `S` contradicts the `libjxl` sources, and becomes a [`GenericError`]
+pub(crate) fn check_dec_status<S, I, J>(status: JxlDecoderStatus) -> eros::Result<(), S>
 where
     S: TypeSet,
-    S::Variants: Contains<DecoderStatus, I>,
+    S::Variants: Contains<GenericError, J>,
+    <(GenericError, UnexpectedStatus) as TypeSet>::Variants: SupersetOf<S::Variants, I>,
 {
-    match status {
-        JxlDecoderStatus::Success => Ok(()),
-        _ => Err(ErrorUnion::new(DecoderStatus(status))),
-    }
+    let error: ErrorUnion<(GenericError, UnexpectedStatus)> = match status {
+        JxlDecoderStatus::Success => return Ok(()),
+        JxlDecoderStatus::Error => ErrorUnion::new(GenericError),
+        s => ErrorUnion::new(UnexpectedStatus(s)),
+    };
+    Err(error
+        .narrow::<S, GroupNarrow<I>>()
+        .unwrap_or_else(|_| ErrorUnion::new(GenericError)))
+}
+
+/// Map an encoder error code to the failures `S` of the call that failed.
+///
+/// `libjxl` keeps the code of an earlier failure, and some failures set none, so a code
+/// outside `S` becomes an [`UnspecifiedError`]
+pub(crate) fn enc_error<S, I, J>(error: JxlEncoderError) -> ErrorUnion<S>
+where
+    S: TypeSet,
+    S::Variants: Contains<UnspecifiedError, J>,
+    <(
+        GenericError,
+        OutOfMemory,
+        Jbrd,
+        BadInput,
+        NotSupported,
+        ApiUsage,
+        UnspecifiedError,
+    ) as TypeSet>::Variants: SupersetOf<S::Variants, I>,
+{
+    let error: ErrorUnion<(
+        GenericError,
+        OutOfMemory,
+        Jbrd,
+        BadInput,
+        NotSupported,
+        ApiUsage,
+        UnspecifiedError,
+    )> = match error {
+        JxlEncoderError::OK => ErrorUnion::new(UnspecifiedError),
+        JxlEncoderError::Generic => ErrorUnion::new(GenericError),
+        JxlEncoderError::OutOfMemory => ErrorUnion::new(OutOfMemory),
+        JxlEncoderError::Jbrd => ErrorUnion::new(Jbrd),
+        JxlEncoderError::BadInput => ErrorUnion::new(BadInput),
+        JxlEncoderError::NotSupported => ErrorUnion::new(NotSupported),
+        JxlEncoderError::ApiUsage => ErrorUnion::new(ApiUsage),
+    };
+    error
+        .narrow::<S, GroupNarrow<I>>()
+        .unwrap_or_else(|_| ErrorUnion::new(UnspecifiedError))
 }
 
 #[cfg(test)]
@@ -154,12 +201,22 @@ mod tests {
         )
         .is_some());
 
-        let status: eros::Result<(), (DecoderStatus,)> = check_dec_status(JxlDecoderStatus::Error);
-        assert_eq!(*status.unwrap_err(), DecoderStatus(JxlDecoderStatus::Error));
+        let status: eros::Result<(), (GenericError, UnexpectedStatus)> =
+            check_dec_status(JxlDecoderStatus::Error);
+        assert!(failure::<GenericError, _, _>(&status).is_some());
 
-        let status: eros::Result<(), (DecoderStatus,)> =
-            check_dec_status(JxlDecoderStatus::BasicInfo);
+        let status: eros::Result<(), (GenericError, UnexpectedStatus)> =
+            check_dec_status(JxlDecoderStatus::NeedMoreInput);
+        assert_eq!(
+            failure(&status),
+            Some(&UnexpectedStatus(JxlDecoderStatus::NeedMoreInput))
+        );
         println!("{x}, {x:?}", x = status.unwrap_err());
+
+        // A status the call never returns folds into the generic error
+        let status: eros::Result<(), (GenericError,)> =
+            check_dec_status(JxlDecoderStatus::NeedMoreInput);
+        assert_eq!(*status.unwrap_err(), GenericError);
 
         Ok(())
     }
@@ -171,15 +228,29 @@ mod tests {
 
         println!("{}", encoder.encode::<u8>(&[], 0, 0).err().unwrap());
 
-        let api_usage = Some(&EncoderStatus(JxlEncoderError::ApiUsage));
-        assert_eq!(failure(&encoder.encode::<u8>(&[], 0, 0)), api_usage);
-        assert_eq!(
-            failure(&encoder.encode::<f32>(&[1.0, 1.0, 1.0, 0.5], 1, 1)),
-            api_usage
+        assert!(failure::<ApiUsage, _, _>(&encoder.encode::<u8>(&[], 0, 0)).is_some());
+        assert!(
+            failure::<ApiUsage, _, _>(&encoder.encode::<f32>(&[1.0, 1.0, 1.0, 0.5], 1, 1))
+                .is_some()
         );
 
-        println!("{x}, {x:?}", x = EncoderStatus(JxlEncoderError::OK));
-
         Ok(())
+    }
+
+    #[test]
+    fn encoder_codes_outside_the_call_are_unspecified() {
+        let error: ErrorUnion<(ApiUsage, UnspecifiedError)> = enc_error(JxlEncoderError::ApiUsage);
+        assert!(error.narrow::<ApiUsage, _>().is_ok());
+
+        // A stale code from an earlier call, or none at all
+        for code in [JxlEncoderError::OutOfMemory, JxlEncoderError::OK] {
+            let error: ErrorUnion<(ApiUsage, UnspecifiedError)> = enc_error(code);
+            assert_eq!(
+                error.narrow::<UnspecifiedError, _>().ok(),
+                Some(UnspecifiedError)
+            );
+        }
+        let x = UnspecifiedError;
+        println!("{x}, {x:?}");
     }
 }

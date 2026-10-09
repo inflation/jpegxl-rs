@@ -22,7 +22,7 @@ use jpegxl_sys::{
         JxlColorEncoding, JxlColorSpace, JxlPrimaries, JxlRenderingIntent, JxlTransferFunction,
         JxlWhitePoint,
     },
-    encoder::encode::{JxlEncoderError, JxlEncoderFrameSettingId},
+    encoder::encode::JxlEncoderFrameSettingId,
 };
 use pretty_assertions::assert_eq;
 use testresult::TestResult;
@@ -32,7 +32,7 @@ use crate::{
     decoder_builder,
     encode::{ColorEncoding, EncoderFrame, FrameSettings, ImageInfo, Metadata},
     encoder_builder,
-    errors::{EncoderStatus, InvalidFrameName, InvalidState},
+    errors::{InvalidFrameName, InvalidState, Jbrd, NotSupported},
     tests::failure,
     Endianness,
 };
@@ -110,12 +110,8 @@ fn jpeg() -> TestResult {
 fn jpeg_unsupported_features() -> TestResult {
     let mut encoder = encoder_builder().build()?;
 
-    assert!(matches!(
-        failure(&encoder.encode_jpeg(super::SAMPLE_JPEG_CMYK)),
-        Some(EncoderStatus(
-            JxlEncoderError::Jbrd | JxlEncoderError::NotSupported
-        ))
-    ));
+    let error = encoder.encode_jpeg(super::SAMPLE_JPEG_CMYK).unwrap_err();
+    assert!(error.narrow::<(Jbrd, NotSupported), _>().is_ok());
 
     Ok(())
 }
