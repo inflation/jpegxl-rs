@@ -28,6 +28,7 @@ along with jpegxl-rs.  If not, see <https://www.gnu.org/licenses/>.
 //! A union converts into a wider one with [`widen`](eros::ErrorUnion::widen), and a failure
 //! or a group of them is picked out with [`narrow`](eros::ErrorUnion::narrow).
 
+use eros::{type_set::Contains, ErrorUnion, TypeSet};
 use thiserror::Error;
 
 /// A session method is called at the wrong time
@@ -39,3 +40,14 @@ pub struct InvalidState(pub(crate) &'static str);
 #[derive(Error, Debug, Clone, Copy, PartialEq, Eq)]
 #[error("Internal error, please file an issue: {0}")]
 pub struct InternalError(pub(crate) &'static str);
+
+/// Report a failure that the flow of the caller rules out, e.g. as the handler of
+/// [`try_recover`](eros::ReshapeUnion::try_recover). No test can reach it
+#[cfg_attr(coverage_nightly, coverage(off))]
+pub(crate) fn bug<T, S, I>(message: &'static str) -> eros::Result<T, S>
+where
+    S: TypeSet,
+    S::Variants: Contains<InternalError, I>,
+{
+    Err(ErrorUnion::new(InternalError(message)))
+}

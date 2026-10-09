@@ -30,7 +30,7 @@ use jpegxl_sys::{
 
 use crate::{
     common::{Endianness, PixelType},
-    errors::{InternalError, InvalidState},
+    errors::{bug, InternalError, InvalidState},
     memory::MemoryManager,
     parallel::ParallelRunner,
     utils::check_valid_signature,
@@ -255,6 +255,9 @@ impl JxlDecoder<'_, '_> {
             .context("configure the decoder")
             .widen()?;
         let (mut icc, mut image, mut jpeg) = (None, None, None);
+        // Events come in order, so the information is always there
+        let no_icc = |_: ErrorUnion<(NotAvailableYet,)>| bug("no ICC profile on its event");
+        let no_info = |_: ErrorUnion<(InvalidState, NotAvailableYet)>| bug("no basic info");
         let mut input = data;
         loop {
             match session.process(&mut input).widen()? {
@@ -264,19 +267,14 @@ impl JxlDecoder<'_, '_> {
                         session
                             .icc_profile(ColorProfileTarget::Data)
                             .context("read the ICC profile")
-                            .try_recover(|_: ErrorUnion<(NotAvailableYet,)>| {
-                                Err(InternalError("the ICC profile is missing on its event"))
-                                    .union()
-                            })?,
+                            .try_recover(no_icc)?,
                     );
                 }
                 Event::NeedImageOutBuffer => {
                     session
                         .alloc_image_buffer(self.pixel_format.unwrap_or_default(), data_type)
                         .context("allocate the image buffer")
-                        .try_recover(|_: ErrorUnion<(InvalidState, NotAvailableYet)>| {
-                            Err(InternalError("basic info is missing on an image event")).union()
-                        })?;
+                        .try_recover(no_info)?;
                 }
                 Event::FullImage(img) => image = img,
                 Event::Jpeg(buf) => jpeg = Some(buf),
@@ -383,11 +381,11 @@ impl JxlDecoder<'_, '_> {
     /// Return one of [`DecodeErrors`] when decoding fails
     pub fn reconstruct(&self, data: &[u8]) -> eros::Result<(Metadata, Data), DecodeErrors> {
         let (metadata, image, jpeg) = self.decode_internal(data, None, self.icc_profile, true)?;
-        let data = match (jpeg, image) {
-            (Some(jpeg), _) => Data::Jpeg(jpeg),
-            (None, Some(image)) => Data::Pixels(image.into_pixels()),
-            (None, None) => return Err(InternalError("No image decoded")).union(),
-        };
+        let data = jpeg
+            .map(Data::Jpeg)
+            .or_else(|| image.map(|image| Data::Pixels(image.into_pixels())))
+            .ok_or(InternalError("No image decoded"))
+            .union()?;
         Ok((metadata, data))
     }
 }

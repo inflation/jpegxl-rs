@@ -27,7 +27,7 @@ use super::{
     BasicInfo, BoxHeader, ColorProfileTarget, Event, Events, FrameInfo, Image, JxlDecoder,
     PixelFormat,
 };
-use eros::{IntoUnion, ReshapeUnion};
+use eros::{type_set::SupersetOf, IntoUnion, ReshapeUnion, TypeSet};
 
 use super::{
     check_dec_status, GenericError, IncompleteInput, NotAvailableYet, UnsupportedBitWidth,
@@ -77,12 +77,16 @@ impl Sink {
         }
     }
 
-    fn attach(
+    fn attach<S, I>(
         &mut self,
         set: impl FnOnce(*mut u8, usize) -> d::JxlDecoderStatus,
-    ) -> eros::Result<(), (GenericError,)> {
+    ) -> eros::Result<(), S>
+    where
+        S: TypeSet,
+        S::Variants: SupersetOf<<(GenericError,) as TypeSet>::Variants, I>,
+    {
         let rest = &mut self.buf[self.written..];
-        check_dec_status(set(rest.as_mut_ptr(), rest.len()))
+        check_dec_status::<(GenericError,), _, _>(set(rest.as_mut_ptr(), rest.len())).widen()
     }
 
     /// `remaining` is what libjxl returned from releasing the buffer
@@ -327,8 +331,7 @@ impl<'dec, 'pr, 'mm> Session<'dec, 'pr, 'mm> {
             s::JPEGReconstruction => {
                 let mut sink = Sink::new(self.dec.init_jpeg_buffer);
                 // SAFETY: `self.jpeg` keeps the buffer until it is released
-                sink.attach(|ptr, len| unsafe { d::JxlDecoderSetJPEGBuffer(dec, ptr, len) })
-                    .widen()?;
+                sink.attach(|ptr, len| unsafe { d::JxlDecoderSetJPEGBuffer(dec, ptr, len) })?;
                 self.jpeg = Some(sink);
                 Event::JpegReconstruction
             }
@@ -341,8 +344,7 @@ impl<'dec, 'pr, 'mm> Session<'dec, 'pr, 'mm> {
                 // SAFETY: the decoder is valid while the session borrows it
                 sink.grow(unsafe { d::JxlDecoderReleaseJPEGBuffer(dec) });
                 // SAFETY: `self.jpeg` keeps the buffer until it is released
-                sink.attach(|ptr, len| unsafe { d::JxlDecoderSetJPEGBuffer(dec, ptr, len) })
-                    .widen()?;
+                sink.attach(|ptr, len| unsafe { d::JxlDecoderSetJPEGBuffer(dec, ptr, len) })?;
                 return Ok(None);
             }
             s::Box => {
@@ -358,8 +360,7 @@ impl<'dec, 'pr, 'mm> Session<'dec, 'pr, 'mm> {
                 // SAFETY: the decoder is valid while the session borrows it
                 sink.grow(unsafe { d::JxlDecoderReleaseBoxBuffer(dec) });
                 // SAFETY: `self.boxed` keeps the buffer until it is released
-                sink.attach(|ptr, len| unsafe { d::JxlDecoderSetBoxBuffer(dec, ptr, len) })
-                    .widen()?;
+                sink.attach(|ptr, len| unsafe { d::JxlDecoderSetBoxBuffer(dec, ptr, len) })?;
                 return Ok(None);
             }
             s::BoxComplete => {
@@ -628,8 +629,7 @@ impl<'dec, 'pr, 'mm> Session<'dec, 'pr, 'mm> {
         self.release_box();
         let mut sink = Sink::new(size);
         // SAFETY: `self.boxed` keeps the buffer until it is released
-        sink.attach(|ptr, len| unsafe { d::JxlDecoderSetBoxBuffer(dec, ptr, len) })
-            .widen()?;
+        sink.attach(|ptr, len| unsafe { d::JxlDecoderSetBoxBuffer(dec, ptr, len) })?;
         self.boxed = Some(sink);
         Ok(())
     }

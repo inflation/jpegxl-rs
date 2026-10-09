@@ -109,15 +109,18 @@ mod tests {
 
     #[test]
     fn encoder_codes() {
-        // No code, or the code of an earlier call
-        assert_eq!(
-            EncoderFailure::from(JxlEncoderError::OK),
-            EncoderFailure::Unspecified
-        );
-        assert_eq!(
-            EncoderFailure::from(JxlEncoderError::Jbrd),
-            EncoderFailure::Jbrd
-        );
+        for (code, failure) in [
+            // No code, or the code of an earlier call
+            (JxlEncoderError::OK, EncoderFailure::Unspecified),
+            (JxlEncoderError::Generic, EncoderFailure::Generic),
+            (JxlEncoderError::OutOfMemory, EncoderFailure::OutOfMemory),
+            (JxlEncoderError::Jbrd, EncoderFailure::Jbrd),
+            (JxlEncoderError::BadInput, EncoderFailure::BadInput),
+            (JxlEncoderError::NotSupported, EncoderFailure::NotSupported),
+            (JxlEncoderError::ApiUsage, EncoderFailure::ApiUsage),
+        ] {
+            assert_eq!(EncoderFailure::from(code), failure);
+        }
         let x = EncoderFailure::Unspecified;
         println!("{x}, {x:?}");
     }

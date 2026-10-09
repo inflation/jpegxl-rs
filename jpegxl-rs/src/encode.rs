@@ -23,11 +23,11 @@ use bon::bon;
 #[allow(clippy::wildcard_imports)]
 use jpegxl_sys::encoder::encode::*;
 
-use eros::{type_set::Contains, ErrorUnion, IntoUnion, ReshapeUnion, TypeSet};
+use eros::{type_set::Contains, ErrorUnion, ReshapeUnion, TypeSet};
 
 use crate::{
     common::PixelType,
-    errors::{InternalError, InvalidState},
+    errors::{bug, InternalError, InvalidState},
     memory::MemoryManager,
     parallel::ParallelRunner,
 };
@@ -298,9 +298,7 @@ impl<'prl, 'mm> JxlEncoder<'prl, 'mm> {
         session.add_jpeg_frame(data).widen()?;
         session
             .finish()
-            .try_recover(|_: ErrorUnion<(InvalidState,)>| {
-                Err(InternalError("the last frame is never taken")).union()
-            })
+            .try_recover(|_: ErrorUnion<(InvalidState,)>| bug("last frame taken"))
     }
 
     /// Encode a JPEG XL image from pixels, with the bit depth of `T`
@@ -337,9 +335,7 @@ impl<'prl, 'mm> JxlEncoder<'prl, 'mm> {
         session.add_frame(frame).widen()?;
         session
             .finish()
-            .try_recover(|_: ErrorUnion<(InvalidState,)>| {
-                Err(InternalError("the last frame is never taken")).union()
-            })
+            .try_recover(|_: ErrorUnion<(InvalidState,)>| bug("last frame taken"))
     }
 }
 

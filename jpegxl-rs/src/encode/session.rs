@@ -15,7 +15,11 @@
  * along with jpegxl-rs.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-use std::{ffi::CString, mem::MaybeUninit, ptr::null};
+use std::{
+    ffi::CString,
+    mem::MaybeUninit,
+    ptr::{null, NonNull},
+};
 
 #[allow(clippy::wildcard_imports)]
 use jpegxl_sys::{
@@ -190,9 +194,9 @@ impl<'enc, 'prl, 'mm> Session<'enc, 'prl, 'mm> {
         let enc = &*self.enc;
         // SAFETY: `enc.enc` is valid until drop
         let ptr = unsafe { JxlEncoderFrameSettingsCreate(enc.enc, null()) };
-        if ptr.is_null() {
-            return Err(EncoderFailure::OutOfMemory.into());
-        }
+        let ptr = NonNull::new(ptr)
+            .ok_or(EncoderFailure::OutOfMemory)?
+            .as_ptr();
 
         let set = |id, value| {
             // SAFETY: `ptr` is valid until the encoder is reset
