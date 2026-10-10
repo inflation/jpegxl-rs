@@ -30,6 +30,7 @@ bench = []
 [dependencies]
 image = { version = "0.25", optional = true, default-features = false }
 thiserror = "2.0.18"
+eros = { version = "0.8.1", default-features = false, features = ["std"] }
 half = "2.7.1"
 byteorder = "1.5.0"
 bon = "3.9.1"
@@ -47,6 +48,7 @@ image = { version = "0.25", default-features = false, features = [
 lcms2 = "6.1.1"
 pretty_assertions = "1.4.1"
 testresult = "0.4.1"
+eros = { version = "0.8.1", features = ["context", "backtrace"] }
 
 [target.'cfg(not(target_family = "wasm"))'.dev-dependencies]
 criterion = "0.7.0"

@@ -139,17 +139,19 @@ pub(crate) mod tests {
 
     #[test]
     fn out_of_memory_fails_creation() {
-        use crate::{DecodeError, EncodeError, ThreadsRunner};
+        use crate::{
+            decode::CannotCreateDecoder, encode::CannotCreateEncoder, tests::failure, ThreadsRunner,
+        };
 
         let mm = BumpManager::new(0);
-        assert!(matches!(
-            decoder_builder().memory_manager(&mm).build(),
-            Err(DecodeError::CannotCreateDecoder)
-        ));
-        assert!(matches!(
-            encoder_builder().memory_manager(&mm).build(),
-            Err(EncodeError::CannotCreateEncoder)
-        ));
+        assert!(failure::<CannotCreateDecoder, _, _>(
+            &decoder_builder().memory_manager(&mm).build()
+        )
+        .is_some());
+        assert!(failure::<CannotCreateEncoder, _, _>(
+            &encoder_builder().memory_manager(&mm).build()
+        )
+        .is_some());
         assert!(ThreadsRunner::new(Some(&mm), None).is_none());
     }
 

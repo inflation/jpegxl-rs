@@ -15,156 +15,57 @@ You should have received a copy of the GNU General Public License
 along with jpegxl-rs.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-//! Decoder and encoder errors
+//! Errors shared by the decoder and the encoder
+//!
+//! Functions return an [`eros::ErrorUnion`] of the kinds of failure they can produce, e.g.
+//! `eros::Result<_, (InvalidState, GenericError)>`. Each kind is one type: `libjxl` failures
+//! are [`GenericError`](crate::decode::GenericError) and
+//! [`EncoderFailure`](crate::encode::EncoderFailure), and the others are errors of this
+//! crate. They live next to the API that returns them, in [`decode`](crate::decode) and
+//! [`encode`](crate::encode), and the shared ones here. A failure that cannot happen in a
+//! function's flow is reported as [`InternalError`] instead of being passed on.
+//!
+//! A union converts into a wider one with [`widen`](eros::ErrorUnion::widen), and a failure
+//! or a group of them is picked out with [`narrow`](eros::ErrorUnion::narrow).
 
+use eros::{type_set::Contains, ErrorUnion, TypeSet};
 use thiserror::Error;
 
-use jpegxl_sys::{decode::JxlDecoderStatus, encoder::encode::JxlEncoderError};
+/// A session method is called at the wrong time
+#[derive(Error, Debug, Clone, Copy, PartialEq, Eq)]
+#[error("Invalid session state: {0}")]
+pub struct InvalidState(pub(crate) &'static str);
 
-/// Errors derived from [`JxlDecoderStatus`]
-#[derive(Error, Debug)]
-#[non_exhaustive]
-pub enum DecodeError {
-    /// Cannot create a decoder
-    #[error("Cannot create a decoder")]
-    CannotCreateDecoder,
-    /// Unknown Error
-    #[error(
-        "Generic Error. Please build `libjxl` from source (using `vendored` feature) 
-        in debug mode to get more information. Check `stderr` for any internal error messages."
-    )]
-    GenericError,
-    /// Invalid input
-    #[error("The input does not contain a valid codestream or container")]
-    InvalidInput,
-    /// Unsupported Pixel bit width
-    #[error("Unsupported Pixel bit width: {0}")]
-    UnsupportedBitWidth(u32),
-    /// Internal error, usually invalid usages of the `libjxl` library
-    #[error("Internal error, please file an issus: {0}")]
-    InternalError(&'static str),
-    /// Unknown status
-    #[error("Unknown status: `{0:?}`")]
-    UnknownStatus(JxlDecoderStatus),
-    /// A [`Session`](crate::decode::Session) method is called at the wrong time
-    #[error("Invalid session state: {0}")]
-    InvalidState(&'static str),
-    /// Feature not yet implemented in this wrapper
-    #[error("Feature not yet implemented: {0}")]
-    NotImplemented(&'static str),
-}
+/// A bug in this crate, e.g. a failure that cannot happen in the flow of the function
+#[derive(Error, Debug, Clone, Copy, PartialEq, Eq)]
+#[error("Internal error, please file an issue: {0}")]
+pub struct InternalError(pub(crate) &'static str);
 
-/// Errors derived from [`JxlEncoderStatus`][jpegxl_sys::encoder::encode::JxlEncoderStatus]
-/// and [`JxlEncoderError`]
-#[derive(Error, Debug)]
-#[non_exhaustive]
-pub enum EncodeError {
-    /// Cannot create an encoder
-    #[error("Cannot create an encoder")]
-    CannotCreateEncoder,
-    /// Generic Error
-    #[error(
-        "Generic Error. Please build `libjxl` from source (using `vendored` feature) 
-        in debug mode to get more information. Check `stderr` for any internal error messages."
-    )]
-    GenericError,
-    /// Not Supported. Since libjxl v0.12, also returned when parsing the JPEG
-    /// given to [`encode_jpeg`][crate::encode::JxlEncoder::encode_jpeg] fails
-    /// due to features not supported for recompression
-    #[error("Encoder does not support it (yet)")]
-    NotSupported,
-    /// Need more output
-    #[error("Need more output")]
-    NeedMoreOutput,
-    /// Out of memory
-    #[error("Out of memory")]
-    OutOfMemory,
-    /// JPEG bitstream reconstruction data could not be represented (e.g. too much tail data)
-    #[error("JPEG bitstream reconstruction data could not be represented")]
-    Jbrd,
-    /// Input is invalid (e.g. corrupt JPEG file or ICC profile)
-    #[error("Input is invalid")]
-    BadInput,
-    /// The encoder API is used in an incorrect way. In this case,
-    /// a debug build of libjxl should output a specific error message
-    #[error("The encoder API is used in an incorrect way")]
-    ApiUsage,
-    /// A [`Session`](crate::encode::Session) method is called at the wrong time
-    #[error("Invalid session state: {0}")]
-    InvalidState(&'static str),
-    /// Unknown status
-    #[error("Unknown status: `{0:?}`")]
-    UnknownStatus(JxlEncoderError),
-}
-
-/// Error mapping from underlying C const to [`DecodeError`] enum
-pub(crate) fn check_dec_status(status: JxlDecoderStatus) -> Result<(), DecodeError> {
-    match status {
-        JxlDecoderStatus::Success => Ok(()),
-        JxlDecoderStatus::Error => Err(DecodeError::GenericError),
-        _ => Err(DecodeError::UnknownStatus(status)),
-    }
+/// Handler for [`try_recover`](eros::ReshapeUnion::try_recover) of failures that the flow of
+/// the caller rules out. They are reported as an [`InternalError`], with the original failure
+/// as context. No test can reach it
+#[cfg_attr(coverage_nightly, coverage(off))]
+pub(crate) fn ruled_out<E, T, S, I>(failure: ErrorUnion<E>) -> eros::Result<T, S>
+where
+    E: TypeSet,
+    S: TypeSet,
+    S::Variants: Contains<InternalError, I>,
+{
+    let error: ErrorUnion<S> = ErrorUnion::new(InternalError("a failure that the flow rules out"));
+    Err(error.context(failure.into_inner()))
 }
 
 #[cfg(test)]
 mod tests {
-    use testresult::TestResult;
-
-    use crate::encode::JxlEncoder;
-
     use super::*;
 
     #[test]
-    #[cfg_attr(coverage_nightly, coverage(off))]
-    fn decode_invalid_data() -> TestResult {
-        let decoder = crate::decoder_builder().build()?;
-        assert!(matches!(
-            decoder.decode_with::<u8>(&[]),
-            Err(DecodeError::InvalidInput)
-        ));
-        assert!(matches!(
-            decoder.decode_with::<u8>(&[0; 64]),
-            Err(DecodeError::InvalidInput)
-        ));
-        assert!(matches!(
-            decoder.decode(&crate::tests::SAMPLE_JXL[..100]),
-            Err(DecodeError::GenericError)
-        ));
-
-        assert!(matches!(
-            check_dec_status(JxlDecoderStatus::Error),
-            Err(DecodeError::GenericError)
-        ));
-
-        println!(
-            "{x}, {x:?}",
-            x = check_dec_status(JxlDecoderStatus::BasicInfo).unwrap_err()
-        );
-
-        Ok(())
-    }
-
-    #[test]
-    #[cfg_attr(coverage_nightly, coverage(off))]
-    fn encode_invalid_data() -> TestResult {
-        let mut encoder = JxlEncoder::builder().has_alpha(true).build()?;
-
-        println!("{}", encoder.encode::<u8>(&[], 0, 0).err().unwrap());
-
-        assert!(matches!(
-            encoder.encode::<u8>(&[], 0, 0),
-            Err(EncodeError::ApiUsage)
-        ));
-        assert!(matches!(
-            encoder.encode::<f32>(&[1.0, 1.0, 1.0, 0.5], 1, 1),
-            Err(EncodeError::ApiUsage)
-        ));
-
-        println!(
-            "{x}, {x:?}",
-            x = EncodeError::UnknownStatus(JxlEncoderError::OK)
-        );
-
-        Ok(())
+    fn ruled_out_reports_a_bug_with_the_failure() {
+        let failure: ErrorUnion<(InvalidState,)> = ErrorUnion::new(InvalidState("taken"));
+        let result: eros::Result<(), (InternalError,)> = ruled_out(failure);
+        let error = result.unwrap_err();
+        let context: Vec<_> = error.contexts().map(ToString::to_string).collect();
+        assert_eq!(context, ["Invalid session state: taken"]);
+        assert_eq!(*error, InternalError("a failure that the flow rules out"));
     }
 }
