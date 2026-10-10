@@ -1,7 +1,7 @@
 //! Prints what an eros error looks like to a user of this crate
 use jpegxl_rs::{
     decoder_builder,
-    encode::{EncoderFailure, JxlEncoder},
+    encode::{Jbrd, JxlEncoder, NotSupported},
     encoder_builder,
     eros::{self, Context},
 };
@@ -12,13 +12,12 @@ fn jpeg_to_jxl(encoder: &mut JxlEncoder, jpeg: &[u8]) -> eros::Result<Vec<u8>> {
         Ok(data) => return Ok(data),
         Err(error) => error,
     };
-    match error.narrow::<EncoderFailure, _>() {
-        Ok(EncoderFailure::Jbrd | EncoderFailure::NotSupported) => {
+    match error.narrow::<(Jbrd, NotSupported), _>() {
+        Ok(_) => {
             println!("cannot recompress, encoding the pixels instead");
             let image = image::load_from_memory(jpeg)?.to_rgb8();
             Ok(encoder.encode(image.as_raw(), image.width(), image.height())?)
         }
-        Ok(failure) => Err(failure.into()),
         Err(rest) => Err(rest.into()),
     }
 }

@@ -31,7 +31,7 @@ use crate::decode::{BasicInfo, Data, Event, Events};
 use crate::{
     decoder_builder,
     encode::{ColorEncoding, EncoderFrame, FrameSettings, ImageInfo, Metadata},
-    encode::{EncoderFailure, InvalidFrameName},
+    encode::{InvalidFrameName, Jbrd, NotSupported},
     encoder_builder,
     errors::InvalidState,
     tests::failure,
@@ -112,10 +112,7 @@ fn jpeg_unsupported_features() -> TestResult {
     let mut encoder = encoder_builder().build()?;
 
     let error = encoder.encode_jpeg(super::SAMPLE_JPEG_CMYK).unwrap_err();
-    assert!(matches!(
-        error.narrow::<EncoderFailure, _>(),
-        Ok(EncoderFailure::Jbrd | EncoderFailure::NotSupported)
-    ));
+    assert!(error.narrow::<(Jbrd, NotSupported), _>().is_ok());
 
     Ok(())
 }

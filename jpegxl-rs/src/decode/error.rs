@@ -22,15 +22,7 @@ use eros::{
 use jpegxl_sys::decode::JxlDecoderStatus;
 use thiserror::Error;
 
-use crate::errors::InternalError;
-
-/// `libjxl` reported a decoding error (`JXL_DEC_ERROR`)
-#[derive(Error, Debug, Clone, Copy, PartialEq, Eq)]
-#[error(
-    "Generic Error. Please build `libjxl` from source (using `vendored` feature) \
-    in debug mode to get more information. Check `stderr` for any internal error messages."
-)]
-pub struct GenericError;
+use crate::errors::{Failure, GenericError};
 
 /// `libjxl` failed to create a decoder, usually because the memory manager is out of memory
 #[derive(Error, Debug, Clone, Copy, PartialEq, Eq)]
@@ -58,15 +50,9 @@ pub struct UnsupportedBitWidth(pub u32);
 #[error("The information is not decoded yet")]
 pub struct NotAvailableYet;
 
-/// Everything a one-shot decode, e.g. [`JxlDecoder::decode`](super::JxlDecoder::decode),
-/// can fail with
-pub type DecodeErrors = (
-    InvalidInput,
-    IncompleteInput,
-    GenericError,
-    UnsupportedBitWidth,
-    InternalError,
-);
+/// What every one-shot decode, e.g. [`JxlDecoder::decode`](super::JxlDecoder::decode), can fail
+/// with: the failures a caller can act on, and one [`Failure`] for everything else
+pub type DecodeErrors = (InvalidInput, IncompleteInput, UnsupportedBitWidth, Failure);
 
 /// Map a decoder status to the failures `S` of the call that returned it.
 ///

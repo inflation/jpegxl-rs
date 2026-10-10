@@ -20,7 +20,7 @@
 use std::ptr::null;
 
 use bon::bon;
-use eros::{Context, IntoUnion, ReshapeUnion};
+use eros::{IntoUnion, ReshapeUnion};
 #[allow(clippy::wildcard_imports)]
 use jpegxl_sys::{
     common::types::JxlDataType,
@@ -30,7 +30,7 @@ use jpegxl_sys::{
 
 use crate::{
     common::{Endianness, PixelType},
-    errors::{ruled_out, InternalError, InvalidState},
+    errors::{into_failure, Failure, GenericError, InternalError, InvalidState},
     memory::MemoryManager,
     parallel::ParallelRunner,
     utils::check_valid_signature,
@@ -251,28 +251,22 @@ impl JxlDecoder<'_, '_> {
             events |= Events::JPEG_RECONSTRUCTION;
         }
 
-        let mut session = Session::new(self, events)
-            .context("configure the decoder")
-            .widen()?;
+        let mut session = Session::new(self, events).map_err(Failure::from).union()?;
         let (mut icc, mut image, mut jpeg) = (None, None, None);
         let mut input = data;
         loop {
-            match session.process(&mut input).widen()? {
+            let event = session.process(&mut input);
+            match event.try_recover(into_failure::<(GenericError, InternalError), _, _, _>)? {
                 Event::NeedMoreInput => return Err(IncompleteInput).union(),
                 Event::ColorEncoding => {
-                    icc = Some(
-                        session
-                            .icc_profile(ColorProfileTarget::Data)
-                            .context("read the ICC profile")
-                            .try_recover(ruled_out::<(NotAvailableYet,), _, _, _>)?,
-                    );
+                    let profile = session.icc_profile(ColorProfileTarget::Data);
+                    icc = Some(profile.map_err(Failure::from).union()?);
                 }
                 Event::NeedImageOutBuffer => {
-                    session
-                        .alloc_image_buffer(self.pixel_format.unwrap_or_default(), data_type)
-                        .context("allocate the image buffer")
-                        // Basic info always comes before the image
-                        .try_recover(ruled_out::<(InvalidState, NotAvailableYet), _, _, _>)?;
+                    let format = self.pixel_format.unwrap_or_default();
+                    session.alloc_image_buffer(format, data_type).try_recover(
+                        into_failure::<(InvalidState, GenericError, NotAvailableYet), _, _, _>,
+                    )?;
                 }
                 Event::FullImage(img) => image = img,
                 Event::Jpeg(buf) => jpeg = Some(buf),
@@ -284,6 +278,7 @@ impl JxlDecoder<'_, '_> {
         let info = session
             .basic_info()
             .ok_or(InternalError("No basic info"))
+            .map_err(Failure::from)
             .union()?;
         let metadata = Metadata {
             width: info.xsize,
@@ -347,24 +342,34 @@ impl JxlDecoder<'_, '_> {
     /// Decode a JPEG XL image
     ///
     /// # Errors
-    /// Return one of [`DecodeErrors`] when decoding fails
+    /// Return [`InvalidInput`] if the data is not JPEG XL, [`IncompleteInput`] if it is
+    /// truncated, [`UnsupportedBitWidth`] to decode it to a chosen pixel type instead, or a
+    /// [`Failure`]
     pub fn decode(&self, data: &[u8]) -> eros::Result<(Metadata, Pixels), DecodeErrors> {
         let (metadata, image, _) = self.decode_internal(data, None, self.icc_profile, false)?;
-        let image = image.ok_or(InternalError("No image decoded")).union()?;
+        let image = image
+            .ok_or(InternalError("No image decoded"))
+            .map_err(Failure::from)
+            .union()?;
         Ok((metadata, image.into_pixels()))
     }
 
     /// Decode a JPEG XL image to a specific pixel type
     ///
     /// # Errors
-    /// Return one of [`DecodeErrors`] when decoding fails
+    /// Return [`InvalidInput`] if the data is not JPEG XL, [`IncompleteInput`] if it is
+    /// truncated, [`UnsupportedBitWidth`] to decode it to a chosen pixel type instead, or a
+    /// [`Failure`]
     pub fn decode_with<T: PixelType>(
         &self,
         data: &[u8],
     ) -> eros::Result<(Metadata, Vec<T>), DecodeErrors> {
         let (metadata, image, _) =
             self.decode_internal(data, Some(T::pixel_type()), self.icc_profile, false)?;
-        let image = image.ok_or(InternalError("No image decoded")).union()?;
+        let image = image
+            .ok_or(InternalError("No image decoded"))
+            .map_err(Failure::from)
+            .union()?;
 
         debug_assert_eq!(T::pixel_type(), image.format.data_type);
         Ok((metadata, T::convert(&image.data, &image.format)))
@@ -376,7 +381,9 @@ impl JxlDecoder<'_, '_> {
     /// You can reconstruct JPEG data or get pixels in one go
     ///
     /// # Errors
-    /// Return one of [`DecodeErrors`] when decoding fails
+    /// Return [`InvalidInput`] if the data is not JPEG XL, [`IncompleteInput`] if it is
+    /// truncated, [`UnsupportedBitWidth`] to decode it to a chosen pixel type instead, or a
+    /// [`Failure`]
     pub fn reconstruct(&self, data: &[u8]) -> eros::Result<(Metadata, Data), DecodeErrors> {
         let (metadata, image, jpeg) = self.decode_internal(data, None, self.icc_profile, true)?;
         let data = jpeg
@@ -384,7 +391,9 @@ impl JxlDecoder<'_, '_> {
             .or_else(|| image.map(|i| Data::Pixels(i.into_pixels())));
         Ok((
             metadata,
-            data.ok_or(InternalError("No image decoded")).union()?,
+            data.ok_or(InternalError("No image decoded"))
+                .map_err(Failure::from)
+                .union()?,
         ))
     }
 }
