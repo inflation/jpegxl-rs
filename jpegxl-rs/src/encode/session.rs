@@ -195,6 +195,8 @@ impl<'enc, 'prl, 'mm> Session<'enc, 'prl, 'mm> {
             JxlEncoderFrameSettingId::DecodingSpeed,
             settings.decoding_speed,
         )?;
+        // libjxl 0.13 can strip opaque alpha by default.
+        set(JxlEncoderFrameSettingId::StripAlpha, 0)?;
         for &(id, value) in &settings.options {
             set(id, value)?;
         }

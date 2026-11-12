@@ -361,6 +361,18 @@ pub enum JxlEncoderFrameSettingId {
     ///     for the first frame (the `ftyp` version cannot be changed once written).
     OutputMode = 40,
 
+    /// Control alpha stripping for images with exactly one extra channel (alpha).
+    /// -1 = automatic (strip opaque alpha in lossy mode and keep it in lossless mode).
+    /// 0 = keep alpha, 1 = strip alpha, 2 = strip only fully opaque alpha.
+    ///
+    /// The first frame's setting applies to the codestream. Single-frame
+    /// auto-detection requires closing the frames before processing output.
+    StripAlpha = 41,
+
+    /// Control low-frequency smoothing during lossless JPEG recompression.
+    /// -1 = automatic, 0 = disabled, 1 = enabled.
+    JpegReconLfs = 42,
+
     /// Enum value not to be used as an option. This value is added to force the
     /// C compiler to have the enum to take a known size.
     FillEnum = 65535,

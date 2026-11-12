@@ -156,12 +156,12 @@ pub struct JxlBasicInfo {
     /// can always convert to linear or non-linear sRGB or to XYB). If the original
     /// profile is used, the decoder outputs pixel data in the color space matching
     /// that profile, but doesn't convert it to any other color space. If the
-    /// original profile is not used, the decoder only outputs the data as sRGB
-    /// (linear if outputting to floating point, nonlinear with standard sRGB
-    /// transfer function if outputting to unsigned integers) but will not convert
-    /// it to the original color profile. The decoder also does not convert to
-    /// the target display color profile. To convert the pixel data produced by
-    /// the decoder to the original color profile, one of the `JxlDecoderGetColor*`
+    /// original profile is not used and
+    /// [`JxlDecoderSetOutputColorProfile`](crate::decode::JxlDecoderSetOutputColorProfile)
+    /// is not called, the decoder converts to the original profile when it is
+    /// stored as a `JxlColorEncoding`. For an ICC profile, the decoder falls
+    /// back to linear sRGB. To convert that pixel data to the original color
+    /// profile, one of the `JxlDecoderGetColor*`
     /// functions needs to be called with
     /// [`JxlColorProfileTarget::Data`] to get the color profile of the decoder
     /// output, and then an external CMS can be used for conversion. Note that for

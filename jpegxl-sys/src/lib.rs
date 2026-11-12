@@ -76,8 +76,8 @@ mod test {
     #[cfg_attr(coverage_nightly, coverage(off))]
     fn test_bindings_version() {
         unsafe {
-            assert_eq!(JxlDecoderVersion(), 12000);
-            assert_eq!(JxlEncoderVersion(), 12000);
+            assert_eq!(JxlDecoderVersion(), 13000);
+            assert_eq!(JxlEncoderVersion(), 13000);
         }
     }
 
