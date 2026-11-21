@@ -102,6 +102,22 @@ fn maximum_quality_preserves_rgba_samples() -> TestResult {
 }
 
 #[test]
+fn padded_big_endian_frame_round_trips() -> TestResult {
+    let samples = [0x0123u16, 0x4567, 0x89ab, 0, 0xcdef, 0x7654, 0x3210];
+    let big_endian = samples.map(u16::to_be);
+    let frame = EncoderFrame::new(&big_endian)
+        .endianness(crate::Endianness::Big)
+        .align(8);
+    let encoded = encoder_builder()
+        .lossless(true)
+        .build()?
+        .encode_frame(&frame, 1, 2)?;
+    let (_, decoded) = decoder_builder().build()?.decode_with::<u16>(&encoded)?;
+    assert_eq!(decoded, [0x0123, 0x4567, 0x89ab, 0xcdef, 0x7654, 0x3210]);
+    Ok(())
+}
+
+#[test]
 fn jpeg() -> TestResult {
     let threads_runner = ThreadsRunner::default();
     let mut encoder = encoder_builder()
@@ -359,16 +375,28 @@ fn reuse_keeps_options_and_boxes() -> TestResult {
 }
 
 #[test]
+fn first_metadata_box_after_writing_a_frame() -> TestResult {
+    let info = ImageInfo::builder().width(1).height(1).build();
+    let frame = EncoderFrame::new(&[1u8, 2, 3]);
+    let mut encoder = encoder_builder().use_box(true).build()?;
+    let mut session = encoder.session(&info)?;
+    session.add_frame(&frame)?;
+    let mut output = session.take_output()?;
+    session.add_metadata(&Metadata::Xmp(super::SAMPLE_XMP), false)?;
+    session.add_frame(&frame)?;
+    output.extend(session.finish()?);
+    assert!(box_types(&output)?.contains(b"xml "));
+    Ok(())
+}
+
+#[test]
 fn session_frames() -> TestResult {
     let sample = get_sample().to_rgb8();
     let info = ImageInfo::builder()
         .width(sample.width())
         .height(sample.height())
         .build();
-    let mut encoder = encoder_builder()
-        .uses_original_profile(true)
-        .use_box(true)
-        .build()?;
+    let mut encoder = encoder_builder().uses_original_profile(true).build()?;
 
     let mut session = encoder.session(&info)?;
     let lossless = FrameSettings {

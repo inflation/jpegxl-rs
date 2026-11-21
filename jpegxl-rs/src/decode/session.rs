@@ -635,6 +635,9 @@ impl<'dec, 'pr, 'mm> Session<'dec, 'pr, 'mm> {
         format: PixelFormat,
         data_type: Option<JxlDataType>,
     ) -> Result<(), DecodeError> {
+        if self.extra_ready {
+            return Err(DecodeError::InvalidState("the frame is already decoded"));
+        }
         let data_type = if let Some(v) = data_type {
             v
         } else {
@@ -660,10 +663,6 @@ impl<'dec, 'pr, 'mm> Session<'dec, 'pr, 'mm> {
         })?;
 
         let (width, height) = self.image_dimensions()?;
-        if self.extra_ready {
-            self.extra.clear();
-            self.extra_ready = false;
-        }
         let mut data = vec![0; size];
         // SAFETY: `self.extra` keeps `data` until libjxl is done with it
         check_dec_status(unsafe {
@@ -836,6 +835,38 @@ mod tests {
                 _ => {}
             }
         }
+    }
+
+    #[test]
+    fn decodes_preview_at_its_own_dimensions() -> TestResult {
+        // A red and a green pixel in the preview of a black 4x3 image.
+        let mut input = include_bytes!("../../../samples/preview.jxl").as_slice();
+        let mut decoder = decoder_builder().build()?;
+        let mut session = decoder.session(Events::PREVIEW_IMAGE | Events::FULL_IMAGE)?;
+        let mut dimensions = Vec::new();
+        loop {
+            match session.process(&mut input)? {
+                Event::NeedPreviewOutBuffer => {
+                    session
+                        .alloc_preview_buffer(PixelFormat::default(), Some(JxlDataType::Uint8))?;
+                }
+                Event::NeedImageOutBuffer => {
+                    session.alloc_image_buffer(PixelFormat::default(), Some(JxlDataType::Uint8))?;
+                }
+                Event::PreviewImage(Some(preview)) => {
+                    dimensions.push((preview.width, preview.height));
+                    assert_eq!(preview.data, [255, 0, 0, 0, 255, 0]);
+                }
+                Event::FullImage(Some(image)) => {
+                    dimensions.push((image.width, image.height));
+                    assert_eq!(image.data, [0; 36]);
+                }
+                Event::Success => break,
+                _ => {}
+            }
+        }
+        assert_eq!(dimensions, [(2, 1), (4, 3)]);
+        Ok(())
     }
 
     const BENCH_JXL: &[u8] = include_bytes!("../../../samples/bench.jxl");
@@ -1177,6 +1208,10 @@ mod tests {
                     ));
                 }
                 Event::FullImage(_) => {
+                    assert!(matches!(
+                        session.alloc_extra_channel_buffer(0, PixelFormat::default(), None),
+                        Err(DecodeError::InvalidState(_))
+                    ));
                     let depth = session.take_extra_channel(0)?.expect("no depth channel");
                     let expected: Vec<u8> =
                         (0..128u32 * 128).map(|i| (i % 128 * 2) as u8).collect();

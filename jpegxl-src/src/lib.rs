@@ -37,50 +37,54 @@ fn cpp_runtime(os: &str, vendor: &str, environment: &str, abi: &str) -> Option<&
     }
 }
 
-fn configure_msvc(config: &mut cmake::Config, asan: bool) {
-    let target_features = env::var("CARGO_CFG_TARGET_FEATURE").unwrap_or_default();
-    let static_crt = target_features
-        .split(',')
-        .any(|feature| feature == "crt-static");
-    let runtime = if static_crt {
-        "MultiThreaded"
-    } else {
-        "MultiThreadedDLL"
-    };
-    if asan {
-        let arch = env::var("CARGO_CFG_TARGET_ARCH").expect("Cargo target architecture");
-        let arch = if arch == "x86" { "i386" } else { &arch };
-        let linker_flags = format!(
-            "clang_rt.asan_dynamic-{arch}.lib clang_rt.asan_dynamic_runtime_thunk-{arch}.lib"
-        );
-        config.define("CMAKE_EXE_LINKER_FLAGS", linker_flags);
+struct MsvcOptions {
+    static_crt: bool,
+    clang_cl_toolset: bool,
+    asan_linker_flags: Option<String>,
+}
+
+impl MsvcOptions {
+    fn from_cargo(asan: bool, var: impl Fn(&str) -> Option<String>) -> Self {
+        let target = var("TARGET").expect("Cargo target triple");
+        let build_kind = if var("HOST").as_ref() == Some(&target) {
+            "HOST"
+        } else {
+            "TARGET"
+        };
+        let generator = [
+            format!("CMAKE_GENERATOR_{target}"),
+            format!("CMAKE_GENERATOR_{}", target.replace('-', "_")),
+            format!("{build_kind}_CMAKE_GENERATOR"),
+            "CMAKE_GENERATOR".to_owned(),
+        ]
+        .iter()
+        .find_map(|key| var(key));
+        let target_features = var("CARGO_CFG_TARGET_FEATURE").unwrap_or_default();
+        let asan_linker_flags = asan.then(|| {
+            let arch = var("CARGO_CFG_TARGET_ARCH").expect("Cargo target architecture");
+            let arch = if arch == "x86" { "i386" } else { &arch };
+            format!(
+                "clang_rt.asan_dynamic-{arch}.lib clang_rt.asan_dynamic_runtime_thunk-{arch}.lib"
+            )
+        });
+        Self {
+            static_crt: target_features
+                .split(',')
+                .any(|feature| feature == "crt-static"),
+            clang_cl_toolset: generator
+                .as_deref()
+                .map_or(cfg!(windows), |name| name.starts_with("Visual Studio")),
+            asan_linker_flags,
+        }
     }
-    let target = env::var("TARGET").expect("Cargo target triple");
-    let build_kind = if env::var("HOST").as_ref() == Ok(&target) {
-        "HOST"
-    } else {
-        "TARGET"
-    };
-    let generator = [
-        format!("CMAKE_GENERATOR_{target}"),
-        format!("CMAKE_GENERATOR_{}", target.replace('-', "_")),
-        format!("{build_kind}_CMAKE_GENERATOR"),
-        "CMAKE_GENERATOR".to_owned(),
-    ]
-    .iter()
-    .find_map(|key| env::var(key).ok());
-    if generator
-        .as_deref()
-        .map_or(cfg!(windows), |name| name.starts_with("Visual Studio"))
-    {
-        config.generator_toolset("ClangCL").define(
-            "CMAKE_VS_GLOBALS",
-            "UseMultiToolTask=true;EnforceProcessCountAcrossBuilds=true",
-        );
+
+    fn runtime_library(&self) -> &'static str {
+        if self.static_crt {
+            "MultiThreaded"
+        } else {
+            "MultiThreadedDLL"
+        }
     }
-    config
-        .static_crt(static_crt)
-        .define("CMAKE_MSVC_RUNTIME_LIBRARY", runtime);
 }
 
 #[cfg_attr(coverage_nightly, coverage(off))]
@@ -152,7 +156,19 @@ pub fn build() {
         assert!(!tsan, "Thread sanitizer is not supported on Windows");
     }
     if target_env == "msvc" {
-        configure_msvc(&mut config, asan);
+        let options = MsvcOptions::from_cargo(asan, |key| env::var(key).ok());
+        if let Some(flags) = &options.asan_linker_flags {
+            config.define("CMAKE_EXE_LINKER_FLAGS", flags);
+        }
+        if options.clang_cl_toolset {
+            config.generator_toolset("ClangCL").define(
+                "CMAKE_VS_GLOBALS",
+                "UseMultiToolTask=true;EnforceProcessCountAcrossBuilds=true",
+            );
+        }
+        config
+            .static_crt(options.static_crt)
+            .define("CMAKE_MSVC_RUNTIME_LIBRARY", options.runtime_library());
     }
 
     let prefix = config.build();
@@ -184,6 +200,59 @@ pub fn build() {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn msvc_options(asan: bool, vars: &[(&str, &str)]) -> MsvcOptions {
+        MsvcOptions::from_cargo(asan, |key| {
+            vars.iter()
+                .find(|(name, _)| *name == key)
+                .map(|(_, value)| (*value).to_owned())
+        })
+    }
+
+    #[test]
+    fn native_msvc_configuration_uses_the_target_generator_and_static_crt() {
+        let options = msvc_options(
+            true,
+            &[
+                ("TARGET", "i686-pc-windows-msvc"),
+                ("HOST", "i686-pc-windows-msvc"),
+                (
+                    "CMAKE_GENERATOR_i686-pc-windows-msvc",
+                    "Visual Studio 18 2026",
+                ),
+                ("HOST_CMAKE_GENERATOR", "Ninja"),
+                ("CARGO_CFG_TARGET_FEATURE", "sse2,crt-static"),
+                ("CARGO_CFG_TARGET_ARCH", "x86"),
+            ],
+        );
+        assert!(options.clang_cl_toolset);
+        assert_eq!(options.runtime_library(), "MultiThreaded");
+        assert_eq!(
+            options.asan_linker_flags.as_deref(),
+            Some("clang_rt.asan_dynamic-i386.lib clang_rt.asan_dynamic_runtime_thunk-i386.lib")
+        );
+    }
+
+    #[test]
+    fn cross_msvc_configuration_uses_the_target_architecture_and_generator() {
+        let vars = [
+            ("TARGET", "aarch64-pc-windows-msvc"),
+            ("HOST", "x86_64-unknown-linux-gnu"),
+            ("CARGO_CFG_TARGET_ARCH", "aarch64"),
+            ("TARGET_CMAKE_GENERATOR", "Ninja"),
+            ("CMAKE_GENERATOR", "Visual Studio 18 2026"),
+        ];
+        let options = msvc_options(true, &vars);
+        assert!(!options.clang_cl_toolset);
+        assert_eq!(options.runtime_library(), "MultiThreadedDLL");
+        assert_eq!(
+            options.asan_linker_flags.as_deref(),
+            Some(
+                "clang_rt.asan_dynamic-aarch64.lib clang_rt.asan_dynamic_runtime_thunk-aarch64.lib"
+            )
+        );
+        assert!(msvc_options(false, &vars).asan_linker_flags.is_none());
+    }
 
     #[test]
     fn mingw_runtimes_follow_the_target_abi() {
