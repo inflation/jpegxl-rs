@@ -32,7 +32,7 @@ use crate::DecodeError;
 use crate::{
     decoder_builder,
     encode::{ColorEncoding, EncoderFrame, FrameSettings, ImageInfo, Metadata},
-    encoder_builder, EncodeError, Endianness,
+    encoder_builder, EncodeError,
 };
 use crate::{encode::EncoderSpeed, ResizableRunner, ThreadsRunner};
 
@@ -53,7 +53,7 @@ fn basic_info(data: &[u8]) -> Result<BasicInfo, DecodeError> {
 }
 
 fn box_types(data: &[u8]) -> Result<Vec<[u8; 4]>, DecodeError> {
-    let mut decoder = decoder_builder().build()?;
+    let mut decoder = decoder_builder().decompress(true).build()?;
     let mut session = decoder.session(Events::BOX)?;
     session.close_input();
     let mut input = data;
@@ -68,15 +68,36 @@ fn box_types(data: &[u8]) -> Result<Vec<[u8; 4]>, DecodeError> {
 }
 
 #[test]
-fn simple() -> TestResult {
-    let sample = get_sample().to_rgb8();
-    let mut encoder = encoder_builder().build()?;
+fn lossless_with_default_profile_and_empty_session_retry() -> TestResult {
+    let pixels = get_sample().to_rgb8();
+    let runner = ResizableRunner::default();
+    let mut encoder = encoder_builder()
+        .parallel_runner(&runner)
+        .lossless(true)
+        .build()?;
+    encoder.add_metadata(&Metadata::Exif(super::SAMPLE_EXIF), false);
+    let info = ImageInfo::builder().width(1).height(1).build();
+    assert!(matches!(
+        encoder.session(&info)?.finish(),
+        Err(EncodeError::InvalidState(_))
+    ));
+    let codestream = encoder.encode(pixels.as_raw(), pixels.width(), pixels.height())?;
+    assert!(box_types(&codestream)?.contains(b"Exif"));
+    let (_, decoded) = decoder_builder().build()?.decode_with::<u8>(&codestream)?;
+    assert_eq!(&decoded, pixels.as_raw());
+    Ok(())
+}
 
-    let result = encoder.encode(sample.as_raw(), sample.width(), sample.height())?;
-
-    let decoder = decoder_builder().build().expect("Failed to build decoder");
-    let _res = decoder.decode(&result)?;
-
+#[test]
+fn maximum_quality_preserves_rgba_samples() -> TestResult {
+    let pixels = [33, 21, 41, 19, 255, 63, 14, 211u8];
+    let encoded = encoder_builder()
+        .has_alpha(true)
+        .jpeg_quality(100.0)
+        .build()?
+        .encode_frame(&EncoderFrame::new(&pixels).num_channels(4), 2, 1)?;
+    let (_, decoded) = decoder_builder().build()?.decode_with::<u8>(&encoded)?;
+    assert_eq!(decoded.as_slice(), &pixels);
     Ok(())
 }
 
@@ -125,7 +146,11 @@ fn metadata() -> TestResult {
     encoder.add_metadata(&Metadata::Jumb(b"jumb"), false);
     encoder.add_metadata(&Metadata::Custom(*b"abcd", b"custom"), false);
 
-    let _res = encoder.encode(sample.as_raw(), sample.width(), sample.height())?;
+    let result = encoder.encode(sample.as_raw(), sample.width(), sample.height())?;
+    let types = box_types(&result)?;
+    for expected in [b"Exif", b"xml ", b"jumb", b"abcd"] {
+        assert!(types.contains(expected), "missing box {expected:?}");
+    }
 
     Ok(())
 }
@@ -165,19 +190,6 @@ fn builder() -> TestResult {
     ) = decoder.decode(&res)?;
     assert_eq!(num_color_channels, 3);
     assert!(has_alpha_channel);
-
-    Ok(())
-}
-
-#[test]
-fn resizable() -> TestResult {
-    let resizable_runner = ResizableRunner::default();
-    let sample = get_sample().to_rgb8();
-    let mut encoder = encoder_builder()
-        .parallel_runner(&resizable_runner)
-        .build()?;
-
-    let _res = encoder.encode(sample.as_raw(), sample.width(), sample.height())?;
 
     Ok(())
 }
@@ -229,26 +241,12 @@ fn bit_depth_differs_from_pixels() -> TestResult {
 }
 
 #[test]
-fn multi_frames() -> TestResult {
-    let sample = get_sample().to_rgb8();
-    let info = ImageInfo::builder()
-        .width(sample.width())
-        .height(sample.height())
-        .build();
-    let mut encoder = encoder_builder().use_container(true).build()?;
-
-    let frame = EncoderFrame::new(sample.as_raw())
-        .endianness(Endianness::Native)
-        .align(0);
-
-    let mut session = encoder.session(&info)?;
-    session.add_frame(&frame)?;
-    session.add_frame(&frame)?;
-    let result = session.finish()?;
+fn multiple_jpeg_frames() -> TestResult {
     let decoder = decoder_builder().build()?;
-    let _res = decoder.decode(&result)?;
-
-    encoder.uses_original_profile = true;
+    let mut encoder = encoder_builder()
+        .uses_original_profile(true)
+        .use_container(true)
+        .build()?;
     let mut session = encoder.jpeg_session()?;
     session.add_jpeg_frame(super::SAMPLE_JPEG)?;
     session.add_jpeg_frame(super::SAMPLE_JPEG)?;
@@ -273,7 +271,9 @@ fn gray() -> TestResult {
     )?;
     _ = decoder.decode(&result)?;
 
-    encoder.color_encoding = Some(ColorEncoding::LinearSrgbLuma);
+    encoder.color_encoding = Some(ColorEncoding::Custom(
+        (&ColorEncoding::LinearSrgbLuma).into(),
+    ));
     let result = encoder.encode_frame(
         &EncoderFrame::new(sample.as_raw()).num_channels(1),
         sample.width(),
@@ -287,11 +287,10 @@ fn gray() -> TestResult {
 #[test]
 fn initial_buffer() -> TestResult {
     let mut encoder = encoder_builder().init_buffer_size(0).build()?;
-    let sample = get_sample();
-    let (w, h) = (sample.width(), sample.height());
-    let _ = encoder.encode(sample.to_rgb8().as_raw(), w, h)?;
-    let _ = encoder.encode(sample.to_rgb16().as_raw(), w, h)?;
-    let _ = encoder.encode(sample.to_rgb32f().as_raw(), w, h)?;
+    assert!(encoder.init_buffer_size > 0);
+    encoder.init_buffer_size = 0;
+    let data = encoder.encode(&[1u8, 2, 3], 1, 1)?;
+    assert_eq!(basic_info(&data)?.xsize, 1);
     Ok(())
 }
 
@@ -380,8 +379,10 @@ fn session_frames() -> TestResult {
     let mut data = session.take_output()?;
     session.add_frame(&EncoderFrame::new(sample.as_raw()))?;
     data.extend(session.take_output()?);
+    session.add_metadata(&Metadata::Exif(super::SAMPLE_EXIF), false)?;
     session.add_frame(&EncoderFrame::new(sample.as_raw()).settings(&lossless))?;
     data.extend(session.finish()?);
+    assert!(box_types(&data)?.contains(b"Exif"));
 
     decoder_builder().build()?.decode(&data)?;
 

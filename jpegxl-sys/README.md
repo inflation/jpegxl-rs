@@ -7,15 +7,14 @@ For more details, refer to the [original library](https://github.com/libjxl/libj
 
 If you wish to specify a custom library path, set the `DEP_JXL_LIB` environment variable.
 
-To build `libjxl` and statically link it, use the `vendored` feature.
+To build and statically link `libjxl`, enable `vendored`. When supplying your own
+static archives through `DEP_JXL_LIB`, also link their dependencies, including the
+C++ runtime used by the native toolchain.
+
+The vendored archive includes the gain-map and compressed ICC functions. For a custom
+system installation that provides these upstream extras symbols, enable `system-extras`
+and link any separate extras archive supplied by that installation.
 
 ## Usage
 
-Check out testing units in `src/lib.rs` for some examples.
-
-### Multi-thread
-
-Because `libjxl_threads` uses `std::thread`, if you build and statically link `libjxl`, you need to
-dynamically link to `libc++` or `libstdc++`.
-
-Using the dynamic library doesn't need this step.
+The tests in `src/lib.rs` demonstrate encoding, decoding, and thread-pool setup.

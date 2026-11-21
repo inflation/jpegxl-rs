@@ -67,6 +67,8 @@ pub enum JxlWhitePoint {
 #[repr(C)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum JxlPrimaries {
+    /// Unused for grayscale and XYB output profiles.
+    Unspecified = 0,
     /// The CIE xy values of the red, green and blue primaries are: 0.639998686,
     /// 0.330010138; 0.300003784, 0.600003357; 0.150002046, 0.059997204
     SRgb = 1,
@@ -121,7 +123,7 @@ pub enum JxlRenderingIntent {
 
 /// Color encoding of the image as structured information.
 #[repr(C)]
-#[derive(Clone, Debug)]
+#[derive(Clone, Copy, Debug)]
 pub struct JxlColorEncoding {
     /// Color space of the image data.
     pub color_space: JxlColorSpace,

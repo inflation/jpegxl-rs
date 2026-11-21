@@ -67,24 +67,18 @@ impl From<&ColorEncoding> for JxlColorEncoding {
     fn from(val: &ColorEncoding) -> Self {
         use ColorEncoding::{Custom, LinearSrgb, LinearSrgbLuma, Srgb, SrgbLuma};
 
+        let grayscale = matches!(val, SrgbLuma | LinearSrgbLuma).into();
         let mut color_encoding = MaybeUninit::uninit();
-
-        // SAFETY: every arm that does not return initializes `color_encoding`
+        // SAFETY: both native setters initialize the color encoding before it is read.
         unsafe {
             match val {
-                Srgb => api::JxlColorEncodingSetToSRGB(color_encoding.as_mut_ptr(), false.into()),
-                LinearSrgb => {
-                    api::JxlColorEncodingSetToLinearSRGB(color_encoding.as_mut_ptr(), false.into());
+                Srgb | SrgbLuma => {
+                    api::JxlColorEncodingSetToSRGB(color_encoding.as_mut_ptr(), grayscale);
                 }
-                SrgbLuma => {
-                    api::JxlColorEncodingSetToSRGB(color_encoding.as_mut_ptr(), true.into());
+                LinearSrgb | LinearSrgbLuma => {
+                    api::JxlColorEncodingSetToLinearSRGB(color_encoding.as_mut_ptr(), grayscale);
                 }
-                LinearSrgbLuma => {
-                    api::JxlColorEncodingSetToLinearSRGB(color_encoding.as_mut_ptr(), true.into());
-                }
-                Custom(e) => {
-                    return e.clone();
-                }
+                Custom(profile) => return *profile,
             }
             color_encoding.assume_init()
         }
@@ -95,7 +89,8 @@ impl From<&ColorEncoding> for JxlColorEncoding {
 /// [`JxlEncoder::frame_settings`](super::JxlEncoder::frame_settings) returns the encoder defaults
 #[derive(Debug, Clone)]
 pub struct FrameSettings {
-    /// See [`JxlEncoder::lossless`](super::JxlEncoder::lossless)
+    /// For a per-frame lossless override, enable `uses_original_profile` or `lossless`
+    /// on the encoder before starting the session.
     pub lossless: Option<bool>,
     /// See [`JxlEncoder::speed`](super::JxlEncoder::speed)
     pub speed: EncoderSpeed,

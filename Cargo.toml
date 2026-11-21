@@ -1,6 +1,8 @@
 [workspace]
-members  = ["jpegxl-src", "jpegxl-sys", "jpegxl-rs"]
+members = ["jpegxl-src", "jpegxl-sys", "jpegxl-rs"]
 resolver = "2"
 
 [workspace.package]
+edition = "2021"
+repository = "https://github.com/inflation/jpegxl-rs"
 rust-version = "1.92.0"

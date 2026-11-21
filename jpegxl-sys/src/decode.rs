@@ -1081,7 +1081,7 @@ extern "C-unwind" {
         dec: *const JxlDecoder,
         index: usize,
         blend_info: *mut JxlBlendInfo,
-    );
+    ) -> JxlDecoderStatus;
 
     /// Returns the minimum size in bytes of the image output pixel buffer for the
     /// given format. This is the buffer for [`JxlDecoderSetImageOutBuffer`].

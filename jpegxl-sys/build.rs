@@ -17,34 +17,31 @@
 
 //! Build script for jpegxl-sys.
 
-use std::env;
-
 fn main() {
-    if cfg!(all(not(feature = "vendored"), not(feature = "docs"))) {
-        let version = env!("CARGO_PKG_VERSION")
-            .split('+')
-            .nth(1)
-            .and_then(|s| s.split('-').nth(1))
-            .unwrap();
+    #[cfg(feature = "vendored")]
+    jpegxl_src::build();
 
-        if let Ok(path) = env::var("DEP_JXL_LIB") {
-            println!("cargo:rustc-link-search=native={path}");
-            println!("cargo:rustc-link-lib=jxl");
-            println!("cargo:rustc-link-lib=jxl_threads");
-        } else {
-            pkg_config::Config::new()
-                .atleast_version(version)
-                .probe("libjxl")
-                .unwrap_or_else(|_| panic!("Cannot find `libjxl` with version >= {version}"));
-            pkg_config::Config::new()
-                .atleast_version(version)
-                .probe("libjxl_threads")
-                .unwrap_or_else(|_| {
-                    panic!("Cannot find `libjxl_threads` with version >= {version}")
-                });
-        }
+    if cfg!(not(any(feature = "vendored", feature = "docs"))) {
+        link_system_libraries();
+    }
+}
+
+fn link_system_libraries() {
+    let (_, version) = env!("CARGO_PKG_VERSION")
+        .split_once("+libjxl-")
+        .expect("package version includes the libjxl version");
+    println!("cargo:rerun-if-env-changed=DEP_JXL_LIB");
+    if let Ok(path) = std::env::var("DEP_JXL_LIB") {
+        println!("cargo:rustc-link-search=native={path}");
+        println!("cargo:rustc-link-lib=jxl");
+        println!("cargo:rustc-link-lib=jxl_threads");
+        println!("cargo:rustc-link-lib=jxl_cms");
     } else {
-        #[cfg(feature = "vendored")]
-        jpegxl_src::build();
+        for library in ["libjxl", "libjxl_threads", "libjxl_cms"] {
+            pkg_config::Config::new()
+                .atleast_version(version)
+                .probe(library)
+                .unwrap_or_else(|_| panic!("Cannot find `{library}` with version >= {version}"));
+        }
     }
 }

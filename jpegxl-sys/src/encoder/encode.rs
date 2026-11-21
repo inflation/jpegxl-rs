@@ -410,7 +410,7 @@ pub enum JxlEncoderFrameSettingId {
 pub struct JxlEncoderOutputProcessor {
     /// An opaque pointer that the client can use to store custom data.
     /// This data will be passed to the associated callback functions.
-    opaque: *mut c_void,
+    pub opaque: *mut c_void,
     /// Acquires a buffer at the current position into which the library will write
     /// the output data.
     ///
@@ -428,7 +428,8 @@ pub struct JxlEncoderOutputProcessor {
     /// # Returns
     /// A pointer to the acquired buffer or NULL to indicate a stop
     /// condition.
-    get_buffer: extern "C-unwind" fn(opaque: *mut c_void, size: *mut usize) -> *mut c_void,
+    pub get_buffer:
+        unsafe extern "C-unwind" fn(opaque: *mut c_void, size: *mut usize) -> *mut c_void,
     /// Notifies the user of library that the current buffer's data has been
     /// written and can be released. This function should advance the current
     /// osition of the buffer by `written_bytes` number of bytes.
@@ -436,7 +437,7 @@ pub struct JxlEncoderOutputProcessor {
     /// # Parameters
     /// - `opaque`: user supplied parameters to the callback
     /// - `written_bytes`: the number of bytes written to the buffer.
-    release_buffer: extern "C-unwind" fn(opaque: *mut c_void, written_bytes: usize),
+    pub release_buffer: unsafe extern "C-unwind" fn(opaque: *mut c_void, written_bytes: usize),
     /// Seeks to a specific position in the output. This function is optional and
     /// can be set to `None` if the output doesn't support seeking. Can only be done
     /// when there is no buffer. Cannot be used to seek before the finalized
@@ -445,7 +446,7 @@ pub struct JxlEncoderOutputProcessor {
     /// # Parameters
     /// - `opaque`: User supplied parameters to the callback.
     /// - `position`: The position to seek to, in bytes.
-    seek: Option<extern "C-unwind" fn(opaque: *mut c_void, position: u64)>,
+    pub seek: Option<unsafe extern "C-unwind" fn(opaque: *mut c_void, position: u64)>,
     /// Sets a finalized position on the output data, at a specific position.
     /// Seeking will never request a position before the finalized position.
     ///
@@ -455,7 +456,8 @@ pub struct JxlEncoderOutputProcessor {
     /// - `opaque`: User supplied parameters to the callback.
     /// - `finalized_position`: The position, in bytes, where the finalized
     ///   position should be set.
-    set_finalized_position: extern "C-unwind" fn(opaque: *mut c_void, finalized_position: u64),
+    pub set_finalized_position:
+        unsafe extern "C-unwind" fn(opaque: *mut c_void, finalized_position: u64),
 }
 
 /// This struct provides callback functions to pass pixel data in a streaming
@@ -465,7 +467,7 @@ pub struct JxlEncoderOutputProcessor {
 pub struct JxlChunkedFrameInputSource {
     /// A pointer to any user-defined data or state. This can be used to pass
     /// information to the callback functions.
-    opaque: *mut c_void,
+    pub opaque: *mut c_void,
 
     /// Get the pixel format that color channel data will be provided in.
     /// When called, `pixel_format` points to a suggested pixel format; if
@@ -473,13 +475,13 @@ pub struct JxlChunkedFrameInputSource {
     /// be more efficient.
     ///
     /// This function will be called exactly once, before any call to
-    /// [`Self::get_color_channels_data`].
+    /// [`Self::get_color_channels_data_at`].
     ///
     /// # Parameters
     /// - `opaque`: User supplied parameters to the callback.
     /// - `pixel_format`: Format for pixels.
-    get_color_channels_pixel_format:
-        extern "C-unwind" fn(opaque: *mut c_void, pixel_format: *mut JxlPixelFormat),
+    pub get_color_channels_pixel_format:
+        unsafe extern "C-unwind" fn(opaque: *mut c_void, pixel_format: *mut JxlPixelFormat),
 
     /// Callback to retrieve a rectangle of color channel data at a specific
     /// location. It is guaranteed that `xpos` and `ypos` are multiples of 8. `xsize`,
@@ -505,7 +507,7 @@ pub struct JxlChunkedFrameInputSource {
     ///
     /// # Returns
     /// Pointer to the retrieved pixel data.
-    get_color_channels_data_at: extern "C-unwind" fn(
+    pub get_color_channels_data_at: unsafe extern "C-unwind" fn(
         opaque: *mut c_void,
         xpos: usize,
         ypos: usize,
@@ -526,7 +528,7 @@ pub struct JxlChunkedFrameInputSource {
     /// - `opaque`: User supplied parameters to the callback.
     /// - `ec_index`: Zero-indexed index of the extra channel.
     /// - `pixel_format`: Format for extra channel data.
-    get_extra_channel_pixel_format: extern "C-unwind" fn(
+    pub get_extra_channel_pixel_format: unsafe extern "C-unwind" fn(
         opaque: *mut c_void,
         ec_index: usize,
         pixel_format: *mut JxlPixelFormat,
@@ -557,7 +559,7 @@ pub struct JxlChunkedFrameInputSource {
     ///
     /// # Returns
     /// Pointer to the retrieved pixel data.
-    get_extra_channel_data_at: extern "C-unwind" fn(
+    pub get_extra_channel_data_at: unsafe extern "C-unwind" fn(
         opaque: *mut c_void,
         ec_index: usize,
         xpos: usize,
@@ -576,7 +578,7 @@ pub struct JxlChunkedFrameInputSource {
     /// - `opaque`: User supplied parameters to the callback.
     /// - `buf`: Pointer returned by [`Self::get_color_channels_data_at`] or
     ///   [`Self::get_extra_channel_data_at`].
-    release_buffer: extern "C-unwind" fn(opaque: *mut c_void, buf: *const c_void),
+    pub release_buffer: unsafe extern "C-unwind" fn(opaque: *mut c_void, buf: *const c_void),
 }
 
 /// Function type for [`JxlEncoderSetDebugImageCallback`].

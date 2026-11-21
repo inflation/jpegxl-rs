@@ -20,8 +20,15 @@
 use jpegxl_sys::common::memory_manager::{JpegxlAllocFunc, JpegxlFreeFunc, JxlMemoryManager};
 
 /// General trait for a memory manager
+///
+/// # Safety
+/// The callbacks and context returned by [`Self::manager`] must stay valid
+/// while the manager is borrowed, including calls from native worker threads.
+/// Allocation must return null on failure or a suitably aligned, exclusive
+/// allocation of at least the requested size. Free must accept allocations
+/// from the same manager and null. Concurrent calls must be synchronized.
 #[allow(clippy::module_name_repetitions)]
-pub trait MemoryManager {
+pub unsafe trait MemoryManager {
     /// Return a custom allocating function
     fn alloc(&self) -> JpegxlAllocFunc;
     /// Return a custom deallocating function
@@ -40,57 +47,48 @@ pub trait MemoryManager {
 
 #[cfg(test)]
 pub(crate) mod tests {
-    use std::{
-        ffi::c_void,
-        ptr::null_mut,
-        sync::atomic::{AtomicUsize, Ordering},
-    };
+    use std::cell::UnsafeCell;
+    use std::ffi::c_void;
+    use std::ptr::null_mut;
+    use std::sync::Mutex;
 
     use testresult::TestResult;
 
-    use crate::{decoder_builder, encoder_builder};
-
     use super::*;
+    use crate::{decoder_builder, encoder_builder};
     /// Example implementation of [`MemoryManager`] of a fixed size allocator
     pub struct BumpManager {
-        arena: Vec<u8>,
-        footer: AtomicUsize,
+        arena: Box<[UnsafeCell<u128>]>,
+        next_word: Mutex<usize>,
     }
 
     impl BumpManager {
         pub(crate) fn new(n: usize) -> Self {
             Self {
-                arena: vec![0; n],
-                footer: AtomicUsize::new(0),
+                arena: (0..n / size_of::<u128>())
+                    .map(|_| UnsafeCell::new(0))
+                    .collect(),
+                next_word: Mutex::new(0),
             }
         }
     }
 
-    impl MemoryManager for BumpManager {
+    // SAFETY: locked reservations give each caller disjoint aligned storage until drop.
+    unsafe impl MemoryManager for BumpManager {
         fn alloc(&self) -> JpegxlAllocFunc {
             #[cfg_attr(coverage_nightly, coverage(off))]
             unsafe extern "C-unwind" fn alloc(opaque: *mut c_void, size: usize) -> *mut c_void {
-                let mm = &mut *opaque.cast::<BumpManager>();
-
-                let footer = mm.footer.load(Ordering::Acquire);
-                let mut new = footer + size;
-
-                loop {
-                    if new > mm.arena.len() {
-                        println!("Out of memory");
-                        break null_mut();
-                    } else if let Err(s) = mm.footer.compare_exchange_weak(
-                        footer,
-                        new,
-                        Ordering::AcqRel,
-                        Ordering::Relaxed,
-                    ) {
-                        new = s + size;
-                    } else {
-                        let addr = mm.arena.get_unchecked_mut(footer);
-                        break std::ptr::from_mut(addr).cast();
-                    }
+                // SAFETY: manager() supplies the borrowed BumpManager as context.
+                let mm = unsafe { &*opaque.cast::<BumpManager>() };
+                let words = size.max(1).div_ceil(size_of::<u128>());
+                let mut next = mm.next_word.lock().unwrap();
+                let offset = *next;
+                if words > mm.arena.len() - offset {
+                    return null_mut();
                 }
+                *next += words;
+                // SAFETY: the reservation covers at least one cell in the live arena.
+                unsafe { UnsafeCell::raw_get(mm.arena.as_ptr().add(offset)).cast() }
             }
 
             alloc
@@ -105,7 +103,8 @@ pub(crate) mod tests {
     }
     pub struct PanicManager {}
 
-    impl MemoryManager for PanicManager {
+    // SAFETY: the allocation callback unwinds before handing out any storage.
+    unsafe impl MemoryManager for PanicManager {
         fn alloc(&self) -> JpegxlAllocFunc {
             #[cfg_attr(coverage_nightly, coverage(off))]
             unsafe extern "C-unwind" fn alloc(_opaque: *mut c_void, _size: usize) -> *mut c_void {
@@ -117,8 +116,8 @@ pub(crate) mod tests {
 
         fn free(&self) -> JpegxlFreeFunc {
             #[cfg_attr(coverage_nightly, coverage(off))]
-            unsafe extern "C-unwind" fn free(_opaque: *mut c_void, _address: *mut c_void) {
-                debug_assert!(false, "Should not be called");
+            unsafe extern "C-unwind" fn free(_opaque: *mut c_void, address: *mut c_void) {
+                debug_assert!(address.is_null(), "no allocations were returned");
             }
 
             free

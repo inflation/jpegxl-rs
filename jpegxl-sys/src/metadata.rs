@@ -18,5 +18,6 @@ along with jpegxl-sys.  If not, see <https://www.gnu.org/licenses/>.
 //! `jxl_metadata`: JPEG XL metadata structures.
 
 pub mod codestream_header;
+#[cfg(any(feature = "vendored", feature = "system-extras", doc))]
 pub mod compressed_icc;
 pub mod gain_map;

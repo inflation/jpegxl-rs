@@ -18,13 +18,11 @@
 //! `image` crate integration
 
 use image::{DynamicImage, ImageBuffer};
-use jpegxl_sys::common::types::{JxlDataType, JxlPixelFormat};
+use jpegxl_sys::common::types::JxlDataType;
 
-use crate::{
-    common::PixelType,
-    decode::{JxlDecoder, Metadata},
-    DecodeError,
-};
+use crate::common::PixelType;
+use crate::decode::{Image, JxlDecoder};
+use crate::DecodeError;
 
 /// Extension trait for [`JxlDecoder`]
 pub trait ToDynamic {
@@ -48,33 +46,34 @@ pub trait ToDynamic {
 
 impl ToDynamic for JxlDecoder<'_, '_> {
     fn decode_to_image(&self, data: &[u8]) -> Result<Option<DynamicImage>, DecodeError> {
-        let (metadata, image, _) = self.decode_internal(data, None, false, false)?;
-        Ok(image.and_then(|i| to_image(&metadata, &i.format, i.data)))
+        let (_, image, _) = self.decode_internal(data, None, false, false)?;
+        Ok(image.and_then(to_image))
     }
 
     fn decode_to_image_with<T: PixelType>(
         &self,
         data: &[u8],
     ) -> Result<Option<DynamicImage>, DecodeError> {
-        let (metadata, image, _) =
-            self.decode_internal(data, Some(T::pixel_type()), false, false)?;
-        Ok(image.and_then(|i| to_image(&metadata, &i.format, i.data)))
+        let (_, image, _) = self.decode_internal(data, Some(T::pixel_type()), false, false)?;
+        Ok(image.and_then(to_image))
     }
 }
 
 fn to_image(
-    Metadata { width, height, .. }: &Metadata,
-    pixel_format: &JxlPixelFormat,
-    buffer: Vec<u8>,
+    Image {
+        width,
+        height,
+        format: pixel_format,
+        data: buffer,
+    }: Image,
 ) -> Option<DynamicImage> {
-    let (width, height) = (*width, *height);
     match (pixel_format.data_type, pixel_format.num_channels) {
         (JxlDataType::Float, 3) => {
-            ImageBuffer::from_raw(width, height, f32::convert(&buffer, pixel_format))
+            ImageBuffer::from_raw(width, height, f32::convert(&buffer, &pixel_format))
                 .map(DynamicImage::ImageRgb32F)
         }
         (JxlDataType::Float, 4) => {
-            ImageBuffer::from_raw(width, height, f32::convert(&buffer, pixel_format))
+            ImageBuffer::from_raw(width, height, f32::convert(&buffer, &pixel_format))
                 .map(DynamicImage::ImageRgba32F)
         }
         (JxlDataType::Uint8, 1) => {
@@ -90,19 +89,19 @@ fn to_image(
             ImageBuffer::from_raw(width, height, buffer).map(DynamicImage::ImageRgba8)
         }
         (JxlDataType::Uint16, 1) => {
-            ImageBuffer::from_raw(width, height, u16::convert(&buffer, pixel_format))
+            ImageBuffer::from_raw(width, height, u16::convert(&buffer, &pixel_format))
                 .map(DynamicImage::ImageLuma16)
         }
         (JxlDataType::Uint16, 2) => {
-            ImageBuffer::from_raw(width, height, u16::convert(&buffer, pixel_format))
+            ImageBuffer::from_raw(width, height, u16::convert(&buffer, &pixel_format))
                 .map(DynamicImage::ImageLumaA16)
         }
         (JxlDataType::Uint16, 3) => {
-            ImageBuffer::from_raw(width, height, u16::convert(&buffer, pixel_format))
+            ImageBuffer::from_raw(width, height, u16::convert(&buffer, &pixel_format))
                 .map(DynamicImage::ImageRgb16)
         }
         (JxlDataType::Uint16, 4) => {
-            ImageBuffer::from_raw(width, height, u16::convert(&buffer, pixel_format))
+            ImageBuffer::from_raw(width, height, u16::convert(&buffer, &pixel_format))
                 .map(DynamicImage::ImageRgba16)
         }
         _ => None,
@@ -111,17 +110,14 @@ fn to_image(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::{
-        decode::PixelFormat,
-        decoder_builder,
-        tests::{SAMPLE_JXL, SAMPLE_JXL_GRAY, SAMPLE_PNG},
-        ThreadsRunner,
-    };
-
+    use crate::decode::PixelFormat;
     use half::f16;
     use pretty_assertions::assert_eq;
     use testresult::TestResult;
+
+    use super::*;
+    use crate::tests::{SAMPLE_JXL, SAMPLE_JXL_GRAY, SAMPLE_PNG};
+    use crate::{decoder_builder, ThreadsRunner};
 
     #[test]
     #[cfg_attr(coverage_nightly, coverage(off))]
@@ -137,6 +133,10 @@ mod tests {
     fn simple() -> TestResult {
         let parallel_runner = ThreadsRunner::default();
         let decoder = decoder_builder()
+            .pixel_format(PixelFormat {
+                align: 4096,
+                ..PixelFormat::default()
+            })
             .parallel_runner(&parallel_runner)
             .build()?;
 
@@ -152,55 +152,38 @@ mod tests {
     #[test]
     #[cfg_attr(coverage_nightly, coverage(off))]
     fn pixel_type() -> TestResult {
-        let parallel_runner = ThreadsRunner::default();
-        let mut decoder = decoder_builder()
-            .parallel_runner(&parallel_runner)
-            .build()?;
+        use image::ColorType::{La16, La8, Rgb16, Rgb32F, Rgb8, Rgba16, Rgba32F, Rgba8, L16, L8};
+
+        let mut decoder = decoder_builder().build()?;
         assert!(decoder.decode_to_image_with::<f16>(SAMPLE_JXL)?.is_none());
-
-        decoder.pixel_format = Some(PixelFormat {
-            num_channels: 1,
-            ..PixelFormat::default()
-        });
-        decoder
-            .decode_to_image_with::<u8>(SAMPLE_JXL_GRAY)?
-            .unwrap();
-        decoder
-            .decode_to_image_with::<u16>(SAMPLE_JXL_GRAY)?
-            .unwrap();
-        assert!(decoder
-            .decode_to_image_with::<f32>(SAMPLE_JXL_GRAY)?
-            .is_none());
-
-        decoder.pixel_format = Some(PixelFormat {
-            num_channels: 2,
-            ..PixelFormat::default()
-        });
-        decoder
-            .decode_to_image_with::<u8>(SAMPLE_JXL_GRAY)?
-            .unwrap();
-        decoder
-            .decode_to_image_with::<u16>(SAMPLE_JXL_GRAY)?
-            .unwrap();
-        assert!(decoder
-            .decode_to_image_with::<f32>(SAMPLE_JXL_GRAY)?
-            .is_none());
-
-        decoder.pixel_format = Some(PixelFormat {
-            num_channels: 3,
-            ..PixelFormat::default()
-        });
-        decoder.decode_to_image_with::<u8>(SAMPLE_JXL)?.unwrap();
-        decoder.decode_to_image_with::<u16>(SAMPLE_JXL)?.unwrap();
-        decoder.decode_to_image_with::<f32>(SAMPLE_JXL)?.unwrap();
-
-        decoder.pixel_format = Some(PixelFormat {
-            num_channels: 4,
-            ..PixelFormat::default()
-        });
-        decoder.decode_to_image_with::<u8>(SAMPLE_JXL)?.unwrap();
-        decoder.decode_to_image_with::<u16>(SAMPLE_JXL)?.unwrap();
-        decoder.decode_to_image_with::<f32>(SAMPLE_JXL)?.unwrap();
+        for (num_channels, sample, u8_color, u16_color, f32_color) in [
+            (1, SAMPLE_JXL_GRAY, L8, L16, None),
+            (2, SAMPLE_JXL_GRAY, La8, La16, None),
+            (3, SAMPLE_JXL, Rgb8, Rgb16, Some(Rgb32F)),
+            (4, SAMPLE_JXL, Rgba8, Rgba16, Some(Rgba32F)),
+        ] {
+            decoder.pixel_format = Some(PixelFormat {
+                num_channels,
+                ..PixelFormat::default()
+            });
+            assert_eq!(
+                decoder.decode_to_image_with::<u8>(sample)?.unwrap().color(),
+                u8_color
+            );
+            assert_eq!(
+                decoder
+                    .decode_to_image_with::<u16>(sample)?
+                    .unwrap()
+                    .color(),
+                u16_color
+            );
+            assert_eq!(
+                decoder
+                    .decode_to_image_with::<f32>(sample)?
+                    .map(|image| image.color()),
+                f32_color
+            );
+        }
 
         Ok(())
     }

@@ -68,7 +68,8 @@ impl Default for ResizableRunner<'_> {
     }
 }
 
-impl ParallelRunner for ResizableRunner<'_> {
+// SAFETY: the native runner is paired with its own live, thread-confined handle.
+unsafe impl ParallelRunner for ResizableRunner<'_> {
     fn runner(&self) -> JxlParallelRunner {
         api::JxlResizableParallelRunner
     }

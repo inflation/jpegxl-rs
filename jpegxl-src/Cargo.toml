@@ -1,10 +1,10 @@
 [package]
 description = "Source of libjxl and logic to build it."
-edition = "2021"
+edition.workspace = true
 license = "BSD-3-Clause"
 name = "jpegxl-src"
 readme = "README.md"
-repository = "https://github.com/inflation/jpegxl-rs"
+repository.workspace = true
 version = "0.13.0"
 rust-version.workspace = true
 exclude = [
@@ -31,14 +31,8 @@ exclude = [
     "libjxl/plugins",
 ]
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
 [lints.rust]
-unexpected_cfgs = { level = "warn", check-cfg = [
-    'cfg(coverage_nightly)',
-    'cfg(asan)',
-    'cfg(tsan)',
-] }
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(coverage_nightly)'] }
 
 [lints.clippy]
 pedantic = "warn"

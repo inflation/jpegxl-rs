@@ -43,21 +43,6 @@ fn data_type_of(bits: u32, exponent_bits: u32) -> Result<JxlDataType, DecodeErro
     }
 }
 
-/// Output buffer owned by the session while libjxl holds a pointer to it
-struct Slot {
-    format: JxlPixelFormat,
-    data: Vec<u8>,
-}
-
-impl Slot {
-    fn into_image(self) -> Image {
-        Image {
-            format: self.format,
-            data: self.data,
-        }
-    }
-}
-
 /// Zero-filled buffer that grows when libjxl runs out of room
 struct Sink {
     buf: Vec<u8>,
@@ -90,6 +75,13 @@ impl Sink {
         self.buf.truncate(self.buf.len() - remaining);
         self.buf
     }
+}
+
+/// Keep skipped buffers alive until libjxl releases or replaces them.
+struct ExtraBuffer {
+    index: u32,
+    image: Image,
+    skipped: bool,
 }
 
 /// A decoding session that is driven by the caller.
@@ -128,12 +120,12 @@ pub struct Session<'dec, 'pr, 'mm> {
     /// Input owned by the session once it is closed
     tail: Option<Vec<u8>>,
     closing: bool,
-    image: Option<Slot>,
+    image: Option<Image>,
     /// Extra channel buffers of the current frame, with their channel index
-    extra: Vec<(u32, Slot)>,
+    extra: Vec<ExtraBuffer>,
     /// The frame is decoded, so `extra` holds final pixels that libjxl no longer writes to
     extra_ready: bool,
-    preview: Option<Slot>,
+    preview: Option<Image>,
     jpeg: Option<Sink>,
     boxed: Option<Sink>,
 }
@@ -148,9 +140,7 @@ impl<'dec, 'pr, 'mm> Session<'dec, 'pr, 'mm> {
             // The collected box is only handed back by `BoxComplete`
             events |= Events::BOX_COMPLETE;
         }
-        dec.setup_decoder(events)?;
-
-        Ok(Self {
+        let session = Self {
             dec,
             events,
             basic_info: None,
@@ -163,7 +153,10 @@ impl<'dec, 'pr, 'mm> Session<'dec, 'pr, 'mm> {
             preview: None,
             jpeg: None,
             boxed: None,
-        })
+        };
+        // Drop resets partially applied options if setup fails.
+        dec.setup_decoder(events)?;
+        Ok(session)
     }
 
     /// Basic information, available after [`Event::BasicInfo`]
@@ -268,6 +261,11 @@ impl<'dec, 'pr, 'mm> Session<'dec, 'pr, 'mm> {
         use d::JxlDecoderStatus as s;
         let dec = self.dec.dec;
 
+        if self.extra_ready && matches!(status, s::Frame | s::NeedImageOutBuffer | s::FullImage) {
+            self.extra.clear();
+            self.extra_ready = false;
+        }
+
         Ok(Some(match status {
             s::Error => return Err(DecodeError::GenericError),
             s::NeedMoreInput if self.tail.is_some() => return Err(DecodeError::GenericError),
@@ -292,11 +290,12 @@ impl<'dec, 'pr, 'mm> Session<'dec, 'pr, 'mm> {
             s::ColorEncoding => Event::ColorEncoding,
             s::NeedPreviewOutBuffer => Event::NeedPreviewOutBuffer,
             // libjxl is done with the preview buffer once this event is emitted
-            s::PreviewImage => Event::PreviewImage(self.preview.take().map(Slot::into_image)),
+            s::PreviewImage => Event::PreviewImage(self.preview.take()),
             s::Frame => Event::Frame(self.frame_info()?),
             s::NeedImageOutBuffer => Event::NeedImageOutBuffer,
             s::FrameProgression => Event::FrameProgression,
             s::FullImage => {
+                self.extra.retain(|buffer| !buffer.skipped);
                 self.extra_ready = true;
                 match self.jpeg.take() {
                     Some(sink) => {
@@ -306,7 +305,7 @@ impl<'dec, 'pr, 'mm> Session<'dec, 'pr, 'mm> {
                     }
                     // libjxl is done with the frame buffer once this event is emitted; it asks
                     // for a new one with `NeedImageOutBuffer` before writing the next frame
-                    None => Event::FullImage(self.image.take().map(Slot::into_image)),
+                    None => Event::FullImage(self.image.take()),
                 }
             }
             s::JPEGReconstruction => {
@@ -359,14 +358,31 @@ impl<'dec, 'pr, 'mm> Session<'dec, 'pr, 'mm> {
         }
     }
 
+    fn frame_header(&self) -> Result<JxlFrameHeader, DecodeError> {
+        let mut header = MaybeUninit::uninit();
+        // SAFETY: the decoder is valid while the session borrows it.
+        check_dec_status(unsafe {
+            d::JxlDecoderGetFrameHeader(self.dec.dec, header.as_mut_ptr())
+        })?;
+        // SAFETY: GetFrameHeader initialized the header.
+        Ok(unsafe { header.assume_init() })
+    }
+
+    fn image_dimensions(&self) -> Result<(u32, u32), DecodeError> {
+        if self.dec.coalescing == Some(false) {
+            let layer = self.frame_header()?.layer_info;
+            Ok((layer.xsize, layer.ysize))
+        } else {
+            let info = self
+                .basic_info()
+                .ok_or(DecodeError::InvalidState("basic info is not available yet"))?;
+            Ok((info.xsize, info.ysize))
+        }
+    }
+
     fn frame_info(&self) -> Result<FrameInfo, DecodeError> {
         let dec = self.dec.dec;
-        let mut header = MaybeUninit::<JxlFrameHeader>::uninit();
-        // SAFETY: the decoder is valid while the session borrows it
-        check_dec_status(unsafe { d::JxlDecoderGetFrameHeader(dec, header.as_mut_ptr()) })?;
-        // SAFETY: `GetFrameHeader` succeeded
-        let header = unsafe { header.assume_init() };
-
+        let header = self.frame_header()?;
         let mut name = vec![0u8; header.name_length as usize + 1];
         // SAFETY: the decoder is valid while the session borrows it, and `name` has room for the NUL
         check_dec_status(unsafe {
@@ -497,6 +513,7 @@ impl<'dec, 'pr, 'mm> Session<'dec, 'pr, 'mm> {
         format: JxlPixelFormat,
         mut data: Vec<u8>,
     ) -> Result<(), DecodeError> {
+        let (width, height) = self.image_dimensions()?;
         // SAFETY: `self.image` keeps `data` until libjxl is done with it
         check_dec_status(unsafe {
             d::JxlDecoderSetImageOutBuffer(
@@ -507,7 +524,12 @@ impl<'dec, 'pr, 'mm> Session<'dec, 'pr, 'mm> {
             )
         })?;
         // The previous buffer is only dropped once libjxl points at the new one
-        self.image = Some(Slot { format, data });
+        self.image = Some(Image {
+            width,
+            height,
+            format,
+            data,
+        });
         Ok(())
     }
 
@@ -547,6 +569,8 @@ impl<'dec, 'pr, 'mm> Session<'dec, 'pr, 'mm> {
         })?;
 
         let mut data = vec![0; size];
+        let layer = self.frame_header()?.layer_info;
+        let (width, height) = (layer.xsize, layer.ysize);
         // SAFETY: `self.preview` keeps `data` until libjxl is done with it
         check_dec_status(unsafe {
             d::JxlDecoderSetPreviewOutBuffer(
@@ -556,7 +580,12 @@ impl<'dec, 'pr, 'mm> Session<'dec, 'pr, 'mm> {
                 data.len(),
             )
         })?;
-        self.preview = Some(Slot { format, data });
+        self.preview = Some(Image {
+            width,
+            height,
+            format,
+            data,
+        });
         Ok(())
     }
 
@@ -630,6 +659,7 @@ impl<'dec, 'pr, 'mm> Session<'dec, 'pr, 'mm> {
             )
         })?;
 
+        let (width, height) = self.image_dimensions()?;
         if self.extra_ready {
             self.extra.clear();
             self.extra_ready = false;
@@ -645,12 +675,21 @@ impl<'dec, 'pr, 'mm> Session<'dec, 'pr, 'mm> {
                 index,
             )
         })?;
-        self.extra.retain(|(i, _)| *i != index);
-        self.extra.push((index, Slot { format, data }));
+        self.extra.retain(|buffer| buffer.index != index);
+        self.extra.push(ExtraBuffer {
+            index,
+            skipped: false,
+            image: Image {
+                width,
+                height,
+                format,
+                data,
+            },
+        });
         Ok(())
     }
 
-    /// Pixels of extra channel `index`, after [`Event::FullImage`]
+    /// Pixels of extra channel `index`, after [`Event::FullImage`] and before the next frame.
     ///
     /// # Errors
     /// Return a [`DecodeError`] if the frame is not fully decoded yet
@@ -661,8 +700,8 @@ impl<'dec, 'pr, 'mm> Session<'dec, 'pr, 'mm> {
         Ok(self
             .extra
             .iter()
-            .position(|(i, _)| *i == index)
-            .map(|pos| self.extra.swap_remove(pos).1.into_image()))
+            .position(|buffer| buffer.index == index)
+            .map(|pos| self.extra.swap_remove(pos).image))
     }
 
     /// Skip the next `amount` frames. Their events are not emitted.
@@ -679,7 +718,11 @@ impl<'dec, 'pr, 'mm> Session<'dec, 'pr, 'mm> {
     /// Return a [`DecodeError`] if no frame is being decoded
     pub fn skip_current_frame(&mut self) -> Result<(), DecodeError> {
         // SAFETY: the decoder is valid while the session borrows it
-        check_dec_status(unsafe { d::JxlDecoderSkipCurrentFrame(self.dec.dec) })
+        check_dec_status(unsafe { d::JxlDecoderSkipCurrentFrame(self.dec.dec) })?;
+        for buffer in &mut self.extra {
+            buffer.skipped = true;
+        }
+        Ok(())
     }
 }
 
@@ -1014,7 +1057,7 @@ mod tests {
     }
 
     #[test]
-    fn extra_channel_of_every_layer() -> TestResult {
+    fn extra_channels_belong_to_the_requested_layer() -> TestResult {
         let pixels = vec![200u8; 8 * 8 * 4];
         let frame = crate::encode::EncoderFrame::new(&pixels).num_channels(4);
         let info = crate::encode::ImageInfo::builder()
@@ -1024,31 +1067,46 @@ mod tests {
             .build();
         let mut encoder = crate::encoder_builder().build()?;
         let mut enc = encoder.session(&info)?;
-        enc.add_frame(&frame)?;
-        enc.add_frame(&frame)?;
+        for _ in 0..5 {
+            enc.add_frame(&frame)?;
+        }
         let data = enc.finish()?;
 
         let mut decoder = decoder_builder().coalescing(false).build()?;
         let mut session = decoder.session(Events::FULL_IMAGE)?;
         let mut input = data.as_slice();
-        let mut layers = 0;
+        let mut layer = 0;
+        let mut completed = 0;
         loop {
             match session.process(&mut input)? {
                 Event::NeedImageOutBuffer => {
                     session.alloc_image_buffer(PixelFormat::default(), None)?;
-                    let format = PixelFormat::default();
-                    session.alloc_extra_channel_buffer(0, format, Some(JxlDataType::Uint16))?;
+                    layer += 1;
+                    if layer % 2 == 1 {
+                        session.alloc_extra_channel_buffer(
+                            0,
+                            PixelFormat::default(),
+                            Some(JxlDataType::Uint16),
+                        )?;
+                    }
+                    if layer == 1 {
+                        session.skip_current_frame()?;
+                    }
                 }
                 Event::FullImage(_) => {
-                    let alpha = session.take_extra_channel(0)?.expect("no alpha channel");
-                    assert_eq!(alpha.format.data_type, JxlDataType::Uint16);
-                    layers += 1;
+                    // Layer 1 was skipped, and layer 3's alpha is deliberately uncollected.
+                    if layer == 2 || layer == 4 {
+                        assert!(session.take_extra_channel(0)?.is_none());
+                    }
+                    completed += 1;
                 }
                 Event::Success => break,
                 _ => {}
             }
         }
-        assert_eq!(layers, 2);
+        assert_eq!((layer, completed), (5, 4));
+        let alpha = session.take_extra_channel(0)?.expect("no alpha channel");
+        assert_eq!(alpha.format.data_type, JxlDataType::Uint16);
         Ok(())
     }
 
