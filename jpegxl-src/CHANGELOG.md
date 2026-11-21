@@ -2,6 +2,30 @@
 
 ## [Unreleased]
 
+## [0.13.0]
+
+### ⛰️ Features
+
+- *(decode)* Add a caller-driven Session - ([522d0cb](https://github.com/inflation/jpegxl-rs/commit/522d0cba26289fb15c67680b7c02edcbe673f92f))
+
+### 🐛 Bug Fixes
+
+- Keep encoder lookup tables distinct under AddressSanitizer - ([9456196](https://github.com/inflation/jpegxl-rs/commit/945619605f3ddbc2db8008c44cd9d07b819a26b8))
+- [**breaking**] Correct codec session state and libjxl bindings - ([e84bb2e](https://github.com/inflation/jpegxl-rs/commit/e84bb2e1851d09fbf069e5f75eac3388eca46d60))
+
+### 🧪 Testing
+
+- Cover MSVC configuration and streaming codec boundaries - ([4870065](https://github.com/inflation/jpegxl-rs/commit/4870065f4af2e605cc6f8cf5df66567a8bdb296f))
+
+### Build
+
+- Move vendored libjxl configuration into CMake - ([314b4f4](https://github.com/inflation/jpegxl-rs/commit/314b4f4268a8bcd2b514740e5593853f41603d90))
+
+### Dep
+
+- Update libjxl to v0.13.0 - ([0b0bcfc](https://github.com/inflation/jpegxl-rs/commit/0b0bcfc43dccad8c197907594cae39f2b9523a38))
+
+
 ## [0.12.0]
 
 ### ⚙️ Miscellaneous Tasks

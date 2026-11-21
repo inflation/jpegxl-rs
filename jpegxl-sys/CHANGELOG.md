@@ -2,6 +2,21 @@
 
 ## [Unreleased]
 
+## [0.14.0+libjxl-0.13.0]
+
+### ⛰️ Features
+
+- *(decode)* Add a caller-driven Session - ([522d0cb](https://github.com/inflation/jpegxl-rs/commit/522d0cba26289fb15c67680b7c02edcbe673f92f))
+
+### 🐛 Bug Fixes
+
+- [**breaking**] Correct codec session state and libjxl bindings - ([e84bb2e](https://github.com/inflation/jpegxl-rs/commit/e84bb2e1851d09fbf069e5f75eac3388eca46d60))
+
+### Dep
+
+- Update libjxl to v0.13.0 - ([0b0bcfc](https://github.com/inflation/jpegxl-rs/commit/0b0bcfc43dccad8c197907594cae39f2b9523a38))
+
+
 ## [0.13.0+libjxl-0.12.0]
 
 ### ⚙️ Miscellaneous Tasks
