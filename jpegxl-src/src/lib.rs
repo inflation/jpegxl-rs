@@ -40,11 +40,10 @@ fn cpp_runtime(os: &str, vendor: &str, environment: &str, abi: &str) -> Option<&
 struct MsvcOptions {
     static_crt: bool,
     clang_cl_toolset: bool,
-    asan_linker_flags: Option<String>,
 }
 
 impl MsvcOptions {
-    fn from_cargo(asan: bool, var: impl Fn(&str) -> Option<String>) -> Self {
+    fn from_cargo(var: impl Fn(&str) -> Option<String>) -> Self {
         let target = var("TARGET").expect("Cargo target triple");
         let build_kind = if var("HOST").as_ref() == Some(&target) {
             "HOST"
@@ -60,13 +59,6 @@ impl MsvcOptions {
         .iter()
         .find_map(|key| var(key));
         let target_features = var("CARGO_CFG_TARGET_FEATURE").unwrap_or_default();
-        let asan_linker_flags = asan.then(|| {
-            let arch = var("CARGO_CFG_TARGET_ARCH").expect("Cargo target architecture");
-            let arch = if arch == "x86" { "i386" } else { &arch };
-            format!(
-                "clang_rt.asan_dynamic-{arch}.lib clang_rt.asan_dynamic_runtime_thunk-{arch}.lib"
-            )
-        });
         Self {
             static_crt: target_features
                 .split(',')
@@ -74,15 +66,6 @@ impl MsvcOptions {
             clang_cl_toolset: generator
                 .as_deref()
                 .map_or(cfg!(windows), |name| name.starts_with("Visual Studio")),
-            asan_linker_flags,
-        }
-    }
-
-    fn runtime_library(&self) -> &'static str {
-        if self.static_crt {
-            "MultiThreaded"
-        } else {
-            "MultiThreadedDLL"
         }
     }
 }
@@ -113,62 +96,38 @@ pub fn build() {
     println!("cargo:rerun-if-changed={}", source.display());
     let mut config = cmake::Config::new(root);
     config.define("LIBJXL_SOURCE_DIR", source);
-    config
-        .define("BUILD_TESTING", "OFF")
-        .define("BUILD_SHARED_LIBS", "OFF")
-        .define("JPEGXL_ENABLE_TOOLS", "OFF")
-        .define("JPEGXL_ENABLE_DOXYGEN", "OFF")
-        .define("JPEGXL_ENABLE_MANPAGES", "OFF")
-        .define("JPEGXL_ENABLE_BENCHMARK", "OFF")
-        .define("JPEGXL_ENABLE_EXAMPLES", "OFF")
-        .define("JPEGXL_ENABLE_JNI", "OFF")
-        .define("JPEGXL_ENABLE_SJPEG", "OFF")
-        .define("JPEGXL_ENABLE_OPENEXR", "OFF")
-        .define("JPEGXL_BUNDLE_LIBPNG", "OFF");
 
     if let Ok(p) = std::thread::available_parallelism() {
         config.env("CMAKE_BUILD_PARALLEL_LEVEL", format!("{p}"));
     }
 
-    let asan = env::var_os("CARGO_CFG_ASAN").is_some();
-    let tsan = env::var_os("CARGO_CFG_TSAN").is_some();
-    let sanitizer = if asan {
-        Some(("asan", "address"))
-    } else if tsan {
-        Some(("tsan", "thread"))
+    let sanitizer = if env::var_os("CARGO_CFG_ASAN").is_some() {
+        "address"
+    } else if env::var_os("CARGO_CFG_TSAN").is_some() {
+        "thread"
     } else {
-        None
+        ""
     };
-    if let Some((name, kind)) = sanitizer {
-        let define = kind.to_ascii_uppercase();
-        let flags = format!("-g -D{define}_SANITIZER -fsanitize={kind}");
-        config
-            .env("SANITIZER", name)
-            .cflag(&flags)
-            .cxxflag(&flags)
-            .define("JPEGXL_ENABLE_TCMALLOC", "OFF");
-    }
+    config.define("JPEGXL_RS_SANITIZER", sanitizer);
 
     let target_os = env::var("CARGO_CFG_TARGET_OS").expect("Cargo target OS");
     let target_env = env::var("CARGO_CFG_TARGET_ENV").expect("Cargo target environment");
     let target_vendor = env::var("CARGO_CFG_TARGET_VENDOR").expect("Cargo target vendor");
-    if target_os == "windows" {
-        assert!(!tsan, "Thread sanitizer is not supported on Windows");
-    }
     if target_env == "msvc" {
-        let options = MsvcOptions::from_cargo(asan, |key| env::var(key).ok());
-        if let Some(flags) = &options.asan_linker_flags {
-            config.define("CMAKE_EXE_LINKER_FLAGS", flags);
-        }
-        if options.clang_cl_toolset {
-            config.generator_toolset("ClangCL").define(
-                "CMAKE_VS_GLOBALS",
-                "UseMultiToolTask=true;EnforceProcessCountAcrossBuilds=true",
+        let options = MsvcOptions::from_cargo(|key| env::var(key).ok());
+        if sanitizer == "address" {
+            config.define(
+                "JPEGXL_RS_TARGET_ARCH",
+                env::var("CARGO_CFG_TARGET_ARCH").expect("Cargo target architecture"),
             );
         }
-        config
-            .static_crt(options.static_crt)
-            .define("CMAKE_MSVC_RUNTIME_LIBRARY", options.runtime_library());
+        if options.clang_cl_toolset {
+            config.generator_toolset("ClangCL");
+        }
+        config.static_crt(options.static_crt).define(
+            "JPEGXL_RS_STATIC_CRT",
+            if options.static_crt { "ON" } else { "OFF" },
+        );
     }
 
     let prefix = config.build();
@@ -201,8 +160,8 @@ pub fn build() {
 mod tests {
     use super::*;
 
-    fn msvc_options(asan: bool, vars: &[(&str, &str)]) -> MsvcOptions {
-        MsvcOptions::from_cargo(asan, |key| {
+    fn msvc_options(vars: &[(&str, &str)]) -> MsvcOptions {
+        MsvcOptions::from_cargo(|key| {
             vars.iter()
                 .find(|(name, _)| *name == key)
                 .map(|(_, value)| (*value).to_owned())
@@ -211,47 +170,31 @@ mod tests {
 
     #[test]
     fn native_msvc_configuration_uses_the_target_generator_and_static_crt() {
-        let options = msvc_options(
-            true,
-            &[
-                ("TARGET", "i686-pc-windows-msvc"),
-                ("HOST", "i686-pc-windows-msvc"),
-                (
-                    "CMAKE_GENERATOR_i686-pc-windows-msvc",
-                    "Visual Studio 18 2026",
-                ),
-                ("HOST_CMAKE_GENERATOR", "Ninja"),
-                ("CARGO_CFG_TARGET_FEATURE", "sse2,crt-static"),
-                ("CARGO_CFG_TARGET_ARCH", "x86"),
-            ],
-        );
+        let options = msvc_options(&[
+            ("TARGET", "i686-pc-windows-msvc"),
+            ("HOST", "i686-pc-windows-msvc"),
+            (
+                "CMAKE_GENERATOR_i686-pc-windows-msvc",
+                "Visual Studio 18 2026",
+            ),
+            ("HOST_CMAKE_GENERATOR", "Ninja"),
+            ("CARGO_CFG_TARGET_FEATURE", "sse2,crt-static"),
+        ]);
         assert!(options.clang_cl_toolset);
-        assert_eq!(options.runtime_library(), "MultiThreaded");
-        assert_eq!(
-            options.asan_linker_flags.as_deref(),
-            Some("clang_rt.asan_dynamic-i386.lib clang_rt.asan_dynamic_runtime_thunk-i386.lib")
-        );
+        assert!(options.static_crt);
     }
 
     #[test]
-    fn cross_msvc_configuration_uses_the_target_architecture_and_generator() {
+    fn cross_msvc_configuration_uses_the_target_generator_and_dynamic_crt() {
         let vars = [
             ("TARGET", "aarch64-pc-windows-msvc"),
             ("HOST", "x86_64-unknown-linux-gnu"),
-            ("CARGO_CFG_TARGET_ARCH", "aarch64"),
             ("TARGET_CMAKE_GENERATOR", "Ninja"),
             ("CMAKE_GENERATOR", "Visual Studio 18 2026"),
         ];
-        let options = msvc_options(true, &vars);
+        let options = msvc_options(&vars);
         assert!(!options.clang_cl_toolset);
-        assert_eq!(options.runtime_library(), "MultiThreadedDLL");
-        assert_eq!(
-            options.asan_linker_flags.as_deref(),
-            Some(
-                "clang_rt.asan_dynamic-aarch64.lib clang_rt.asan_dynamic_runtime_thunk-aarch64.lib"
-            )
-        );
-        assert!(msvc_options(false, &vars).asan_linker_flags.is_none());
+        assert!(!options.static_crt);
     }
 
     #[test]
