@@ -112,7 +112,9 @@ impl PixelType for f16 {
     }
 
     fn convert(data: &[u8], pixel_format: &JxlPixelFormat) -> Vec<Self> {
-        data.chunks_exact(std::mem::size_of::<f16>())
+        let (samples, _) = data.as_chunks::<2>();
+        samples
+            .iter()
             .map(|v| {
                 f16::from_bits(match pixel_format.endianness {
                     Endianness::Native => NativeEndian::read_u16(v),

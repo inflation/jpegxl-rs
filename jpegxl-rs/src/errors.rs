@@ -136,10 +136,10 @@ mod tests {
             Err(DecodeError::GenericError)
         ));
 
-        println!(
-            "{x}, {x:?}",
-            x = check_dec_status(JxlDecoderStatus::BasicInfo).unwrap_err()
-        );
+        assert!(matches!(
+            check_dec_status(JxlDecoderStatus::BasicInfo),
+            Err(DecodeError::UnknownStatus(JxlDecoderStatus::BasicInfo))
+        ));
 
         Ok(())
     }
@@ -149,8 +149,6 @@ mod tests {
     fn encode_invalid_data() -> TestResult {
         let mut encoder = JxlEncoder::builder().has_alpha(true).build()?;
 
-        println!("{}", encoder.encode::<u8>(&[], 0, 0).err().unwrap());
-
         assert!(matches!(
             encoder.encode::<u8>(&[], 0, 0),
             Err(EncodeError::ApiUsage)
@@ -159,11 +157,6 @@ mod tests {
             encoder.encode::<f32>(&[1.0, 1.0, 1.0, 0.5], 1, 1),
             Err(EncodeError::ApiUsage)
         ));
-
-        println!(
-            "{x}, {x:?}",
-            x = EncodeError::UnknownStatus(JxlEncoderError::OK)
-        );
 
         Ok(())
     }

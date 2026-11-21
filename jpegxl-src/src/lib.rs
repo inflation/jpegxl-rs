@@ -17,7 +17,6 @@
 
 #![cfg_attr(coverage_nightly, feature(coverage_attribute))]
 
-use core::panic;
 use std::{
     env,
     path::{Path, PathBuf},
@@ -30,6 +29,60 @@ fn source_dir() -> PathBuf {
     )
 }
 
+fn cpp_runtime(os: &str, vendor: &str, environment: &str, abi: &str) -> Option<&'static str> {
+    match (os, vendor, environment, abi) {
+        (_, "apple", _, _) | ("freebsd", _, _, _) | ("windows", _, "gnu", "llvm") => Some("c++"),
+        ("linux", _, _, _) | ("windows", _, "gnu", _) => Some("stdc++"),
+        _ => None,
+    }
+}
+
+fn configure_msvc(config: &mut cmake::Config, asan: bool) {
+    let target_features = env::var("CARGO_CFG_TARGET_FEATURE").unwrap_or_default();
+    let static_crt = target_features
+        .split(',')
+        .any(|feature| feature == "crt-static");
+    let runtime = if static_crt {
+        "MultiThreaded"
+    } else {
+        "MultiThreadedDLL"
+    };
+    if asan {
+        let arch = env::var("CARGO_CFG_TARGET_ARCH").expect("Cargo target architecture");
+        let arch = if arch == "x86" { "i386" } else { &arch };
+        let linker_flags = format!(
+            "clang_rt.asan_dynamic-{arch}.lib clang_rt.asan_dynamic_runtime_thunk-{arch}.lib"
+        );
+        config.define("CMAKE_EXE_LINKER_FLAGS", linker_flags);
+    }
+    let target = env::var("TARGET").expect("Cargo target triple");
+    let build_kind = if env::var("HOST").as_ref() == Ok(&target) {
+        "HOST"
+    } else {
+        "TARGET"
+    };
+    let generator = [
+        format!("CMAKE_GENERATOR_{target}"),
+        format!("CMAKE_GENERATOR_{}", target.replace('-', "_")),
+        format!("{build_kind}_CMAKE_GENERATOR"),
+        "CMAKE_GENERATOR".to_owned(),
+    ]
+    .iter()
+    .find_map(|key| env::var(key).ok());
+    if generator
+        .as_deref()
+        .map_or(cfg!(windows), |name| name.starts_with("Visual Studio"))
+    {
+        config.generator_toolset("ClangCL").define(
+            "CMAKE_VS_GLOBALS",
+            "UseMultiToolTask=true;EnforceProcessCountAcrossBuilds=true",
+        );
+    }
+    config
+        .static_crt(static_crt)
+        .define("CMAKE_MSVC_RUNTIME_LIBRARY", runtime);
+}
+
 #[cfg_attr(coverage_nightly, coverage(off))]
 /// Builds the JPEG XL library.
 ///
@@ -39,12 +92,23 @@ fn source_dir() -> PathBuf {
 pub fn build() {
     let source = source_dir();
     assert!(
-        source.exists() && source.is_dir(),
+        source.is_dir(),
         "Source directory {} does not exist",
         source.display()
     );
 
-    let mut config = cmake::Config::new(source);
+    let root = Path::new(env!("CARGO_MANIFEST_DIR"));
+    let source = env::current_dir()
+        .expect("build script working directory")
+        .join(source);
+    println!("cargo:rerun-if-env-changed=DEP_JXL_PATH");
+    println!(
+        "cargo:rerun-if-changed={}",
+        root.join("CMakeLists.txt").display()
+    );
+    println!("cargo:rerun-if-changed={}", source.display());
+    let mut config = cmake::Config::new(root);
+    config.define("LIBJXL_SOURCE_DIR", source);
     config
         .define("BUILD_TESTING", "OFF")
         .define("BUILD_SHARED_LIBS", "OFF")
@@ -62,84 +126,71 @@ pub fn build() {
         config.env("CMAKE_BUILD_PARALLEL_LEVEL", format!("{p}"));
     }
 
-    if cfg!(asan) {
+    let asan = env::var_os("CARGO_CFG_ASAN").is_some();
+    let tsan = env::var_os("CARGO_CFG_TSAN").is_some();
+    let sanitizer = if asan {
+        Some(("asan", "address"))
+    } else if tsan {
+        Some(("tsan", "thread"))
+    } else {
+        None
+    };
+    if let Some((name, kind)) = sanitizer {
+        let define = kind.to_ascii_uppercase();
+        let flags = format!("-g -D{define}_SANITIZER -fsanitize={kind}");
         config
-            .env("SANITIZER", "asan")
-            .cflag("-g -DADDRESS_SANITIZER -fsanitize=address")
-            .cxxflag("-g -DADDRESS_SANITIZER -fsanitize=address")
-            .define("JPEGXL_ENABLE_TCMALLOC", "OFF");
-    } else if cfg!(tsan) {
-        config
-            .env("SANITIZER", "tsan")
-            .cflag("-g -DTHREAD_SANITIZER -fsanitize=thread")
-            .cxxflag("-g -DTHREAD_SANITIZER -fsanitize=thread")
+            .env("SANITIZER", name)
+            .cflag(&flags)
+            .cxxflag(&flags)
             .define("JPEGXL_ENABLE_TCMALLOC", "OFF");
     }
 
-    #[cfg(windows)]
-    const {
-        assert!(!cfg!(tsan), "Thread sanitizer is not supported on Windows");
+    let target_os = env::var("CARGO_CFG_TARGET_OS").expect("Cargo target OS");
+    let target_env = env::var("CARGO_CFG_TARGET_ENV").expect("Cargo target environment");
+    let target_vendor = env::var("CARGO_CFG_TARGET_VENDOR").expect("Cargo target vendor");
+    if target_os == "windows" {
+        assert!(!tsan, "Thread sanitizer is not supported on Windows");
     }
-    if cfg!(windows) {
-        // For CMake pre-checking
-        let mut exeflags = "MSVCRTD.lib".to_string();
-        if cfg!(asan) {
-            exeflags.push_str(
-                " clang_rt.asan_dynamic-x86_64.lib clang_rt.asan_dynamic_runtime_thunk-x86_64.lib",
-            );
-        }
-
-        config
-            .generator_toolset("ClangCL")
-            .define(
-                "CMAKE_VS_GLOBALS",
-                "UseMultiToolTask=true;EnforceProcessCountAcrossBuilds=true",
-            ) // Enable parallel builds
-            .define("CMAKE_MSVC_RUNTIME_LIBRARY", "MultiThreaded")
-            .define("CMAKE_EXE_LINKER_FLAGS", exeflags)
-            .cflag("/Zl");
+    if target_env == "msvc" {
+        configure_msvc(&mut config, asan);
     }
 
     let prefix = config.build();
 
-    let lib_dir = {
-        let mut lib_dir = prefix.join("lib");
-        if lib_dir.exists() {
-            lib_dir
-        } else {
-            lib_dir.pop();
-            lib_dir.push("lib64");
-            if lib_dir.exists() {
-                lib_dir
-            } else {
-                panic!(
-                    "Could not find the library directory, please check the files in {}",
-                    prefix.display()
-                );
-            }
-        }
-    };
+    let lib_dir = [prefix.join("lib"), prefix.join("lib64")]
+        .into_iter()
+        .find(|dir| dir.is_dir())
+        .unwrap_or_else(|| panic!("Could not find lib or lib64 in {}", prefix.display()));
     println!("cargo:rustc-link-search=native={}", lib_dir.display());
 
-    println!("cargo:rustc-link-lib=static=jxl");
-    println!("cargo:rustc-link-lib=static=jxl_cms");
-    println!("cargo:rustc-link-lib=static=jxl_threads");
+    for library in [
+        "jxl",
+        "jxl_cms",
+        "jxl_threads",
+        "hwy",
+        "brotlidec",
+        "brotlienc",
+        "brotlicommon",
+    ] {
+        println!("cargo:rustc-link-lib=static={library}");
+    }
 
-    println!("cargo:rustc-link-lib=static=hwy");
-    println!("cargo:rustc-link-lib=static=brotlidec");
-    println!("cargo:rustc-link-lib=static=brotlienc");
-    println!("cargo:rustc-link-lib=static=brotlicommon");
-
-    if cfg!(any(target_vendor = "apple", target_os = "freebsd")) {
-        println!("cargo:rustc-link-lib=c++");
-    } else if cfg!(target_os = "linux") {
-        println!("cargo:rustc-link-lib=stdc++");
+    let target_abi = env::var("CARGO_CFG_TARGET_ABI").unwrap_or_default();
+    if let Some(runtime) = cpp_runtime(&target_os, &target_vendor, &target_env, &target_abi) {
+        println!("cargo:rustc-link-lib={runtime}");
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn mingw_runtimes_follow_the_target_abi() {
+        assert_eq!(cpp_runtime("windows", "pc", "gnu", "llvm"), Some("c++"));
+        assert_eq!(cpp_runtime("windows", "pc", "gnu", ""), Some("stdc++"));
+        assert_eq!(cpp_runtime("windows", "pc", "msvc", ""), None);
+    }
 
     #[test]
     #[cfg_attr(coverage_nightly, coverage(off))]

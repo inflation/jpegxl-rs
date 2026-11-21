@@ -67,7 +67,8 @@ impl Default for ThreadsRunner<'_> {
     }
 }
 
-impl ParallelRunner for ThreadsRunner<'_> {
+// SAFETY: the native runner is paired with its own live, thread-confined handle.
+unsafe impl ParallelRunner for ThreadsRunner<'_> {
     fn runner(&self) -> JxlParallelRunner {
         JxlThreadParallelRunner
     }

@@ -238,7 +238,7 @@ pub struct JxlBasicInfo {
 
     /// Padding for forwards-compatibility, in case more fields are exposed
     /// in a future version of the library.
-    _padding: [u8; 100],
+    _padding: [std::mem::MaybeUninit<u8>; 100],
 }
 
 /// Information for a single extra channel.

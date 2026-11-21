@@ -46,7 +46,8 @@ pub struct JxlGainMapBundle {
     pub has_color_encoding: JxlBool,
     /// If `has_color_encoding` is true, this field contains the
     /// uncompressed color encoding data.
-    pub color_encoding: JxlColorEncoding,
+    /// The reader leaves this field uninitialized when the encoding is absent.
+    pub color_encoding: std::mem::MaybeUninit<JxlColorEncoding>,
     /// Size of the alternative ICC profile in bytes (compressed
     /// size).
     pub alt_icc_size: u32,
@@ -60,6 +61,7 @@ pub struct JxlGainMapBundle {
     pub gain_map: *const u8,
 }
 
+#[cfg(any(feature = "vendored", feature = "system-extras", doc))]
 extern "C-unwind" {
     /// Calculates the total size required to serialize the gain map bundle into a
     /// binary buffer. This function accounts for all the necessary space to
@@ -131,4 +133,48 @@ extern "C-unwind" {
         input_buffer_size: usize,
         bytes_read: *mut usize,
     ) -> JxlBool;
+}
+
+#[cfg(all(test, any(feature = "vendored", feature = "system-extras")))]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn round_trip_without_color_encoding() {
+        // Version, metadata length, encoding length, ICC length, and opaque gain-map payload.
+        let input = [0, 0, 0, 0, 0, 0, 0, 0, 0xff, 0x0a];
+        let mut bundle = std::mem::MaybeUninit::uninit();
+        let mut size = 0;
+        // SAFETY: input outlives the bundle and all output pointers are writable.
+        unsafe {
+            assert_eq!(
+                JxlGainMapReadBundle(
+                    bundle.as_mut_ptr(),
+                    input.as_ptr(),
+                    input.len(),
+                    &raw mut size
+                ),
+                JxlBool::True
+            );
+            assert_eq!(size, input.len());
+            let bundle = bundle.assume_init();
+            assert_eq!(bundle.has_color_encoding, JxlBool::False);
+            assert_eq!(
+                JxlGainMapGetBundleSize(&raw const bundle, &raw mut size),
+                JxlBool::True
+            );
+            let mut output = vec![0; size];
+            assert_eq!(
+                JxlGainMapWriteBundle(
+                    &raw const bundle,
+                    output.as_mut_ptr(),
+                    output.len(),
+                    &raw mut size
+                ),
+                JxlBool::True
+            );
+            assert_eq!(size, input.len());
+            assert_eq!(output, input);
+        }
+    }
 }

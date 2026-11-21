@@ -23,7 +23,9 @@ use jpegxl_sys::{
     encoder::encode::*,
 };
 
-use super::{ColorEncoding, EncoderFrame, FrameSettings, ImageInfo, JxlEncoder, Metadata};
+use jpegxl_sys::color::color_encoding::{JxlColorEncoding, JxlColorSpace};
+
+use super::{EncoderFrame, FrameSettings, ImageInfo, JxlEncoder, Metadata};
 use crate::{common::PixelType, errors::EncodeError};
 
 /// An encoding session that is driven by the caller.
@@ -46,6 +48,7 @@ pub struct Session<'enc, 'prl, 'mm> {
     enc: &'enc mut JxlEncoder<'prl, 'mm>,
     output: Vec<u8>,
     last_frame: LastFrame,
+    boxes_enabled: bool,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -62,6 +65,7 @@ impl<'enc, 'prl, 'mm> Session<'enc, 'prl, 'mm> {
         info: Option<&ImageInfo>,
     ) -> Result<Self, EncodeError> {
         let session = Self {
+            boxes_enabled: enc.use_box || !enc.boxes.is_empty(),
             enc,
             output: Vec::new(),
             last_frame: LastFrame::None,
@@ -83,7 +87,7 @@ impl<'enc, 'prl, 'mm> Session<'enc, 'prl, 'mm> {
         }
         // SAFETY: `enc.enc` is valid until drop
         enc.check_enc_status(unsafe { JxlEncoderUseContainer(enc.enc, enc.use_container.into()) })?;
-        if enc.use_box {
+        if self.boxes_enabled {
             // SAFETY: `enc.enc` is valid until drop
             enc.check_enc_status(unsafe { JxlEncoderUseBoxes(enc.enc) })?;
         }
@@ -94,14 +98,16 @@ impl<'enc, 'prl, 'mm> Session<'enc, 'prl, 'mm> {
 
         // SAFETY: `JxlEncoderInitBasicInfo` initializes `info`
         let mut basic_info = unsafe {
-            let mut info = MaybeUninit::uninit();
+            // The C initializer leaves the reserved byte array untouched.
+            let mut info = MaybeUninit::zeroed();
             JxlEncoderInitBasicInfo(info.as_mut_ptr());
             info.assume_init()
         };
         basic_info.xsize = info.width;
         basic_info.ysize = info.height;
         basic_info.have_container = enc.use_container.into();
-        basic_info.uses_original_profile = enc.uses_original_profile.into();
+        basic_info.uses_original_profile =
+            (enc.uses_original_profile || enc.lossless == Some(true) || enc.quality == 0.0).into();
         basic_info.bits_per_sample = info.bits_per_sample;
         basic_info.exponent_bits_per_sample = info.exponent_bits_per_sample;
         if info.has_alpha {
@@ -115,7 +121,11 @@ impl<'enc, 'prl, 'mm> Session<'enc, 'prl, 'mm> {
             basic_info.animation.tps_denominator = animation.tps_denominator;
             basic_info.animation.num_loops = animation.num_loops;
         }
-        if let Some(ColorEncoding::SrgbLuma | ColorEncoding::LinearSrgbLuma) = enc.color_encoding {
+        let color_encoding = enc.color_encoding.as_ref().map(JxlColorEncoding::from);
+        if color_encoding
+            .as_ref()
+            .is_some_and(|c| c.color_space == JxlColorSpace::Gray)
+        {
             basic_info.num_color_channels = 1;
         }
         if let Some(target_intensity) = enc.target_intensity {
@@ -127,28 +137,31 @@ impl<'enc, 'prl, 'mm> Session<'enc, 'prl, 'mm> {
 
         // SAFETY: `enc.enc` is valid until drop
         enc.check_enc_status(unsafe { JxlEncoderSetBasicInfo(enc.enc, &raw const basic_info) })?;
-        if let Some(color_encoding) = &enc.color_encoding {
+        if let Some(color_encoding) = &color_encoding {
             // SAFETY: `enc.enc` is valid until drop
-            enc.check_enc_status(unsafe {
-                JxlEncoderSetColorEncoding(enc.enc, &color_encoding.into())
-            })?;
+            enc.check_enc_status(unsafe { JxlEncoderSetColorEncoding(enc.enc, color_encoding) })?;
         }
         Ok(())
     }
 
-    /// Add a metadata box
+    /// Add a metadata box. To add the first box after taking output, enable
+    /// `use_box` when building the encoder.
     ///
     /// # Errors
     /// Return [`EncodeError`] if it fails to add the box
     pub fn add_metadata(&mut self, metadata: &Metadata, compress: bool) -> Result<(), EncodeError> {
         let (t, data) = metadata.parts();
+        if !self.boxes_enabled {
+            // SAFETY: the encoder is valid for the session.
+            let status = unsafe { JxlEncoderUseBoxes(self.enc.enc) };
+            self.enc.check_enc_status(status)?;
+            self.boxes_enabled = true;
+        }
         self.add_box(t, data, compress)
     }
 
     fn add_box(&self, t: [u8; 4], data: &[u8], compress: bool) -> Result<(), EncodeError> {
         let enc = &*self.enc;
-        // SAFETY: `enc.enc` is valid until drop
-        enc.check_enc_status(unsafe { JxlEncoderUseBoxes(enc.enc) })?;
         // SAFETY: `enc.enc` is valid until drop
         enc.check_enc_status(unsafe {
             JxlEncoderAddBox(
@@ -189,8 +202,10 @@ impl<'enc, 'prl, 'mm> Session<'enc, 'prl, 'mm> {
             enc.check_enc_status(unsafe { JxlEncoderSetFrameLossless(ptr, lossless.into()) })?;
         }
         set(JxlEncoderFrameSettingId::Effort, settings.speed as _)?;
-        // SAFETY: `ptr` is valid until the encoder is reset
-        enc.check_enc_status(unsafe { JxlEncoderSetFrameDistance(ptr, settings.quality) })?;
+        if settings.lossless != Some(true) {
+            // SAFETY: `ptr` is valid until the encoder is reset.
+            enc.check_enc_status(unsafe { JxlEncoderSetFrameDistance(ptr, settings.quality) })?;
+        }
         set(
             JxlEncoderFrameSettingId::DecodingSpeed,
             settings.decoding_speed,
@@ -299,8 +314,11 @@ impl<'enc, 'prl, 'mm> Session<'enc, 'prl, 'mm> {
     ///
     /// # Errors
     /// Return [`EncodeError`] if the encoder fails, or [`EncodeError::InvalidState`]
-    /// if the last frame was already taken by `take_output`
+    /// if no frame was added or the last frame was already taken by `take_output`
     pub fn finish(mut self) -> Result<Vec<u8>, EncodeError> {
+        if self.last_frame == LastFrame::None {
+            return Err(EncodeError::InvalidState("no frame was added"));
+        }
         if self.last_frame == LastFrame::Taken {
             return Err(EncodeError::InvalidState(
                 "the last frame was written as a non-final frame",
@@ -318,7 +336,7 @@ impl<'enc, 'prl, 'mm> Session<'enc, 'prl, 'mm> {
         let Self { enc, output, .. } = self;
         loop {
             let start = output.len();
-            output.resize(start + enc.init_buffer_size.max(start), 0);
+            output.resize(start + enc.init_buffer_size.max(32).max(start), 0);
             let mut next_out = output[start..].as_mut_ptr();
             let mut avail_out = output.len() - start;
             // SAFETY: `next_out` and `avail_out` describe the unused tail of `output`

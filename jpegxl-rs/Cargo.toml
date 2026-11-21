@@ -1,16 +1,14 @@
 [package]
 categories = ["api-bindings", "encoding", "multimedia::images"]
 description = "Safe Rust wrapper for JPEG XL reference implementation"
-edition = "2021"
+edition.workspace = true
 keywords = ["jpeg-xl", "jxl"]
 license = "GPL-3.0-or-later"
 name = "jpegxl-rs"
 readme = "README.md"
-repository = "https://github.com/inflation/jpegxl-rs"
+repository.workspace = true
 version = "0.17.0+libjxl-0.13.0"
 rust-version.workspace = true
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [lints.rust]
 missing_docs = "warn"
@@ -40,17 +38,13 @@ path = "../jpegxl-sys"
 default-features = false
 
 [dev-dependencies]
-image = { version = "0.25", default-features = false, features = [
-    "jpeg",
-    "png",
-] }
+image = { version = "0.25", default-features = false, features = ["png"] }
 lcms2 = "6.1.1"
 pretty_assertions = "1.4.1"
 testresult = "0.4.1"
 
 [target.'cfg(not(target_family = "wasm"))'.dev-dependencies]
 criterion = "0.7.0"
-
 
 [package.metadata.docs.rs]
 rustdoc-args = ["--cfg", "docsrs"]

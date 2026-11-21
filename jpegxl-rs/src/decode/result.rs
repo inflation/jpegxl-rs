@@ -24,9 +24,9 @@ use crate::common::PixelType;
 /// Result of decoding
 #[derive(Debug)]
 pub struct Metadata {
-    /// Width of the image
+    /// Width of the returned image, or of its final layer when coalescing is disabled.
     pub width: u32,
-    /// Height of the image
+    /// Height of the returned image, or of its final layer when coalescing is disabled.
     pub height: u32,
     /// Upper bound on the intensity level present in the image in nits
     pub intensity_target: f32,
@@ -75,6 +75,10 @@ impl Pixels {
 /// Raw pixels with the format they were decoded to
 #[derive(Debug)]
 pub struct Image {
+    /// Width of this frame, preview, or extra channel.
+    pub width: u32,
+    /// Height of this frame, preview, or extra channel.
+    pub height: u32,
     /// Pixel format of `data`
     pub format: JxlPixelFormat,
     /// Pixel bytes. Rows are padded to the alignment of `format`
@@ -82,9 +86,27 @@ pub struct Image {
 }
 
 impl Image {
-    /// Convert the bytes to typed [`Pixels`]
+    /// Convert the bytes to tightly packed [`Pixels`], discarding scanline padding.
     #[must_use]
-    pub fn into_pixels(self) -> Pixels {
+    pub fn into_pixels(mut self) -> Pixels {
+        let bytes_per_sample = match self.format.data_type {
+            JxlDataType::Uint8 => 1,
+            JxlDataType::Uint16 | JxlDataType::Float16 => 2,
+            JxlDataType::Float => 4,
+        };
+        let row_bytes = self.width as usize * self.format.num_channels as usize * bytes_per_sample;
+        let height = self.height as usize;
+        if self.format.align > 1 && height > 1 {
+            let stride = row_bytes.next_multiple_of(self.format.align);
+            if stride != row_bytes {
+                for row in 1..height {
+                    let start = row * stride;
+                    self.data
+                        .copy_within(start..start + row_bytes, row * row_bytes);
+                }
+            }
+        }
+        self.data.truncate(height * row_bytes);
         Pixels::new(self.data, &self.format)
     }
 }
@@ -102,24 +124,21 @@ mod tests {
     use super::*;
 
     #[test]
-    #[cfg_attr(coverage_nightly, coverage(off))]
-    fn test_derive() {
-        println!(
-            "{:?}",
-            Metadata {
-                width: 0,
-                height: 0,
-                intensity_target: 0.0,
-                min_nits: 0.0,
-                orientation: Orientation::Identity,
-                num_color_channels: 0,
-                has_alpha_channel: false,
-                intrinsic_width: 0,
-                intrinsic_height: 0,
-                icc_profile: None,
-            }
-        );
-
-        println!("{:?}", Pixels::Float(vec![]));
+    fn into_pixels_ignores_row_padding_and_spare_buffer_space() {
+        let image = Image {
+            width: 1,
+            height: 2,
+            format: JxlPixelFormat {
+                num_channels: 1,
+                data_type: JxlDataType::Uint16,
+                endianness: crate::Endianness::Big,
+                align: 4,
+            },
+            data: vec![0, 1, 255, 255, 1, 0, 255, 255],
+        };
+        let Pixels::Uint16(values) = image.into_pixels() else {
+            panic!("expected u16 pixels")
+        };
+        assert_eq!(values, [1, 256]);
     }
 }

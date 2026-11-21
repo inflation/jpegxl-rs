@@ -237,6 +237,11 @@ impl JxlDecoder<'_, '_> {
             return Err(DecodeError::InvalidInput);
         }
 
+        // One-shot APIs return tightly packed samples.
+        let format = PixelFormat {
+            align: 0,
+            ..self.pixel_format.unwrap_or_default()
+        };
         let mut events = Events::FULL_IMAGE;
         if with_icc_profile {
             events |= Events::COLOR_ENCODING;
@@ -255,7 +260,7 @@ impl JxlDecoder<'_, '_> {
                     icc = Some(session.icc_profile(ColorProfileTarget::Data)?);
                 }
                 Event::NeedImageOutBuffer => {
-                    session.alloc_image_buffer(self.pixel_format.unwrap_or_default(), data_type)?;
+                    session.alloc_image_buffer(format, data_type)?;
                 }
                 Event::FullImage(img) => image = img,
                 Event::Jpeg(buf) => jpeg = Some(buf),
@@ -268,8 +273,8 @@ impl JxlDecoder<'_, '_> {
             .basic_info()
             .ok_or(DecodeError::InternalError("No basic info"))?;
         let metadata = Metadata {
-            width: info.xsize,
-            height: info.ysize,
+            width: image.as_ref().map_or(info.xsize, |frame| frame.width),
+            height: image.as_ref().map_or(info.ysize, |frame| frame.height),
             intensity_target: info.intensity_target,
             min_nits: info.min_nits,
             orientation: info.orientation,
@@ -376,17 +381,6 @@ impl Drop for JxlDecoder<'_, '_> {
         unsafe { JxlDecoderDestroy(self.dec) };
     }
 }
-
-// SAFETY: JxlDecoder can be safely sent between threads. The underlying libjxl
-// decoder does not store references to thread-local state. While libjxl uses a
-// thread-local LCMS context for color management (see lib/jxl/cms/jxl_cms.cc),
-// this context is looked up dynamically via GetContext() on each use, not stored
-// in the decoder. Moving a decoder to another thread will use that thread's
-// LCMS context for subsequent operations.
-//
-// Note: JxlDecoder is NOT Sync because the underlying C API is not safe for
-// concurrent access from multiple threads.
-unsafe impl Send for JxlDecoder<'_, '_> {}
 
 /// Return a [`JxlDecoderBuilder`] with default settings
 pub fn decoder_builder<'prl, 'mm>() -> JxlDecoderBuilder<'prl, 'mm> {

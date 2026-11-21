@@ -50,7 +50,7 @@ pub struct JxlEncoder<'prl, 'mm> {
     /// Opaque pointer to the underlying encoder
     enc: *mut jpegxl_sys::encoder::encode::JxlEncoder,
 
-    /// Set alpha channel for [`Self::encode`] and [`Self::encode_frame`].
+    /// Set the output alpha channel for [`Self::encode_frame`].
     /// A [`Session`] uses [`ImageInfo`] instead
     ///
     /// Default: false
@@ -66,7 +66,7 @@ pub struct JxlEncoder<'prl, 'mm> {
     /// Set quality for lossy compression: target max butteraugli distance, lower = higher quality
     ///
     ///  Range: 0 .. 15.<br />
-    ///    0.0 = mathematically lossless (however, use `lossless` to use true lossless). <br />
+    ///    0.0 requests lossless encoding. <br />
     ///    1.0 = visually lossless. <br />
     ///    Recommended range: 0.5 .. 3.0. <br />
     ///    Default value: 1.0. <br />
@@ -118,9 +118,8 @@ pub struct JxlEncoder<'prl, 'mm> {
     /// Boxes added to the next finished image
     boxes: Vec<([u8; 4], Vec<u8>, bool)>,
 
-    /// Set memory manager
-    #[allow(dead_code)]
-    memory_manager: Option<&'mm dyn MemoryManager>,
+    // The native encoder retains the allocator context until destruction.
+    _memory_manager: Option<&'mm dyn MemoryManager>,
 }
 
 #[bon]
@@ -166,14 +165,14 @@ impl<'prl, 'mm> JxlEncoder<'prl, 'mm> {
             use_container,
             uses_original_profile,
             decoding_speed,
-            init_buffer_size: init_buffer_size.map_or(512 * 1024, |v| if v < 32 { 32 } else { v }),
+            init_buffer_size: init_buffer_size.unwrap_or(512 * 1024).max(32),
             color_encoding,
             target_intensity,
             parallel_runner,
             use_box,
             options: Vec::new(),
             boxes: Vec::new(),
-            memory_manager,
+            _memory_manager: memory_manager,
         })
     }
 }
@@ -183,7 +182,6 @@ use jxl_encoder_builder::{IsUnset, SetQuality, State};
 impl<'prl, 'mm, S: State> JxlEncoderBuilder<'prl, 'mm, S> {
     /// Set the `quality` parameter from a JPEG-style quality factor (0-100, higher is better
     /// quality).
-    #[allow(dead_code)]
     pub fn jpeg_quality(self, quality: f32) -> JxlEncoderBuilder<'prl, 'mm, SetQuality<S>>
     where
         S::Quality: IsUnset,
@@ -290,8 +288,8 @@ impl<'prl, 'mm> JxlEncoder<'prl, 'mm> {
 
     /// Encode a JPEG XL image from pixels, with the bit depth of `T`
     ///
-    /// Note: Use RGB(3) channels, native endianness and no alignment.
-    /// Ignore alpha channel settings
+    /// Takes packed RGB samples in native byte order with `has_alpha` disabled.
+    /// For RGBA, use [`Self::encode_frame`] with four input channels and `has_alpha` enabled.
     ///
     /// # Errors
     /// Return [`EncodeError`] if the internal encoder fails to encode
@@ -329,17 +327,6 @@ impl Drop for JxlEncoder<'_, '_> {
     }
 }
 
-// SAFETY: JxlEncoder can be safely sent between threads. The underlying libjxl
-// encoder does not store references to thread-local state. While libjxl uses a
-// thread-local LCMS context for color management (see lib/jxl/cms/jxl_cms.cc),
-// this context is looked up dynamically via GetContext() on each use, not stored
-// in the encoder. Moving an encoder to another thread will use that thread's
-// LCMS context for subsequent operations.
-//
-// Note: JxlEncoder is NOT Sync because the underlying C API is not safe for
-// concurrent access from multiple threads.
-unsafe impl Send for JxlEncoder<'_, '_> {}
-
 /// Return a [`JxlEncoderBuilder`] with default settings
 pub fn encoder_builder<'prl, 'mm>() -> JxlEncoderBuilder<'prl, 'mm> {
     JxlEncoder::builder()
@@ -358,14 +345,6 @@ mod tests {
         assert_eq!(encoder.quality, 0.0);
         let encoder = encoder_builder().jpeg_quality(90.0).build()?;
         assert_eq!(encoder.quality, 1.0);
-        Ok(())
-    }
-
-    #[test]
-    fn test_metadata_queued() -> TestResult {
-        let mut encoder = encoder_builder().build()?;
-        encoder.add_metadata(&Metadata::Exif(&[0, 1, 2, 3]), true);
-        assert_eq!(encoder.boxes.len(), 1);
         Ok(())
     }
 }

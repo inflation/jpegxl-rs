@@ -1,17 +1,15 @@
 [package]
 categories = ["external-ffi-bindings", "encoding", "multimedia::images"]
 description = "Rust wrapper for JPEG XL reference implementation"
-edition = "2021"
+edition.workspace = true
 keywords = ["jpeg-xl", "jxl"]
 license = "GPL-3.0-or-later"
 links = "jxl"
 name = "jpegxl-sys"
 readme = "README.md"
-repository = "https://github.com/inflation/jpegxl-rs"
+repository.workspace = true
 version = "0.14.0+libjxl-0.13.0"
 rust-version.workspace = true
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [lints.rust]
 unexpected_cfgs = { level = "warn", check-cfg = ['cfg(coverage_nightly)'] }
@@ -42,3 +40,4 @@ pretty_assertions = "1.4.1"
 default = []
 vendored = ["dep:jpegxl-src"]
 docs = []
+system-extras = []

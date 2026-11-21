@@ -43,8 +43,13 @@ pub use jpegxl_sys::threads::parallel_runner::{
 use crate::decode::BasicInfo;
 
 /// JPEG XL Parallel Runner
+///
+/// # Safety
+/// The runner and its opaque pointer must be a valid pair for the lifetime
+/// of the borrow. The runner must follow the native initialization, range,
+/// thread index, and completion contracts in [`JxlParallelRunner`].
 #[allow(clippy::module_name_repetitions)]
-pub trait ParallelRunner {
+pub unsafe trait ParallelRunner {
     /// Get a [`JxlParallelRunner`] for the parallel runner.
     fn runner(&self) -> JxlParallelRunner;
 

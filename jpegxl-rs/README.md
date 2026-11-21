@@ -12,7 +12,7 @@
 [3]: https://deps.rs/repo/github/inflation/jpegxl-rs
 [4]: https://github.com/inflation/jpegxl-rs/actions?query=workflow%3ACI
 [5]: https://codecov.io/gh/inflation/jpegxl-rs
-[6]: https://github.com/inflation/jpegxl-rs/blob/master/LICENSE
+[6]: https://github.com/inflation/jpegxl-rs/blob/master/COPYING
 
 A safe JPEGXL wrapper over `libjxl` library. Check out the original [library](https://github.com/libjxl/libjxl)
 and the [bindings](https://github.com/inflation/jpegxl-rs/tree/master/jpegxl-sys).
@@ -25,7 +25,7 @@ To build `libjxl` and statically link it, use the `vendored` feature.
 
 ## Usage
 
-Currently, you can use `u8`, `u16`, `f16`, and `f32` as pixel types.
+Supported pixel types are `u8`, `u16`, `f16`, and `f32`.
 
 ### Decoding
 
@@ -123,10 +123,11 @@ let data = session.finish().unwrap();
 
 ### [`image`](https://crates.io/crates/image) crate integration
 
-By default, this integration uses the `image` integration.
-If you don't need it, turn off the `image` feature.
+The default `image` feature enables decoding into `image::DynamicImage`.
 
 ```rust
+# #[cfg(feature = "image")]
+# {
 use jpegxl_rs::image::ToDynamic;
 use jpegxl_rs::decoder_builder;
 use image::DynamicImage;
@@ -135,11 +136,12 @@ let sample = std::fs::read("../samples/sample.jxl").unwrap();
 let mut decoder = decoder_builder().build().unwrap();
 let img = decoder.decode_to_image(&sample).unwrap();
 let img = decoder.decode_to_image_with::<f32>(&sample).unwrap();
+# }
 ```
 
 ## MSRV
 
 Following the N-2 policy: the minimum supported Rust version is two releases behind the current stable.
-Currently: 1.92 (stable: 1.94)
+The workspace manifest declares the MSRV in `workspace.package.rust-version`.
 
 License: `GPL-3.0-or-later`
