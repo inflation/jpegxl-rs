@@ -125,20 +125,23 @@ mod tests {
 
     #[test]
     fn into_pixels_ignores_row_padding_and_spare_buffer_space() {
-        let image = Image {
-            width: 1,
-            height: 2,
-            format: JxlPixelFormat {
-                num_channels: 1,
-                data_type: JxlDataType::Uint16,
-                endianness: crate::Endianness::Big,
-                align: 4,
-            },
-            data: vec![0, 1, 255, 255, 1, 0, 255, 255],
-        };
-        let Pixels::Uint16(values) = image.into_pixels() else {
-            panic!("expected u16 pixels")
-        };
-        assert_eq!(values, [1, 256]);
+        for (width, height, data, expected) in [
+            (1, 2, vec![0, 1, 255, 255, 1, 0, 255, 255], vec![1, 256]),
+            (2, 2, vec![0, 1, 1, 0, 0, 2, 2, 0], vec![1, 256, 2, 512]),
+            (1, 1, vec![0, 1, 255, 255], vec![1]),
+        ] {
+            let image = Image {
+                width,
+                height,
+                format: JxlPixelFormat {
+                    num_channels: 1,
+                    data_type: JxlDataType::Uint16,
+                    endianness: crate::Endianness::Big,
+                    align: 4,
+                },
+                data,
+            };
+            assert!(matches!(image.into_pixels(), Pixels::Uint16(values) if values == expected));
+        }
     }
 }
