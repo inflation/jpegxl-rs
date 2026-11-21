@@ -2,6 +2,21 @@
 
 ## [Unreleased]
 
+## [0.17.0+libjxl-0.13.0]
+
+### 🐛 Bug Fixes
+
+- [**breaking**] Correct codec session state and libjxl bindings - ([e84bb2e](https://github.com/inflation/jpegxl-rs/commit/e84bb2e1851d09fbf069e5f75eac3388eca46d60))
+
+### 🧪 Testing
+
+- Cover MSVC configuration and streaming codec boundaries - ([4870065](https://github.com/inflation/jpegxl-rs/commit/4870065f4af2e605cc6f8cf5df66567a8bdb296f))
+
+### Dep
+
+- Update libjxl to v0.13.0 - ([0b0bcfc](https://github.com/inflation/jpegxl-rs/commit/0b0bcfc43dccad8c197907594cae39f2b9523a38))
+
+
 ## [0.16.0+libjxl-0.12.0](https://github.com/inflation/jpegxl-rs/compare/jpegxl-rs-v0.15.0+libjxl-0.12.0...jpegxl-rs-v0.16.0+libjxl-0.12.0)
 
 ### ⚠️ Migration
