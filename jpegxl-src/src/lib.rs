@@ -70,6 +70,20 @@ impl MsvcOptions {
     }
 }
 
+/// The `CMAKE_BUILD_PARALLEL_LEVEL` to set for the libjxl build, or `None` to keep the one of the
+/// environment. Without one, the build runs as many jobs as Cargo grants the build script
+/// (`NUM_JOBS`), and as many as there are processors outside Cargo.
+fn build_parallel_level(var: impl Fn(&str) -> Option<String>) -> Option<String> {
+    if var("CMAKE_BUILD_PARALLEL_LEVEL").is_some() {
+        return None;
+    }
+    var("NUM_JOBS").or_else(|| {
+        std::thread::available_parallelism()
+            .ok()
+            .map(|p| p.to_string())
+    })
+}
+
 #[cfg_attr(coverage_nightly, coverage(off))]
 /// Builds the JPEG XL library.
 ///
@@ -97,8 +111,9 @@ pub fn build() {
     let mut config = cmake::Config::new(root);
     config.define("LIBJXL_SOURCE_DIR", source);
 
-    if let Ok(p) = std::thread::available_parallelism() {
-        config.env("CMAKE_BUILD_PARALLEL_LEVEL", format!("{p}"));
+    println!("cargo:rerun-if-env-changed=CMAKE_BUILD_PARALLEL_LEVEL");
+    if let Some(level) = build_parallel_level(|key| env::var(key).ok()) {
+        config.env("CMAKE_BUILD_PARALLEL_LEVEL", level);
     }
 
     let sanitizer = if env::var_os("CARGO_CFG_ASAN").is_some() {
@@ -195,6 +210,37 @@ mod tests {
         let options = msvc_options(&vars);
         assert!(!options.clang_cl_toolset);
         assert!(!options.static_crt);
+    }
+
+    fn parallel_level(vars: &[(&str, &str)]) -> Option<String> {
+        build_parallel_level(|key| {
+            vars.iter()
+                .find(|(name, _)| *name == key)
+                .map(|(_, value)| (*value).to_owned())
+        })
+    }
+
+    #[test]
+    fn build_parallel_level_keeps_the_one_of_the_environment() {
+        assert_eq!(
+            parallel_level(&[("CMAKE_BUILD_PARALLEL_LEVEL", "2"), ("NUM_JOBS", "16")]),
+            None
+        );
+    }
+
+    #[test]
+    fn build_parallel_level_follows_the_cargo_job_count() {
+        assert_eq!(parallel_level(&[("NUM_JOBS", "3")]), Some("3".to_owned()));
+    }
+
+    #[test]
+    fn build_parallel_level_falls_back_to_the_processor_count() {
+        assert_eq!(
+            parallel_level(&[]),
+            std::thread::available_parallelism()
+                .ok()
+                .map(|p| p.to_string())
+        );
     }
 
     #[test]
